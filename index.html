@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isla Jaipó</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000; 
+            font-family: 'Courier New', Courier, monospace;
+        }
+        canvas { 
+            display: block; 
+            image-rendering: pixelated; 
+            image-rendering: crisp-edges;
+        }
+
+        /* PANTALLA DE CARGA (Aparece primero) */
+        #loading-screen {
+            position: absolute;
+            width: 100%; height: 100%;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px;
+            z-index: 300;
+        }
+
+        /* MENÚ INICIAL */
+        #main-menu {
+            position: absolute;
+            width: 100%; 
+            height: 100%;
+            background-color: #000;
+            display: none; 
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            z-index: 200;
+            overflow: hidden; /* Evitar que el mapa de fondo sobresalga */
+        }
+
+        #main-menu-bg {
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: auto;
+            z-index: -1;
+            will-change: transform; /* ACELERACIÓN POR HARDWARE (GPU) */
+            animation: pan-map 20s ease-in-out infinite; 
+        }
+
+        @keyframes pan-map {
+            0% { transform: translateY(0%); }
+            50% { transform: translateY(calc(100vh - 100%)); }
+            100% { transform: translateY(0%); }
+        }
+
+        /* EFECTO CRT TV PARA TODO EL JUEGO */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            /* Scanlines separadas: patrón de 5px de alto, 3px transparente, 2px oscuro (30% opacidad) */
+            background: linear-gradient(rgba(18, 16, 16, 0) 3px, rgba(0, 0, 0, 0.3) 3px), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.1), rgba(0, 255, 0, 0.05), rgba(0, 0, 255, 0.1));
+            z-index: 9998;
+            background-size: 100% 5px, 3px 100%;
+            pointer-events: none;
+        }
+
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+            z-index: 9999;
+            pointer-events: none;
+            will-change: opacity; /* Optimización GPU */
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.95; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.95; }
+        }
+        
+        .blinking-text {
+            color: #ffffff;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 20px; /* Reducido un poco para compensar la fuente ancha */
+            margin-bottom: 15%;
+            text-shadow: 4px 4px 0px #000;
+            animation: blinker 1s linear infinite;
+            position: relative;
+            z-index: 5;
+            text-align: center;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+        /* OVERLAY DE PAUSA (In-Game) */
+        #pause-menu {
+            position: absolute;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: #ff3333;
+            z-index: 10;
+        }
+        .pause-box {
+            text-align: center;
+            border: 2px solid #ff3333;
+            padding: 30px;
+            background-color: rgba(0,0,0,0.5);
+        }
+        /* HUD IN-GAME */
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+        }
+        #interaction-msg {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            color: #ffeb3b;
+            font-size: 24px;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+        }
+        #stamina-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 20px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid white;
+            display: none;
+            z-index: 50;
+        }
+        #stamina-bar {
+            width: 100%;
+            height: 100%;
+            background: #6b8e23; /* Verde Musgo */
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">Llaves: <span id="key-count">0</span></div>
+    <div id="interaction-msg">Presiona E para interactuar</div>
+    <div id="stamina-container"><div id="stamina-bar"></div></div>
+    
+    <!-- Pantallas de UI -->
+    <div id="loading-screen">CARGANDO MUNDO...</div>
+
+    <div id="main-menu">
+        <img id="main-menu-bg" src="./imagenes/Mapa/mapa_menu.jpg?v=4" alt="Fondo">
+        <div class="blinking-text" id="start-text">Presiona Enter para jugar</div>
+    </div>
+
+    <div id="pause-menu">
+        <div class="pause-box">
+            <p style="font-size:40px; font-weight:bold; margin-top:0;">PAUSA</p>
+            <p style="font-size:20px;">CLICK PARA VOLVER AL JUEGO</p>
+            <p style="font-size:16px; color:#ffeb3b; margin-top:20px;">[M] - Minimapa | [Shift] - Correr | [T] - Antorcha</p>
+        </div>
+    </div>
+    
+    <div id="death-screen" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:black; color:red; text-align:center; z-index:1000; flex-direction:column; justify-content:center; align-items:center;">
+        <h1 style="font-size: 50px; font-family:'Courier New'; margin-bottom: 20px;">TE HAS AHOGADO</h1>
+        <button onclick="window.restartGame()" style="padding: 15px 30px; font-size: 20px; font-family:'Courier New'; background:red; color:black; border:none; cursor:pointer; font-weight:bold;">REINICIAR PARTIDA</button>
+    </div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="./game.js"></script>
+</body>
+</html>
