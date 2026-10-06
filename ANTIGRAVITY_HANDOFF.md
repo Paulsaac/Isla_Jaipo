@@ -8,7 +8,7 @@
 ---
 
 ## Estado Actual del Proyecto
-Este es un juego 3D de estética retro (Voxel / Dark Fantasy) construido sobre **Three.js** utilizando Vanilla JavaScript, HTML5 y CSS3. El diseño del mapa original fue extraído de un dibujo en MS Paint usando un script de Python (`generate_map_v5.py`), y ha evolucionado significativamente hacia un motor más complejo.
+Este es un juego 3D de estética retro (Voxel / Dark Fantasy) construido sobre **Three.js** utilizando Vanilla JavaScript, HTML5 y CSS3. El diseño del mapa original fue extraído de dibujos en MS Paint usando un script de Python. Actualmente usa un sistema de dos capas de imágenes (`mapa_final.png` y `mapa_final_capa_2.png`), donde la segunda capa define elementos sobre el terreno base.
 
 ### Hitos y Trabajos Realizados Hasta Ahora:
 *   **Filtro CRT Global:** Se implementó un filtro CRT retro (scanlines y parpadeo) mediante CSS (`body::before` y `body::after`) para mantener la interfaz y el juego cohesivos.
@@ -19,6 +19,8 @@ Este es un juego 3D de estética retro (Voxel / Dark Fantasy) construido sobre *
 *   **Océano Global:** El agua ya no usa instancias individuales (`InstancedMesh`). Ahora es un plano masivo (`globalWaterMesh`) posicionado en `Y = -0.05` con texturas animadas mediante repetición (`RepeatWrapping`).
 *   **Físicas de Nado:** Al sumergirse, la cámara se desvincula del lecho marino. El jugador comienza a flotar inmediatamente al ras del nivel del mar y recupera su altura de forma suave al salir de la costa.
 *   **Ciclo Día/Noche:** Existe un timer global de 242 segundos que interpola iluminación ambiental, direccional, niebla y opacidades del cielo (Skybox diurno interpolándose sobre el nocturno). *NOTA ACTUAL: El ciclo se encuentra temporalmente **PAUSADO** mediante código en la función `animate()`. El juego permanecerá congelado en la fase nocturna hasta que el usuario decida reanudarlo.*
+*   **Ajustes de Gameplay y Atmósfera:** Se desactivó la modalidad de escalada en montañas y se redujo la fuerza de salto a la mitad (`JUMP_FORCE = 7.5`). La atmósfera nocturna se oscureció y se refinó la luz de la antorcha: se ajustó su intensidad base a `5.0` y su **radio de alcance a `320`**, moviendo además su posición focal a `X=1.0`.
+*   **Mapa Multicapa y Techos Piramidales:** Se implementó la carga paralela de `mapa_final.png` (terreno) y `mapa_final_capa_2.png` (elementos superpuestos). Los techos ahora se generan como estructuras piramidales usando `Distance Transform` (BFS) para calcular la distancia a los bordes. Se corrigió el anclaje para que descansen perfectamente sobre los muros y se capó la altitud a un máximo de 3 bloques (niveles) para no extenderse infinitamente. También se agregaron antorchas y elementos decorativos leídos de la segunda capa.
 
 ### Consideraciones Técnicas Importantes:
 *   La variable `floorCanvas` ya no se renderiza en la escena 3D como una imagen para evitar superposiciones de colores sólidos en el relieve de arena, **solo se utiliza internamente para generar el minimapa en la esquina superior derecha**.
@@ -26,3 +28,12 @@ Este es un juego 3D de estética retro (Voxel / Dark Fantasy) construido sobre *
 
 ---
 *Fin del registro de handoff.*
+
+### Actualización (Refinamientos del Terreno, Colisiones y Texturas):
+*   **Físicas de Colisión de Techo (Fix Crítico):** Se corrigió la lógica que empujaba al jugador hacia el suelo. Anteriormente, el techo estaba calculado como una altura fija absoluta (`1.9`m), lo que aplastaba al jugador contra el suelo (o debajo de él) al subir de elevación. Ahora se calcula dinámicamente sumando la altura actual del terreno más la altura de la pared.
+*   **Elevación de Terreno (Smooth Slopes):** Se elevó el nivel base de la hierba y la casa de la isla para que domine el paisaje sin verse invadido por las colinas onduladas generadas por el ruido Perlin. Ahora la transición de arena a hierba es de exactamente `0.8` metros (la mitad de la altura del jugador).
+*   **Mapeo de Muros (Triplanar Removido):** Se retiró el Shader Triplanar experimental de las paredes, devolviendo el control al mapeo UV nativo de los `BoxGeometry`. Esto asegura que las texturas personalizadas como `muro.png` de 128x128 encajen perfectamente bloque por bloque sin rotarse 90 grados en ciertas caras.
+*   **Agujeros Fantasma (InstancedMesh Fix):** Se corrigió una fuga en el contador del `InstancedMesh` para el suelo de madera. Una condición lógica duplicaba el conteo de baldosas de `WOOD`, excediendo la capacidad asignada a la GPU y provocando que las últimas baldosas desaparecieran visualmente y dejaran hoyos que permitían ver bajo el mapa.
+*   **Head Bobbing (Mareo y Hundimiento):** Se atenuó significativamente la amplitud del balanceo de cabeza (`bobTimer`) de 15cm a 4cm. Esto elimina la ilusión óptica de que el personaje "se hunde" de golpe al soltar la tecla de caminar.
+*   **Cache-Busters para Texturas:** Se inyectó código para engañar a la memoria caché del navegador (`Date.now()`) al cargar texturas a través del `TextureLoader`. Esto garantiza que siempre se vean los archivos `.png` o `.jpg` más recientes tras recargar la página, acelerando la prueba de assets del artista.
+*   **Ciclo de la Luna:** Se refinó la lógica de animación crossfade de la luna para que rote entre 4 texturas de fase (`Luna_B`, `Luna_glow`, `Luna_azul`, `Luna_glow`) exactamente cada `0.8` segundos.

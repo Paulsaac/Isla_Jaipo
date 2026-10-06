@@ -5,7 +5,7 @@ Verde: Pasto
 Verde Oscuro: Hierba alta
 Verde Lima: Puerta desbloqueada
 
-Azul Turquesa Oscuro: Bote
+Rosa Oscuro: Bote
 Rosado: Puerta con llave
 Gris Azulado: Plaza Central
 Negro: Arboles
@@ -19,6 +19,12 @@ Rojo Oscuro: Madera
 Blanco: Cumbre Nevada
 Gris: Muros
 Azul Oscuro: Punto de Spawn
+
+Azul Cielo: Antorchas
+
+Turquesa Claro: Otros
+
+Azul Turquesa Oscuro: Techo
 
 
 
