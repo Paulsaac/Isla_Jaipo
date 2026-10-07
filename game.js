@@ -13,7 +13,7 @@ const SPRINT_MULTIPLIER = 2.8;
 // Físicas verticales
 let velocityY = 0;
 const GRAVITY = 50.0;
-const JUMP_FORCE = 7.5;
+const JUMP_FORCE = 9.0;
 let canJump = true;
 let isCrouching = false;
 let isRunning = false;
@@ -281,7 +281,7 @@ document.addEventListener('keydown', (e) => {
             if (!isFlying && !isRidingBoat) { if (canJump) { velocityY = JUMP_FORCE; canJump = false; } }
             moveState.up = true;
             break;
-        case 'ControlLeft': case 'ControlRight': isCrouching = true; moveState.down = true; break;
+        case 'KeyC': case 'ControlLeft': case 'ControlRight': isCrouching = true; moveState.down = true; break;
         case 'ShiftLeft': case 'ShiftRight': isRunning = true; break;
         case 'KeyM': 
             if (mapLoaded && minimapContainer) {
@@ -315,7 +315,7 @@ document.addEventListener('keyup', (e) => {
         case 'KeyA': moveState.left = false; break;
         case 'KeyD': moveState.right = false; break;
         case 'Space': moveState.up = false; break;
-        case 'ControlLeft': case 'ControlRight': isCrouching = false; moveState.down = false; break;
+        case 'KeyC': case 'ControlLeft': case 'ControlRight': isCrouching = false; moveState.down = false; break;
         case 'ShiftLeft': case 'ShiftRight': isRunning = false; break;
     }
 });
@@ -382,7 +382,7 @@ function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationM
     
     if (type === 'WATER' || type === 'BOAT') {
         y -= 2.0; 
-    } else if (['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'SAND'].includes(type)) {
+    } else if (['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'SAND', 'BUSH'].includes(type)) {
         // Large rolling hills (scale = 3.0 tiles)
         let macroNoise = getSmoothNoise(colF, rowF, 3.0) * 0.4;
         // Medium details (scale = 1.0 tiles)
@@ -410,26 +410,27 @@ let aguaFloorMat = null;
 
 const PALETTE = {
     WATER: {r:0, g:162, b:232},
-    GRASS: {r:0, g:255, b:0},
-    TALL_GRASS: {r:34, g:177, b:76}, // Verde Oscuro MS Paint
-    DOOR_UNLOCKED: {r:181, g:230, b:29}, // Verde Lima
-    DOOR_LOCKED: {r:255, g:174, b:201}, // Rosado
-    PLAZA: {r:112, g:146, b:190}, // Gris azulado
-    TREE: {r:0, g:0, b:0},
-    SAND: {r:255, g:201, b:14}, // Amarillo oro
-    DIRT: {r:255, g:242, b:0}, // Amarillo claro
-    MOUNTAIN: {r:163, g:73, b:164}, // Purpura MS Paint
-    PEAK: {r:200, g:191, b:231}, // Lavanda MS Paint
-    WOOD: {r:185, g:122, b:87},
-    CHEST: {r:255, g:0, b:0},
-    INDOOR_FLOOR: {r:136, g:0, b:21}, // Rojo oscuro
-    BUSH: {r:0, g:128, b:0}, // Verde muy oscuro
+    GRASS: {r:0, g:128, b:0},
+    TALL_GRASS: {r:34, g:177, b:76},
+    BUSH: {r:60, g:47, b:127},
+    DOOR_UNLOCKED: {r:0, g:0, b:0},
+    DOOR_LOCKED: {r:181, g:230, b:29},
+    OTHER: {r:112, g:146, b:190},
+    TREE: {r:127, g:127, b:127},
+    SAND: {r:255, g:201, b:14},
+    DIRT: {r:237, g:28, b:36},
+    MOUNTAIN: {r:185, g:122, b:87},
+    PEAK: {r:200, g:191, b:231},
+    WOOD: {r:255, g:242, b:0},
+    CHEST: {r:255, g:174, b:201},
+    INDOOR_FLOOR: {r:136, g:0, b:21},
     SNOW_PEAK: {r:255, g:255, b:255},
-    BUILDING: {r:128, g:128, b:128},
-    POI: {r:0, g:0, b:139}, // Azul Oscuro para Punto de Spawn
-    BOAT: {r:23, g:63, b:63}, // Azul Turquesa Oscuro (Bote / Techo)
-    TORCH: {r:153, g:217, b:232}, // Azul Cielo
-    OTHER: {r:115, g:249, b:251} // Turquesa Claro
+    BUILDING: {r:163, g:73, b:164},
+    POI: {r:63, g:72, b:204},
+    BOAT: {r:210, g:20, b:90},
+    ROOF: {r:0, g:96, b:100},
+    TORCH: {r:153, g:217, b:234},
+    OTHER2: {r:178, g:235, b:242}
 };
 
 const FLOOR_COLORS = {
@@ -447,12 +448,13 @@ const FLOOR_COLORS = {
     WOOD: '#452209',
     CHEST: '#450000',
     INDOOR_FLOOR: '#450000',
-    BUSH: '#008000',
+    BUSH: '#3C2F7F',
     SNOW_PEAK: '#808080',
     BUILDING: '#404040',
     POI: '#452209', // Color de madera para el spawn
     BOAT: '#173F3F',
     TORCH: '#99D9EA',
+    OTHER2: '#B2EBF2',
     OTHER: '#73F9FB'
 };
 
@@ -647,11 +649,11 @@ const onImageLoad = () => {
 
 mapImage.onload = onImageLoad;
 mapImage.onerror = () => { loadingScreen.innerHTML = `<span style="color:red;">ERROR: No se encontró 'mapa_final.png'</span>`; };
-mapImage.src = './imagenes/Mapa/mapa_final.png';
+mapImage.src = './imagenes/Mapa/capa1.png?v=' + Date.now();
 
 roofImage.onload = onImageLoad;
 roofImage.onerror = () => { loadingScreen.innerHTML = `<span style="color:red;">ERROR: No se encontró 'mapa_final_capa_2.png'</span>`; };
-roofImage.src = './imagenes/Mapa/mapa_final_capa_2.png';
+roofImage.src = './imagenes/Mapa/capa2.png?v=' + Date.now();
 
 function createMinimapUI(floorCanvas) {
     if (minimapContainer) return; 
@@ -714,7 +716,7 @@ function buildWorld(image, roofImage) {
     floorMap = new Array(mapHeight).fill(0).map(() => new Array(mapWidth).fill('GRASS'));
     roofMap = new Array(mapHeight).fill(0).map(() => new Array(mapWidth).fill(false));
     
-    const counts = { PINO1: 0, PINO2: 0, ALAMO1: 0, ALAMO2: 0, ARAU1: 0, ARAU2: 0, BUSH1: 0, BUSH2: 0, BUILDING: 0, MOUNTAIN: 0, PEAK: 0, SNOW_PEAK: 0, WEED1: 0, WEED2: 0, WEED3: 0, CEILING: 0, ROOF: 0, GRASS_FLOOR: 0, DIRT_FLOOR: 0, ARENA_FLOOR: 0, AGUA_FLOOR: 0, MADERA_FLOOR: 0, BASE_FLOOR: 0, TORCH: 0, OTHER: 0 };
+    const counts = { PINO1: 0, PINO2: 0, ALAMO1: 0, ALAMO2: 0, ARAU1: 0, ARAU2: 0, BUSH1: 0, BUSH2: 0, BUILDING: 0, MOUNTAIN: 0, PEAK: 0, SNOW_PEAK: 0, WEED1: 0, WEED2: 0, WEED3: 0, CEILING: 0, ROOF: 0, GRASS_FLOOR: 0, DIRT_FLOOR: 0, ARENA_FLOOR: 0, AGUA_FLOOR: 0, MADERA_FLOOR: 0, BASE_FLOOR: 0, TORCH: 0, OTHER: 0, BUSH: 0 };
     playerStartX = mapWidth / 2;
     playerStartZ = mapHeight / 2;
 
@@ -748,7 +750,8 @@ function buildWorld(image, roofImage) {
                 const isArbusto1 = ((x * 19 + z * 7) % 2) === 0;
                 if (isArbusto1) counts.BUSH1++; else counts.BUSH2++;
             } else if (type === 'TALL_GRASS') {
-                const weedVariant = ((x * 13 + z * 7) % 3);
+                const rand = ((x * 13 + z * 7) % 100);
+                const weedVariant = rand % 3;
                 if (weedVariant === 0) counts.WEED1++;
                 else if (weedVariant === 1) counts.WEED2++;
                 else counts.WEED3++;
@@ -766,7 +769,7 @@ function buildWorld(image, roofImage) {
                 counts.MADERA_FLOOR++; // Margen seguro por si son antorchas de interior en capa 1
             }
             
-            if (type === 'GRASS' || type === 'TALL_GRASS' || type === 'TREE') counts.GRASS_FLOOR++;
+            if (type === 'GRASS' || type === 'TALL_GRASS' || type === 'TREE' || type === 'BUSH') counts.GRASS_FLOOR++;
             else if (type === 'DIRT') counts.DIRT_FLOOR++;
             else if (type === 'SAND') counts.ARENA_FLOOR++;
             else if (type === 'WATER' || type === 'BOAT') counts.AGUA_FLOOR++;
@@ -871,7 +874,7 @@ function buildWorld(image, roofImage) {
     const alamo2Mesh = new THREE.InstancedMesh(planeGeo, alamo2Mat, counts.ALAMO2 * 2);
     const arau1Mesh = new THREE.InstancedMesh(planeGeo, arau1Mat, counts.ARAU1 * 2);
     const arau2Mesh = new THREE.InstancedMesh(planeGeo, arau2Mat, counts.ARAU2 * 2);
-    const bushGeo = new THREE.PlaneGeometry(WALL_HEIGHT * 1.5, WALL_HEIGHT * 1.5);
+    const bushGeo = new THREE.PlaneGeometry(UNIT_SIZE * 2.0, WALL_HEIGHT * 1.6);
     const arbusto1Mesh = new THREE.InstancedMesh(bushGeo, arbusto1Mat, counts.BUSH1 * 2);
     const arbusto2Mesh = new THREE.InstancedMesh(bushGeo, arbusto2Mat, counts.BUSH2 * 2);
     const weed1Mesh = new THREE.InstancedMesh(grassPlaneGeo, weed1Mat, counts.WEED1 * 2);
@@ -901,7 +904,19 @@ function buildWorld(image, roofImage) {
     for (let z = 0; z < mapHeight; z++) {
         for (let x = 0; x < mapWidth; x++) {
             if (floorMap[z][x] === 'WATER' || floorMap[z][x] === 'BOAT' || x === 0 || x === mapWidth-1 || z === 0 || z === mapHeight-1) {
-                distQueue.push({r: z, c: x, dist: 0});
+                let bordersLand = false;
+                for (let dz = -1; dz <= 1; dz++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const nz = z + dz, nx = x + dx;
+                        if (nz >= 0 && nz < mapHeight && nx >= 0 && nx < mapWidth) {
+                            const nt = floorMap[nz][nx];
+                            if (nt !== 'WATER' && nt !== 'BOAT') bordersLand = true;
+                        }
+                    }
+                }
+                if (bordersLand || x === 0 || x === mapWidth-1 || z === 0 || z === mapHeight-1) {
+                    distQueue.push({r: z, c: x, dist: 0});
+                }
                 elevationMap[z][x] = 0;
             }
         }
@@ -1052,9 +1067,9 @@ function buildWorld(image, roofImage) {
                 }
             }
             
-            if ((rType === 'TORCH' || rType === 'OTHER' || type === 'TORCH' || type === 'OTHER') && 
+            if ((rType === 'TORCH' || rType === 'OTHER2' || type === 'TORCH' || type === 'OTHER2') && 
                 !['BUILDING', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK', 'CHEST'].includes(type)) {
-                let isTorch = false;
+                let isTorch = false; window.activeLightsCount = window.activeLightsCount || 0; const MAX_LIGHTS = 40;
                 for(let r = Math.max(0, z-1); r <= Math.min(mapHeight-1, z+1); r++) {
                     for(let c = Math.max(0, x-1); c <= Math.min(mapWidth-1, x+1); c++) {
                         if (['BUILDING', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK'].includes(floorMap[r][c])) {
@@ -1064,7 +1079,12 @@ function buildWorld(image, roofImage) {
                 }
                 
                 if (isTorch) {
-                    const wLight = new THREE.PointLight(0xff8800, 12.0, 40, 1.0);
+                    const posX = x * UNIT_SIZE;
+                    const posZ = z * UNIT_SIZE;
+                    const wallH = type === 'BUILDING' ? WALL_HEIGHT : 0;
+                    const isBlueTorch = (type === 'OTHER2' || rType === 'OTHER2');
+                    
+                    
                     
                     let wallX = posX, wallZ = posZ;
                     if (x > 0 && ['BUILDING','MOUNTAIN','PEAK','SNOW_PEAK'].includes(floorMap[z][x-1])) wallX -= 0.9;
@@ -1073,9 +1093,17 @@ function buildWorld(image, roofImage) {
                     else if (z < mapHeight-1 && ['BUILDING','MOUNTAIN','PEAK','SNOW_PEAK'].includes(floorMap[z+1][x])) wallZ += 0.9;
 
                     const torchBaseH = Math.max(baseH, elevationMap[z][x]);
-                    wLight.position.set(wallX, torchBaseH + 1.6, wallZ);
-                    scene.add(wLight);
-                    flickerLights.push({ light: wLight, baseIntensity: 12.0 });
+                    
+                    worldTorches.push({x: wallX, z: wallZ, y: torchBaseH + 1.6, px: wallX, pz: wallZ, py: torchBaseH + 1.6, isBlue: isBlueTorch});
+
+                    if (window.activeLightsCount < MAX_LIGHTS) {
+
+                        const wLight = new THREE.PointLight(isBlueTorch ? 0x00A2E8 : 0xffa500, 12, 10);
+                        wLight.position.set(wallX, torchBaseH + 1.6, wallZ);
+                        scene.add(wLight);
+                        flickerLights.push({ light: wLight, baseIntensity: 12.0 });
+                        window.activeLightsCount++;
+                    }
 
                     const spriteMat = new THREE.SpriteMaterial({ map: torchFrames[0], transparent: true, fog: false, depthWrite: false });
                     const torchSprite = new THREE.Sprite(spriteMat);
@@ -1084,9 +1112,13 @@ function buildWorld(image, roofImage) {
                     scene.add(torchSprite);
                     torchSprites.push(torchSprite);
                 } else {
-                    const l = new THREE.PointLight(0x4488ff, 4.0, 25, 2);
-                    l.position.set(posX, baseH + 0.5, posZ);
-                    scene.add(l);
+                    if (window.activeLightsCount < MAX_LIGHTS) {
+                        const isBlueTorch = (type === 'OTHER2' || rType === 'OTHER2');
+                        const l = new THREE.PointLight(isBlueTorch ? 0x00A2E8 : 0xffa500, 4.0, 25, 2);
+                        l.position.set(posX, baseH + 0.5, posZ);
+                        scene.add(l);
+                        window.activeLightsCount++;
+                    }
                 }
             }
 
@@ -1119,7 +1151,7 @@ function buildWorld(image, roofImage) {
                 else arau2Mesh.setMatrixAt(idxArau2++, dummy.matrix);
             } else if (type === 'BUSH') {
                 const isArbusto1 = ((x * 19 + z * 7) % 2) === 0;
-                dummy.position.set(posX, baseH + ((WALL_HEIGHT*1.5)/2) - 0.5, posZ);
+                dummy.position.set(posX, baseH + ((WALL_HEIGHT*1.6)/2) - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 if(isArbusto1) arbusto1Mesh.setMatrixAt(idxBUSH1++, dummy.matrix); else arbusto2Mesh.setMatrixAt(idxBUSH2++, dummy.matrix);
@@ -1128,7 +1160,8 @@ function buildWorld(image, roofImage) {
                 dummy.updateMatrix();
                 if(isArbusto1) arbusto1Mesh.setMatrixAt(idxBUSH1++, dummy.matrix); else arbusto2Mesh.setMatrixAt(idxBUSH2++, dummy.matrix);
             } else if (type === 'TALL_GRASS') {
-                const weedVariant = ((x * 13 + z * 7) % 3);
+                const rand = ((x * 13 + z * 7) % 100);
+                const weedVariant = rand % 3;
                 dummy.position.set(posX, baseH + ((WALL_HEIGHT*0.8)/2) - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
@@ -1213,7 +1246,7 @@ function buildWorld(image, roofImage) {
             // Pisos especiales (Madera)
             // Si la antorcha fue pintada en la capa 1 y está en interior, restauramos el piso de madera
             let needsWoodFloor = (type === 'INDOOR_FLOOR' || type === 'DOOR_UNLOCKED' || type === 'DOOR_LOCKED' || type === 'WOOD' || type === 'CHEST');
-            if (!needsWoodFloor && (type === 'TORCH' || type === 'OTHER')) {
+            if (!needsWoodFloor && (type === 'TORCH' || type === 'OTHER2')) {
                 // Chequear si debe ser antorcha (está cerca de rojo oscuro)
                 let isTorchLocal = false;
                 for(let r = Math.max(0, z-1); r <= Math.min(mapHeight-1, z+1); r++) {
@@ -1287,7 +1320,7 @@ function buildWorld(image, roofImage) {
         
         // Pesos para texturas: R=Pasto, G=Tierra, B=Arena, A=Cimientos
         let wGrass = 0, wDirt = 0, wSand = 0, wBase = 0;
-        if (['GRASS', 'TALL_GRASS', 'TREE'].includes(type)) wGrass = 1;
+        if (['GRASS', 'TALL_GRASS', 'TREE', 'TORCH', 'OTHER2', 'BUSH'].includes(type)) wGrass = 1;
         else if (type === 'DIRT') wDirt = 1;
         else if (['SAND', 'WATER', 'BOAT'].includes(type)) wSand = 1;
         else wBase = 1;
@@ -1418,7 +1451,7 @@ function buildWorld(image, roofImage) {
     let bestTorch = null;
     let minDist = Infinity;
     worldTorches.forEach(t => {
-        let d = Math.sqrt(Math.pow(t.x - playerStartX, 2) + Math.pow(t.z - playerStartZ, 2));
+        let d = Math.sqrt(Math.pow(t.x - playerStartX * UNIT_SIZE, 2) + Math.pow(t.z - playerStartZ * UNIT_SIZE, 2));
         if (d > 0 && d < minDist) { minDist = d; bestTorch = t; }
     });
 
@@ -1429,9 +1462,9 @@ function buildWorld(image, roofImage) {
     let grahamY = elevationMap[playerStartZ][playerStartX] + (1.9 / 2);
 
     if (bestTorch) {
-        grahamX = bestTorch.px + 0.5;
-        grahamZ = bestTorch.pz;
-        grahamY = bestTorch.py - 0.5 + (1.9 / 2); // restamos 0.5 porque el torch.py esta elevado en la pared
+        grahamX = (bestTorch.x ?? bestTorch.px) + 0.5;
+        grahamZ = (bestTorch.z ?? bestTorch.pz);
+        grahamY = (bestTorch.y ?? bestTorch.py) - 0.5 + (1.9 / 2); // restamos 0.5 porque la antorcha esta elevada en la pared
     }
 
     // Generar al NPC Graham como un Billboard 3D iluminable (MeshPhongMaterial)
@@ -1450,6 +1483,7 @@ function buildWorld(image, roofImage) {
     grahamSprite.userData = { type: 'NPC' };
     scene.add(grahamSprite);
     interactables.push(grahamSprite);
+    
     createMinimapUI(floorCanvas);
 }
 
@@ -1647,36 +1681,54 @@ function animate() {
             }
             
             if (moonIsAlternating) {
-                // Cada fase dura 1.5s. Son 4 fases, as que el ciclo entero dura 6 segundos.
-                moonCycle = (moonCycle + delta * (1.0 / 0.8)) % 4.0;
+                // Avanzar ciclo: cada fase dura 0.8s (delta * (1.0 / 0.8))
+                moonCycle += delta * (1.0 / 0.8);
+
+                let glowOp = 0;
+                let azulOp = 0;
+
+                if (moonCycle < 15.0) {
+                    // Fase 1: Ciclo de 3 sprites (Luna_B -> Luna_glow -> Luna_azul -> Luna_glow -> Luna_B)
+                    // Se ejecuta durante 4 parpadeos (en el 4to parpadeo culmina en Luna_glow a los 15.0s)
+                    const subCycle = moonCycle % 4.0;
+                    if (subCycle < 1.0) {
+                        glowOp = subCycle;
+                    } else if (subCycle < 2.0) {
+                        glowOp = 1.0;
+                        azulOp = subCycle - 1.0;
+                    } else if (subCycle < 3.0) {
+                        glowOp = 1.0;
+                        azulOp = 3.0 - subCycle;
+                    } else {
+                        glowOp = 4.0 - subCycle;
+                    }
+                } else {
+                    // Fase 2: Después de 4 parpadeos, pasar a ciclo de 2 sprites: solo luna con glow y luna azul
+                    glowOp = 1.0;
+                    const twoCycle = (moonCycle - 15.0) % 2.0;
+                    if (twoCycle < 1.0) {
+                        azulOp = twoCycle;
+                    } else {
+                        azulOp = 2.0 - twoCycle;
+                    }
+                }
+
+                // Suavizado sine-ease-in-out para que las transiciones sean orgánicas
+                const smoothGlow = (Math.sin(glowOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
+                const smoothAzul = (Math.sin(azulOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
+
+                moonGlowMat.opacity = smoothGlow;
+                moonAzulMat.opacity = smoothAzul;
             } else {
-                // Volver a reposo rpidamente
-                if (moonCycle > 0.0) {
-                    moonCycle -= delta * 2.0;
-                    if (moonCycle < 0.0) moonCycle = 0.0;
+                // Volver a reposo rápidamente si el jugador deja de mirar a la luna
+                moonCycle = 0.0;
+                if (moonGlowMat.opacity > 0.0) {
+                    moonGlowMat.opacity = Math.max(0.0, moonGlowMat.opacity - delta * 2.0);
+                }
+                if (moonAzulMat.opacity > 0.0) {
+                    moonAzulMat.opacity = Math.max(0.0, moonAzulMat.opacity - delta * 2.0);
                 }
             }
-            
-            let glowOp = 0;
-            let azulOp = 0;
-            if (moonCycle < 1.0) {
-                glowOp = moonCycle;
-            } else if (moonCycle < 2.0) {
-                glowOp = 1.0;
-                azulOp = moonCycle - 1.0;
-            } else if (moonCycle < 3.0) {
-                glowOp = 1.0;
-                azulOp = 3.0 - moonCycle;
-            } else {
-                glowOp = 4.0 - moonCycle;
-            }
-            
-            // Suavizado sine-ease-in-out para que las transiciones sean orgnicas
-            const smoothGlow = (Math.sin(glowOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
-            const smoothAzul = (Math.sin(azulOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
-            
-            moonGlowMat.opacity = smoothGlow;
-            moonAzulMat.opacity = smoothAzul;
             
             // Animación de la estrella fugaz
             if (starSprite && starSprite.visible) {
@@ -1787,8 +1839,8 @@ function animate() {
 
         const waterSpeedMod = isRidingBoat ? 1.5 : (inWater ? 0.4 : 1.0);
 
-        if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * (isRunning ? SPRINT_MULTIPLIER : 1) * waterSpeedMod * delta;
-        if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * (isRunning ? SPRINT_MULTIPLIER : 1) * waterSpeedMod * delta;
+        if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * waterSpeedMod * delta;
+        if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * waterSpeedMod * delta;
 
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
@@ -1802,8 +1854,8 @@ function animate() {
         if (isFlying) {
             controlObj.position.x += dx;
             controlObj.position.z += dz;
-            if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * (isRunning ? SPRINT_MULTIPLIER : 1) * delta;
-            if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * (isRunning ? SPRINT_MULTIPLIER : 1) * delta;
+            if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * delta;
+            if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * delta;
             
             velocityY = 0;
             stamina = STAMINA_MAX;
