@@ -2,3 +2,6 @@
 __pycache__/
 .vscode/
 
+# Estado local cooperativo; no compartir bloqueos entre checkouts.
+.coordination/
+

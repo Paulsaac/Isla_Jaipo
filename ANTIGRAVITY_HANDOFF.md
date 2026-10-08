@@ -1,5 +1,9 @@
 # Registro de Progreso y Handoff de Antigravity (Isla Jaipo)
 
+## Protocolo compartido vigente (2026-10-08)
+Actualización de cierre: mantener la sesión entre ajustes y escribir documentación solo cuando el usuario indique que se finiquita. Operaciones Git únicamente con autorización explícita; las instrucciones históricas siguientes no son autorización automática. Ver docs/PROTOCOL.md.
+Antes de editar, leer `AGENTS.md`, `docs/PROTOCOL.md`, `HANDOFF.md` y `DECISIONS.md`, y adquirir la sesión con `tools/session.ps1`. Al cerrar, actualizar `HANDOFF.md` y liberar la sesión. Este archivo conserva el historial: los valores y nombres antiguos deben contrastarse con el código. El estado vigente está en `HANDOFF.md`; no duplicarlo aquí. Las reglas siguientes de pull/push no autorizan ejecutar esas operaciones automáticamente.
+
 **¡ATENCIÓN, AGENTE DE ANTIGRAVITY!**
 **INSTRUCCIÓN OBLIGATORIA DE TRABAJO:**
 1. **AL INICIAR (PULL):** Cada vez que realices un `git pull` o clones este repositorio para comenzar a trabajar, **lo primero que debes hacer es leer este archivo completo** para comprender el estado actual del proyecto, las decisiones técnicas tomadas y el contexto del código.

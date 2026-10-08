@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coordenadas de Isla Jaipó</title>
+<style>body{margin:24px;background:#161b22;color:#eee;font:16px system-ui}main{display:flex;gap:24px;flex-wrap:wrap}canvas{max-width:100%;height:auto;image-rendering:pixelated;border:1px solid #aaa;cursor:crosshair}button{display:block;margin:8px 0;padding:8px;background:#283443;color:white;border:1px solid #718096;border-radius:4px}p{max-width:850px}#position{font-family:monospace;color:#ffdf80}</style>
+<h1>Coordenadas del mundo</h1>
+<p>Herramienta de desarrollo. X es la columna y Z la fila, desde cero en la esquina superior izquierda. Cada celda equivale a 2 unidades del mundo. Haz clic en el mapa o selecciona un cofre para ver su ubicación. Esta página no modifica el juego.</p>
+<p id="position">Cargando mapa…</p><main><canvas id="map"></canvas><aside><h2>Cofres del mapa</h2><div id="chests"></div></aside></main>
+<script type="module">
+import {loadMapImage} from '../src/world/map-loader.js';
+import {getClosestType} from '../src/world/map-decoder.js';
+import {gridToWorld} from '../src/world/coordinates.js';
+const canvas=document.getElementById('map'),ctx=canvas.getContext('2d'),label=document.getElementById('position');
+try {
+ const image=await loadMapImage('../imagenes/Mapa/capa1.png');canvas.width=image.width;canvas.height=image.height;ctx.drawImage(image,0,0);
+ const pixels=ctx.getImageData(0,0,image.width,image.height).data,chests=[];
+ for(let z=0;z<image.height;z++)for(let x=0;x<image.width;x++){const i=(z*image.width+x)*4;if(getClosestType(...pixels.subarray(i,i+4))==='CHEST')chests.push({x,z});}
+ function draw(selected){ctx.drawImage(image,0,0);ctx.font='bold 13px monospace';for(const [i,p]of chests.entries()){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.strokeRect(p.x-5,p.z-5,10,10);ctx.fillStyle='#000';ctx.fillRect(p.x+7,p.z-10,25,17);ctx.fillStyle='#fff';ctx.fillText(String(i+1),p.x+9,p.z+3);}if(selected){ctx.strokeStyle='#ff2222';ctx.strokeRect(selected.x-8,selected.z-8,16,16);}}
+ function select(p){const w=gridToWorld(p.x,p.z);label.textContent=`Mapa: X=${p.x}, Z=${p.z} · Mundo: X=${w.x}, Z=${w.z}`;draw(p);}
+ for(const [i,p]of chests.entries()){const b=document.createElement('button');b.textContent=`Cofre ${i+1}: X=${p.x}, Z=${p.z}`;b.onclick=()=>select(p);document.getElementById('chests').appendChild(b);}
+ canvas.onclick=e=>{const r=canvas.getBoundingClientRect();select({x:Math.min(image.width-1,Math.floor((e.clientX-r.left)*image.width/r.width)),z:Math.min(image.height-1,Math.floor((e.clientY-r.top)*image.height/r.height))});};draw();label.textContent=`Mapa ${image.width} × ${image.height}; ${chests.length} cofres.`;
+}catch(e){label.textContent=e.message;}
+</script></html>
