@@ -1,6 +1,14 @@
 // Valores vigentes del juego. No contiene estado mutable.
 export const UNIT_SIZE = 2;
-export const WALL_HEIGHT = 2.2;
+export const WALL_HEIGHT = 2.662;
+export const DOOR_HEIGHT = 2.0;
+export const DOOR_SIDE_MARGIN = 0.2;
+export const VEGETATION_HEIGHT = 2.2;
+export const TORCH_MOUNT_HEIGHT = 1.76;
+export const NIGHT_SKY_ROTATION_SPEED = Math.PI * 2 / (20 * 60); // Una vuelta cada 20 minutos.
+export const MANUAL_SKY_TRANSITION_SECONDS = 3;
+export const WATER_SURFACE_HEIGHT = -0.05;
+export const BOAT_FLOAT_HEIGHT = WATER_SURFACE_HEIGHT + 0.1;
 export const PLAYER_HEIGHT = 1.6;
 export const MOVEMENT_SPEED = 20.0;
 export const FRICTION = 8.0;

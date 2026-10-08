@@ -1,6 +1,7 @@
 // Datos del mapa: conservar los colores usados por los assets existentes.
 export const PALETTE = {
     WATER: {r:0, g:162, b:232},
+    WATER_ROCK: {r:50, g:130, b:246}, // #3282F6: río y lago con fondo rocoso
     GRASS: {r:0, g:128, b:0},
     TALL_GRASS: {r:34, g:177, b:76},
     BUSH: {r:60, g:47, b:127},
@@ -27,6 +28,7 @@ export const PALETTE = {
 
 export const FLOOR_COLORS = {
     WATER: '#1F7068',
+    WATER_ROCK: '#1F7068',
     GRASS: '#004400',
     TALL_GRASS: '#004400',
     DOOR_UNLOCKED: '#452209',

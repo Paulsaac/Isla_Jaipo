@@ -24,13 +24,17 @@ Son módulos ES nativos: no hay empaquetador ni dependencia nueva. Servir la car
 
 ## Desarrollo y relevo
 - Servidor local sin dependencias: `node tools/serve.cjs`, en http://127.0.0.1:8000/. Su proceso debe permanecer activo; si termina, el navegador rechaza la conexión.
-- `src/world/mountain-height.js`: crecimiento acumulativo de las tres bandas, reconstrucción del relieve bajo caminos/construcciones y escala a altura anterior. game.js nivela la plataforma de cumbre y construye mallas.
+- `src/world/mountain-height.js`: relieve por bandas y meseta blanca. game.js nivela la plataforma de la casa; mountain-path.js limita la altura según el trazado y mantiene un perfil compartido por render y física (cumbre actual ~76).
+- `src/world/mountain-slope.js`: rampa aproximadamente lineal de la banda marrón hacia el borde de nieve, preservando el camino y las demás alturas.
+- `src/world/roof-height.js`: cota común por cubierta continua para evitar desniveles heredados del suelo.
+- `src/world/door-opening.js`: orientación, ancho y márgenes compartidos por geometría y colisiones; puertas dobles sin pilar central.
 - `src/world/surfaces.js`: cobertura de madera, excluyendo antorchas exteriores. terrain-height.js comparte pendientes con la física y ajusta tierra bajo pisos a su altura real.
 - `src/systems/torch-lighting.js`: hasta 12 luces reutilizadas, transiciones exteriores por distancia y tiempo, potencia diferenciada para interiores y consulta de iluminación para Graham.
 - `AGENTS.md`, `docs/PROTOCOL.md`, `HANDOFF.md`, `DECISIONS.md`: instrucciones y memoria compartida.
 - `tools/session.ps1`: propiedad cooperativa de la sesión local; no valida gameplay.
 - Scripts Python, patch*.py y test*.js de la raíz: herramientas históricas, todavía sin reorganizar. Leer antes de ejecutar; algunas escriben código o imágenes.
 - `package.json`: herramientas Node de desarrollo; no controla la carga de los módulos en el navegador. Mantiene su configuración CommonJS original.
+- Publicación estática: `.nojekyll` y `docs/PUBLISHING.md`; GitHub Pages desde main, carpeta raíz. No requiere package.json ni node_modules.
 
 ## Continuación gradual
 La lectura devuelve width, height, basePixels y roofPixels. prepareMap los transforma en matrices, conteos y minimapa; buildWorld recibe ese resultado y construye las mallas. Las matrices de colisión siguen siendo mutables durante la partida para abrir puertas y retirar cofres. El ajuste final a un spawn seguro permanece en game.js.

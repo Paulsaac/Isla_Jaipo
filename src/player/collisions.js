@@ -1,4 +1,5 @@
 import { UNIT_SIZE, COLLISION_RADIUS } from '../config.js';
+import { getDoorOpening } from '../world/door-opening.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
 export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat) {
@@ -32,7 +33,12 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         if (gZ < 0 || gZ >= mapHeight || gX < 0 || gX >= mapWidth) return true;
 
         const cell = collisionMap[gZ][gX];
-        if (['MOUNTAIN','PEAK','SNOW_PEAK'].includes(cell)) {
+        if (['DOOR_UNLOCKED','DOOR_LOCKED'].includes(floorMap[gZ][gX])) {
+            const opening=getDoorOpening(floorMap,gX,gZ);
+            const offset=opening.isHorizontal?pX-gX*UNIT_SIZE:pZ-gZ*UNIT_SIZE;
+            if(offset < -UNIT_SIZE/2+opening.leftMargin || offset > UNIT_SIZE/2-opening.rightMargin) return true;
+        }
+        if (['MOUNTAIN','PEAK'].includes(cell)) {
             // Unir tramos diagonales del camino con un corredor de ancho transitable.
             let onPath=false;
             for(let rz=gZ-1;rz<=gZ+1&&!onPath;rz++) for(let rx=gX-1;rx<=gX+1&&!onPath;rx++) {
@@ -46,9 +52,9 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
                 }
             }
             if(!onPath) return true;
-        } else if (cell && cell !== 'TREE' && cell !== 'BUSH') return true;
+        } else if (cell && cell !== 'TREE' && cell !== 'BUSH' && cell !== 'SNOW_PEAK') return true;
 
-        if (isRidingBoat && floorMap[gZ][gX] !== 'WATER' && floorMap[gZ][gX] !== 'BOAT') return true;
+        if (isRidingBoat && !['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[gZ][gX])) return true;
     }
     return false;
 }

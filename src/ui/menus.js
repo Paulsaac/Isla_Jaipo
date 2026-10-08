@@ -7,6 +7,7 @@ export function createMenus({ onResume }) {
     const dialogText = document.getElementById('dialog-text');
     const keyCountDisplay = document.getElementById('key-count');
     const heartIcon = document.getElementById('forest-heart-icon');
+    const torchIcon = document.getElementById('torch-icon');
 
     pauseMenu.addEventListener('click', onResume);
     inventoryMenu.addEventListener('click', onResume);
@@ -28,6 +29,7 @@ export function createMenus({ onResume }) {
     function hideDialog() { dialogBox.style.display = 'none'; }
     function setKeyCount(count) { keyCountDisplay.innerText = count; }
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; }
+    function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; }
 
-    return { hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible };
+    return { hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible };
 }

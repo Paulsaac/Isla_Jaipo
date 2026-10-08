@@ -9,6 +9,7 @@ Esta documentación esta sincronizada con `estructura_color.md` y `capa1.png`.
 | Elemento | Color Visual | Codigo HEX | RGB (R, G, B) |
 | :--- | :--- | :--- | :--- |
 | **Agua** | Turquesa | `#00A2E8` | `0, 162, 232` |
+| **Río y lago con fondo rocoso** | Azul | `#3282F6` | `50, 130, 246` |
 | **Pasto** | Verde Oscuro | `#008000` | `0, 128, 0` |
 | **Hierba Alta** | Verde | `#22B14C` | `34, 177, 76` |
 | **Arena** | Dorado | `#FFC90E` | `255, 201, 14` |
@@ -28,21 +29,26 @@ Esta documentación esta sincronizada con `estructura_color.md` y `capa1.png`.
 | **Spawn** | Azul Oscuro | `#3F48CC` | `63, 72, 204` |
 | **Antorcha Normal** | Azul Cielo | `#99D9EA` | `153, 217, 234` |
 | **Antorcha Azul** | Turquesa Claro | `#B2EBF2` | `178, 235, 242` |
+| **Antorcha exterior** | Gris Azulado | `#50727A` | `80, 114, 122` |
 | **Arbusto** | Añil | `#3C2F7F` | `60, 47, 127` |
 
 ## Capa 2: Superposiciones (capa2.png)
 
-**REGLA ESTRICTA:** Esta capa es **exclusiva** para los Techos. Todo lo dems debe estar pintado en la Capa 1 y el fondo de esta capa debe ser 100% transparente.
+Esta capa define techos y admite marcadores de antorchas superpuestas. Preferir fondo transparente; el fondo blanco histórico no genera techo. Mantener la cobertura de techo alineada con los muros de capa1 al mover edificios. Las antorchas exteriores se registran en una matriz independiente y no sustituyen techos.
 
 | Elemento | Color Visual | Cdigo HEX | RGB (R, G, B) |
 | :--- | :--- | :--- | :--- |
 | **Techo** | Azul Turquesa Oscuro | `#006064` | `0, 96, 100` |
+| **Antorcha** | Azul Cielo | `#99D9EA` | `153, 217, 234` |
+| **Antorcha azul** | Turquesa Claro | `#B2EBF2` | `178, 235, 242` |
+| **Antorcha exterior** | Gris Azulado | `#50727A` | `80, 114, 122` |
 
 ## Reglas de Lgica:
+* `#3282F6` identifica río y lago; `#00A2E8` identifica el resto del agua. Ambos generan fondo de `imagenes/Texturas/rocas.jpg`, con mezcla suave hacia las texturas vecinas y superficie animada con opacidad 0.66. Conservan profundidad, movimiento, resistencia y navegación; no generan montaña ni obstáculos.
 * Donde haya Rojo Oscuro (`#880015`) indicando superficie caminable interna, debe haber Techo (`#006064` en Capa 2) cubriendo esa zona.
 * La relacin de crecimiento en altura entre las montaas y cumbres debe ser paulatina y natural (Caf -> Lavanda -> Blanco).
-* El agua (`#00A2E8`) no debe permitir nadar. Solo se podr movilizar sobre los botes de madera (`#D2145A`).
-* Los cofres (`#FFAEC9`) deben contener llaves, hay 7 cofres y 7 puertas bloqueadas (`#B5E61D`).
+* El agua (`#00A2E8` y `#3282F6`) permite vadear el fondo somero y flotar a mayor profundidad, con resistencia y ahogamiento; los botes (`#D2145A`) conservan su navegación sobre ambos tipos.
+* Hay seis cofres (`#FFAEC9`): el configurado en (165,308) entrega el Corazón del Bosque y los otros cinco entregan llaves. Consultar docs/ENTITIES.md para la asignación vigente.
 * Una vez consumida una llave desaparece del inventario.
 * El jugador siempre comienza desde el punto Azul Oscuro (`#3F48CC`).
 * La altura mnima de los Muros (`#A349A4`) debe ser el doble de la altura del personaje.

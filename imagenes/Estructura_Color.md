@@ -1,8 +1,11 @@
 
 
+Los conteos originales de esta tabla son históricos y no se recalculan automáticamente al editar capa1. La fila #3282F6 corresponde a su incorporación en esta sesión. La paleta vigente está en src/world/palette.js y las reglas en Regla de colores.md.
+
 |Código HEX|RGB (R, G, B)|Pixeles Encontrados|Que genera en el juego? (Según Regla Actual)|
 |-|-|-|-|
 |`#00A2E8` |`0, 162, 232`|130,724|**Agua**|
+|`#3282F6` |`50, 130, 246`|11,118 (capa1, 2026-10-08)|**Río y lago: agua con fondo rocoso (`rocas.jpg`), bordes de textura suavizados**|
 |`#008000` |`0, 128, 0`|58,900|**Pasto**|
 |`#FFC90E` |`255, 201, 14`|19,971|**Arena**|
 |`#B97A57` |`185, 122, 87`|14,522|**Montaña**|

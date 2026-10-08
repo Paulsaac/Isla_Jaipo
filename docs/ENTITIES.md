@@ -19,5 +19,10 @@ Los cofres sin configuración continúan dando una llave. Un cofre configurado c
 
 No hay guardado persistente. Recargar reinicia la misión. Reiniciar después de morir conserva el progreso de sesión y los cofres retirados, igual que el comportamiento previo del inventario.
 
+## Graham y antorcha del jugador
+Graham está configurado en (231,422). Al completar su diálogo inicial entrega una única antorcha apagada. Antes de esa entrega no aparece en el inventario y T no la activa. El icono ocupa el primer casillero, mide 72x72 píxeles y gira 45 grados a la derecha; el corazón ocupa el segundo y mide 64 píxeles de alto. La posesión se conserva al morir dentro de la sesión y se reinicia al recargar.
+
+La casa de montaña ocupa actualmente X=148..157, Z=124..132, con puerta en (148,128). Su techo de capa2 se trasladó a X=147..158, Z=123..133; al mover la construcción, revisar también esa capa y sus antorchas.
+
 ## Ubicación del corazón
 El usuario confirmó el cofre 4: celda X=165, Z=308; mundo X=330, Z=616. Los otros cinco cofres conservan llaves. La numeración de la herramienta depende del orden de lectura del mapa; el identificador persistente de contenido es forest-heart-chest y su celda configurada.

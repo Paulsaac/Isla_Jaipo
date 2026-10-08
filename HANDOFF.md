@@ -1,43 +1,52 @@
 # Estado vigente y relevo
 
-Fecha: 2026-10-08 (America/Santiago)
-Último agente: Codex.
-Estado: sesión finiquitada por solicitud del usuario; relevo disponible. Envío a origin/main autorizado en este cierre; confirmar resultado con git log y origin/main. El bloqueo local debe quedar libre al finalizar el envío.
-Rama: main. Base antes del cierre: 2daac49. El commit de cierre se identifica por el mensaje «Improve demo architecture, terrain, lighting and summit access»; consultar git log y origin/main para confirmar el envío, sin depender de este texto.
+Fecha: 2026-10-08 (America/Santiago). Último agente: Codex.
+Sesión finiquitada por pedido del usuario. Commit y push a origin/main expresamente autorizados. El commit de este cierre se identifica por «Polish mountain, doors, lighting and demo interactions; prepare Pages». Confirmar el resultado con git log y origin/main; el documento se escribe antes del commit/push y no sustituye su comprobación.
+Rama: main. Base de esta sesión: 34b79198c21a8df0df8b9b423430dac6ac62341f. Liberar el bloqueo cooperativo al finalizar el cierre.
 
-## Producto y reglas vigentes
-- Juego web JavaScript/Three.js sin servicios nuevos. Demo: buscar Corazón del Bosque en cofre 4 (X=165,Z=308), llevarlo a Graham. Graham continúa buscando la llave y no la entrega; sin guardado persistente ni desbloqueo por fecha.
-- Graham: coordenadas configurables en src/content/entities.js, X=231,Z=422; altura de pies compensada por transparencia del sprite.
-- El usuario pidió mantener la sesión entre ajustes y actualizar los .md solamente cuando indique su cierre. No repetir estado Git en cada entrega. Cerrar no autoriza Git automáticamente; este cierre sí incluyó solicitud expresa de carga al repositorio.
+## Producto y coordinación
+- Juego web ligero JavaScript/Three.js 0.160.0, HTML y CSS; sin motores adicionales, bases de datos ni guardado persistente.
+- Demo: explorar, recoger Corazón del Bosque del cofre (165,308) y entregarlo a Graham. Graham sigue buscando la llave del puente; no la entrega ni hay desbloqueo por fecha.
+- Mantener la sesión entre ajustes. Documentación solo al cierre o cuando el usuario pide expresamente modificar un documento. Git requiere autorización explícita. Leer AGENTS.md, docs/PROTOCOL.md, este archivo y DECISIONS.md antes de editar y adquirir sesión mediante tools/session.ps1.
+- ANTIGRAVITY_HANDOFF.md conserva historia y enlace al protocolo; no duplicar allí el estado vigente.
 
-## Cambios incluidos
-- Módulos ES: configuración, diálogos, entidades, lectura/decodificación/preparación del mapa, coordenadas, terreno, colisiones, minimapa, menús, HUD, teclado, puertas y misión. game.js mantiene generación de geometría y movimiento. Incluir src/ al publicar.
-- Protocolo cooperativo, tools/session.ps1, AGENTS.md, docs/PROTOCOL.md y DECISIONS.md. ANTIGRAVITY_HANDOFF.md conserva historia y enlace al protocolo vigente.
-- tools/world-map.html permite consultar coordenadas y cofres; docs/ENTITIES.md explica configuración. Cofre del corazón confirmado por el usuario y objetivo probado por él.
-- Puertas: corregido desbloqueo con materiales en array; se preservan consumo de llaves y apertura/cierre.
-- Antorchas exteriores #50727A se registran independientemente de roofMap: no sustituyen techos ni generan madera. Hay 94 antorchas (19 exteriores del color indicado), todas con sprite de muro. Antorcha del jugador comienza apagada, T alterna, inventario muestra torch1.png.
-- Hasta 12 luces GPU. Exteriores: intensidad base 14.4, alcance 19.2, transición de distancia 44 a 20 unidades y suavizado temporal 0.85 segundos. Interiores: intensidad base 43.2, alcance 24, suavizado 0.35 segundos. Se preserva identidad de cada luz durante desvanecimiento y se evita reasignarla encendida.
-- Graham recibe relleno cálido ligado a luces próximas para compensar orientación del plano; no se modificó su imagen.
-- Suelo de madera comparte máscara/altura con física. Terreno continuo justo 0.02 bajo el piso, transición exterior de media celda. Texturas del terreno centradas respecto de muros y pasto bajo estructuras para evitar franja de cimientos.
-- Agua: corregida variable local que ocultaba material global y lo dejaba sin textura. Alterna Agua1/2/3; opacidad final 0.66. Arena y fondo cercano al agua forman pendiente progresiva, sin salto de dos metros. Relieve de tierra se suaviza hacia arena. Jugador sigue fondo somero y flota a suficiente profundidad, manteniendo resistencia/ahogamiento de la demo.
-- Montaña: mountain-height.js crea campos de distancia por banda (montaña/roca/nieve), sumando crecimiento y suavizando esquinas. Reconstituye relieve bajo caminos y construcciones. Escala a la altura máxima anterior calculada, actualmente 375 unidades. Plataforma del edificio de nieve y puerta a Y=375; aproxima terreno a plataforma en radio de 24 celdas. No trasladó el edificio en X/Z.
-- Camino DIRT visible sobre roca/nieve; colisiones permiten corredores en uniones diagonales del camino, manteniendo bloqueo fuera del camino. Física sigue pendientes cuando jugador está apoyado. Puerta de la cumbre sigue cerrada con llave.
-- tools/serve.cjs: servidor estático Node sin dependencias, localhost:8000, ejecutar node tools/serve.cjs. Si puerto ocupado, comprobar servidor existente antes de detener procesos. El proceso anterior respondió HTTP 200 al cierre; no se inició otro ni se detuvo el existente.
+## Resultado de esta sesión
+- Montaña: meseta blanca suavizada y transitable (caminar/saltar). Banda marrón #B97A57 forma rampa aproximadamente lineal entre pie y borde de nieve. Camino DIRT tiene perfil por distancia recorrida, entrada/llegada redondeadas y proyección sobre segmentos compartida por malla y física. Altura ajustada a pendiente natural y luego aumentada 15%; cumbre actual ~75.995, depende del mapa y del trazado.
+- Nuevos módulos: mountain-path.js, mountain-slope.js, roof-height.js y door-opening.js, todos en src/world/. Terrain-height recibe perfil opcional de camino. Nieve, camino y casa conservaron sus alturas al aplicar la última ladera marrón.
+- Terreno: una malla/material de mezcla para pasto, tierra, arena, piedra, roca y nieve. Pesos interpolados de celdas vecinas; se eliminaron copias completas de geometría por material. Aún hay ~4.18 millones de vértices: optimización pendiente.
+- Nuevo color de mapa #3282F6 (50,130,246), WATER_ROCK, identifica río/lago. Los dos tipos de agua y BOAT usan fondo de rocas.jpg, mezcla suave y superficie Agua1/2/3 con opacidad 0.66, Y=-0.05. Se conservaron pendiente litoral, flotación, resistencia y reglas de navegación. No existe roca.png en los assets; usuario autorizó rocas.jpg.
+- Botes: flotan con centro Y=0.05 y cubierta Y=0.25; jugador de pie con ojos Y=1.85. El bote permanece visible, sigue al jugador y vuelve a estar disponible para interacción al desembarcar. Ya no usa fondo submarino como apoyo.
+- Muros: WALL_HEIGHT=2.662. Puertas: DOOR_HEIGHT=2.0, márgenes laterales 0.2, dintel 0.662. Puertas simples ancho 1.6; hojas dobles ancho 1.8 sin pilar central. Marcos fijos independientes de hojas, apertura/llaves conservadas. Colisiones respetan márgenes y altura de paso. Vegetación permanece en escala anterior, independiente de altura de muros.
+- Techos continuos usan cota común basada en construcción para evitar irregularidades del terreno/agua. Casa de montaña actual X=148..157, Z=124..132; puerta (148,128). Se trasladaron solo 132 píxeles de techo en capa2, 26 celdas en X: cubierta X=147..158, Z=123..133. No se alteraron píxeles fuera del origen/destino. Copia previa en .coordination/.
+- Antorchas del mundo: montaje a 1.76 sobre apoyo; priorizar BUILDING sobre nieve/montaña y dejar 0.04 junto a cara del muro. Sprite y luz comparten posición. Se preservaron parámetros interiores 43.2/24, exteriores 14.4/19.2, hasta 12 luces reutilizadas con desvanecimiento exterior entre 44 y 20 unidades.
+- Graham permanece en (231,422); relleno cálido reducido 50%: máximo 0.225 y factor de iluminación local 0.06. Pinos y hierba alta tienen filtro de material #B0BED4; assets originales intactos.
+- Antorcha de mano ya no se posee al inicio: se entrega apagada al completar diálogo inicial de Graham. T requiere posesión; icono oculto hasta entrega. Completar introducción antes de diálogo de entrega del corazón si se encontró sin hablar primero. Cada nueva conversación empieza en primera línea; no duplica posesión.
+- Inventario: antorcha primer casillero, 72x72 y giro 45°; corazón segundo casillero, 64 px de alto. Pausa: acciones a izquierda y teclas a derecha. C es la única tecla de agacharse; Ctrl ya no activa ni cancela esa acción.
+- Cielo nocturno gira solo su cubo a una vuelta cada 20 minutos de juego; luna no gira. N alterna día/noche con función manual independiente de 3 s, reversible a mitad del cambio, sin repetición de tecla ni acción estando pausado. Ciclo automático de 242 s permanece comentado; transiciones originales 12 s de amanecer/25 s de anochecer conservadas.
+- GitHub Pages preparado con .nojekyll y docs/PUBLISHING.md. Corregidas cinco rutas cielo_dia → Cielo_dia para sistemas sensibles a mayúsculas. Juego mantiene rutas relativas y no necesita compilación. La API pública informó has_pages:false antes del push: falta activar Pages desde main, /(root). No afirmar despliegue público realizado.
 
-## Verificaciones realizadas
-- Sintaxis de módulos afectados mediante node --input-type=module --check y git diff --check.
-- Sesiones: adquisición exclusiva, rechazo de segunda sesión/token incorrecto y liberación válida, probados anteriormente.
-- Refactorizaciones: comparación de matrices/minimapa/colores con implementación original, equivalencia de consultas de terreno/colisiones antes de cambios de estética, pruebas de carga y controles en Puppeteer. Pausa, inventario, diálogo, teclas, puertas, ahogamiento y reinicio comprobados en pruebas anteriores; no constituyen recorrido integral de todo el juego.
-- Pruebas gráficas en Puppeteer con instrumentación solo de respuesta HTTP, sin hooks distribuidos. Carga sin pageerror; mapas reales 512x512.
-- Techos: ninguna celda ROOF de capa superior perdida, 19 celdas restauradas. Antorchas: sprites/luces, inicio apagado y T/Q comprobados. Suavizado exterior probado con distancias e intensidades normalizadas; sintaxis tras ampliarlo a 44 unidades.
-- Agua: comprobada alternancia de tres texturas; perfil de costa continuo y opacidad. Movimiento real playa/agua: descenso gradual, mayor caída por muestra ~0.026. Único 404 identificado en prueba: favicon.ico.
-- Montaña: carga sin pageerror, edificio/suelo/puerta a Y=375. Ruta encontrada de 61 celdas entre base (82,77) y acceso a puerta, con comprobación de colisiones a lo largo de segmentos diagonales. Prueba real subiendo tramo (107,116)->(108,117): separación mínima ojos/suelo ~1.56; sin cámara bajo terreno. No se recorrió toda la ruta con WASD.
-- Capturas auxiliares en .coordination/ (ignorado). Algunas vistas panorámicas usaron luz ambiental de prueba y retiraron niebla solo en navegador; la iluminación normal de juego no se alteró por esos ajustes de prueba.
+## Verificaciones
+- 25 módulos de game.js/src: sintaxis con node --input-type=module --check. git diff --check sin errores de formato; avisos habituales de conversión LF/CRLF.
+- Puppeteer local preexistente: cargas sin pageerror; instrumentación únicamente en respuestas HTTP de pruebas, sin hooks distribuidos.
+- Prueba final sin instrumentación bajo /Isla_Jaipo/, servidor temporal con nombres exactos: pantalla de carga terminada, menú inicial visible, antorcha oculta y recursos locales sin faltantes. No es un despliegue real en GitHub Pages.
+- Montaña: perfil sintético lineal comprobado; en mapa real última ladera cambió solo 23.878 celdas MOUNTAIN, cero cambios de altura en otros tipos, cumbre ~75.995. En ajustes anteriores se comprobó conexión del camino y movimiento/salto en nieve; no se recorrió íntegramente el mapa actual con WASD.
+- Agua #3282F6: 11.118 celdas reconocidas, ninguna sólida, profundidad -0.5..-2.5; pesos de texturas suman 1 y existen vértices de mezcla.
+- Puertas: 30 revisadas, paso central libre al abrir, márgenes sólidos, marcos permanecen fijos al abrir/cerrar. Puertas dobles con abertura continua. Último aumento de muros comprobado por constantes/sintaxis, no recorrido integral posterior.
+- Graham/antorcha: antes de introducción sin posesión/luz/icono, durante diálogo sin entrega anticipada, al completar icono visible y antorcha apagada; T funciona después; misión del corazón llega a delivered sin dar llave.
+- N: amanecer/anochecer, inversión a mitad, repetición ignorada y bloqueo en pausa comprobados. Rotación nocturna y luna fija comprobadas. Inventario verificado visualmente.
+- Casa del monte: techo anterior 0 celdas, nuevo 132 y todas las 90 celdas del recinto cubiertas. Seis antorchas a 0.04 del muro, altura coincidente. Diferencia de capa2: 264 píxeles (origen+destino), cero diferencias fuera de esas regiones.
+- Botes: ambos con cubierta sobre agua, ojos a 1.85 al navegar, bote visible con error de seguimiento 0, y ambos visibles a Y=0.05 después de desembarcar.
 
 ## Pendientes y límites
-- Usuario no pudo revisar última montaña por rechazo de conexión; servidor respondió durante cierre. Revisar manualmente tamaño/forma de montaña, camino completo de ida/vuelta, llegada y apertura de puerta con llave, interior de cumbre y techos. Algunas pendientes son pronunciadas por la altura solicitada.
-- Plataforma infiere construcciones cercanas a nieve y usa una caja conjunta: válido para mapa actual; revisar si se añaden varias construcciones de cumbre separadas. No afirmar que configura múltiples plataformas independientes.
-- Comprobar resultado gráfico de costas, transiciones y brillo en distintas zonas/dispositivos. La demo sigue requiriendo revisión de extremo a extremo antes de publicar.
-- No se instaló ninguna dependencia nueva. Puppeteer de node_modules preexistente se usó en desarrollo; package.json/package-lock.json y scripts históricos quedan locales sin incorporar al cierre. El juego no requiere Node/Puppeteer en el navegador.
-- Se excluye imagenes/Mapa/capa1.png del commit: tiene una modificación local de origen ajeno a estos cambios, preservada. Pruebas usaron la copia local; comparar con mapa remoto si difiere el resultado. No regenerar ni revertir ese archivo.
-- Numerosos patch*.py, inspectores, test*.js y PNG temporales siguen sin seguimiento y sin borrar. No ejecutar ni incluir indiscriminadamente; leer primero. node_modules tampoco se incorpora.
+- Activar GitHub Pages en Settings → Pages y verificar URL pública; ver docs/PUBLISHING.md. Fuente Google Fonts y Three.js desde unpkg requieren conexión.
+- Hacer recorrido completo actual de demo y montaña: ida/vuelta, interiores, puertas con llave, interrupciones de diálogo, muerte/reinicio y dispositivos modestos. No se revisó toda la isla ni se certifica rendimiento.
+- Próxima prioridad sugerida: limpiar teclas al pausar/perder foco y restringir acciones durante menús; después medir coste de terreno y valorar detalle a distancia.
+- Revisar coherencia visual del filtro de vegetación al alternar al día: el filtro es estático. Separar configuración del ciclo de game.js si se amplía.
+- La plataforma de cumbre aún infiere un conjunto de construcciones mediante caja común; varias casas separadas requerirían plataformas independientes. Al editar mapas, mantener ambas capas alineadas.
+- El reinicio tras muerte conserva inventario/cofres/progreso de sesión; recargar comienza de cero. No se cambió esa regla.
+
+## Archivos locales y envío
+- El cierre incluye la capa1 actual editada por el usuario, porque estas mejoras y la publicación se basan en ella; no fue regenerada por Codex. Capa2 incluye exclusivamente el traslado de cubierta solicitado. Se documenta autoría para no confundir mapas del usuario con cambios de código.
+- Numerosos patch*.py, test*.js, inspectores, package.json/package-lock.json, node_modules y PNG temporales siguen locales y sin seguimiento. No se borran ni se incluyen indiscriminadamente. No se instaló ninguna dependencia nueva.
+- .coordination/ contiene bloqueo cooperativo, copias y capturas ignoradas. No publicar ni incorporar.
+- Servidor local: node tools/serve.cjs en http://127.0.0.1:8000/; no se detuvo al cerrar. Su continuidad depende del proceso local, no de Git.

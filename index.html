@@ -164,6 +164,21 @@
             max-height: 70%;
             object-fit: contain;
         }
+        #forest-heart-icon {
+            width: auto;
+            height: 64px;
+            max-width: 80%;
+            max-height: 80%;
+            image-rendering: pixelated;
+        }
+        #torch-icon {
+            width: 72px;
+            height: 72px;
+            max-width: none;
+            max-height: none;
+            image-rendering: pixelated;
+            transform: rotate(45deg);
+        }
         .inv-slot span {
             position: absolute;
             bottom: 5px;
@@ -235,13 +250,14 @@
         <div class="game-menu-box" style="padding: 25px 40px;">
             <p style="font-size:30px; font-weight:bold; margin-top:0; color:#ff3333;">PAUSA</p>
             <p style="font-size:16px; color:#fff; margin-bottom: 25px;">CLICK PARA VOLVER</p>
-            <div style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-block; line-height: 2.0;">
-                [W A S D] - Moverse<br>
-                [Shift] &nbsp;&nbsp;- Correr<br>
-                [C] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Agacharse<br>
-                [M] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Minimapa<br>
-                [T] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Antorcha<br>
-                [Q] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- Inventario
+            <div style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
+                <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
+                <span>Correr</span><span style="text-align:right;">[Shift]</span>
+                <span>Agacharse</span><span style="text-align:right;">[C]</span>
+                <span>Minimapa</span><span style="text-align:right;">[M]</span>
+                <span>Antorcha</span><span style="text-align:right;">[T]</span>
+                <span>Día / noche</span><span style="text-align:right;">[N]</span>
+                <span>Inventario</span><span style="text-align:right;">[Q]</span>
             </div>
         </div>
     </div>
@@ -250,11 +266,11 @@
         <div class="game-menu-box">
             <h2 style="margin-top:0; color:#ffeb3b; font-size:24px;">INVENTARIO</h2>
             <div class="inventory-slots">
+                <div class="inv-slot">
+                    <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — T para encender o apagar" style="display:none; image-rendering:pixelated;">
+                </div>
                 <div class="inv-slot" id="forest-heart-slot">
                     <img id="forest-heart-icon" src="./imagenes/Sprites/corazon.png" alt="Corazón del Bosque" title="Corazón del Bosque" style="display:none;">
-                </div>
-                <div class="inv-slot">
-                    <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — T para encender o apagar" style="image-rendering:pixelated;">
                 </div>
                 <div class="inv-slot"></div>
                 <div class="inv-slot">

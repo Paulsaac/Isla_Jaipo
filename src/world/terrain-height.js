@@ -1,4 +1,5 @@
 import { UNIT_SIZE } from '../config.js';
+import { sampleMountainPath } from './mountain-path.js';
 
 function hash2D(x, z) {
     let n = ((Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1);
@@ -27,7 +28,7 @@ function getSmoothNoise(x, z, scale) {
     return n0 * (1 - smoothTz) + n1 * smoothTz;
 }
 
-export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap) {
+export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile) {
     const c0 = Math.floor(colF);
     const c1 = Math.min(c0 + 1, mapWidth - 1);
     const r0 = Math.floor(rowF);
@@ -67,6 +68,12 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
 
         y += (macroNoise + microNoise + shoreGranularity) * noiseAmount;
     }
+    const road=sampleMountainPath(mountainPathProfile,colF,rowF);
+    if(road) {
+        const t=Math.max(0,Math.min(1,(road.distance-0.6)/0.9));
+        const blend=t*t*(3-2*t);
+        y=road.height*(1-blend)+y*blend;
+    }
     // Mantener tierra continua bajo la madera y suavizar el encuentro exterior.
     // Las cajas de madera abarcan media celda desde su centro y terminan en Y=1.
     if (woodFloorMap) {
@@ -88,7 +95,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     return y;
 }
 
-export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap) {
+export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile) {
     if (floorMap.length === 0) return 0;
     const woodX = Math.floor((x + UNIT_SIZE / 2) / UNIT_SIZE);
     const woodZ = Math.floor((z + UNIT_SIZE / 2) / UNIT_SIZE);
@@ -106,7 +113,7 @@ export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationM
     }
 
     function getMeshVertexY(colF, rowF) {
-        return getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap);
+        return getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile);
     }
 
     const SUBDIVISIONS = 4;

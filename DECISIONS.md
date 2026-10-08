@@ -80,3 +80,13 @@
 - Usar imagenes/Sprites/corazon.png en inventario. Cofre asignado entrega corazón en lugar de llave; cofres restantes conservan sus llaves.
 - Entrega al terminar el diálogo con Graham; después agradece y sigue buscando la llave. Sin llave de puente ni guardado persistente.
 - El usuario confirmó el cofre 4: X=165, Z=308 (mundo 330,616). entities.js asigna forest-heart-chest a esa celda; otros cinco cofres mantienen llaves.
+
+## 2026-10-08 — Segundo cierre: montaña, interacción y preparación de Pages
+- Sustituye escala de montaña anterior fija: ajustar altura al trazado para pendientes naturales, aumento posterior del 15%, cumbre actual ~76. Conservar meseta blanca y camino al modificar solo banda marrón a rampa aproximadamente lineal.
+- Mantener terreno y física compartidos; texturas mezcladas en una malla. WATER_ROCK #3282F6 distingue río/lago; mar y río/lago usan rocas.jpg en fondo. Agua a Y=-0.05, botes a Y=0.05 y ojos del jugador sobre cubierta.
+- Sustituye posesión inicial de antorcha: Graham la entrega apagada al completar introducción; T requiere posesión. Sin persistencia entre recargas.
+- Muros 2.662, hojas de puerta 2.0 y márgenes 0.2; doble puerta sin pilar central. Techos usan cota común por cubierta; vegetación conserva tamaño independiente de muros. Anclaje de antorchas prioriza muro y respeta altura de apoyo.
+- N cambia día/noche manualmente en 3 segundos; automático sigue pausado con duraciones previas conservadas. Rotar solo cubo nocturno cada 20 minutos, dejando luna fija.
+- C única tecla de agacharse. Inventario antorcha primero, corazón segundo; filtros de vegetación en materiales y reducción de relleno de Graham, sin editar sprites.
+- Cierre autoriza commit/push del proyecto vigente, incluidos mapa actualizado por el usuario y traslado de techo en capa2 solicitado. Excluir herramientas locales históricas y dependencias de desarrollo sin seguimiento.
+- Preparar GitHub Pages como sitio estático desde main/raíz con .nojekyll y rutas relativas sensibles a mayúsculas; documentar activación pendiente. No introducir empaquetador ni servicios.

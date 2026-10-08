@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { UNIT_SIZE, WALL_HEIGHT, PLAYER_HEIGHT, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
+import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, PLAYER_HEIGHT, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartDeliveryDialogs, heartDeliveredDialogs } from './src/content/dialogues.js';
 import { entities, grahamPosition } from './src/content/entities.js';
 import { createEntityRegistry } from './src/world/entity-registry.js';
@@ -17,6 +17,10 @@ import { toggleDoor, unlockDoor } from './src/systems/doors.js';
 import { createWoodFloorMap } from './src/world/surfaces.js';
 import { createTorchLighting } from './src/systems/torch-lighting.js';
 import { createMountainHeights } from './src/world/mountain-height.js';
+import { smoothMountainPath } from './src/world/mountain-path.js';
+import { createRoofBaseMap } from './src/world/roof-height.js';
+import { getDoorOpening } from './src/world/door-opening.js';
+import { smoothMountainSlope } from './src/world/mountain-slope.js';
 
 const minimap = createMinimap();
 const hud = createHud();
@@ -31,6 +35,7 @@ let isRunning = false;
 
 // Inventario e Interacciones
 let keys = 0;
+let hasTorch = false;
 const heartQuest = createForestHeartQuest();
 const interactables = [];
 const worldTorches = [];
@@ -71,6 +76,7 @@ camera.add(torchLight);
 
 let targetDayState = false;
 let dayTransition = 0.0;
+let manualSkyTransition = false;
 let dayNightTimer = 157.0; // Inicia en el segundo 157 (exactamente el inicio de la Noche)
 
 const nightFogColor = new THREE.Color(0x05050a);
@@ -79,6 +85,19 @@ const nightAmbientColor = new THREE.Color(0x11111a);
 const dayAmbientColor = new THREE.Color(0xffffff);
 const nightDirColor = new THREE.Color(0x445577);
 const dayDirColor = new THREE.Color(0xffffee);
+
+function toggleDayNight() {
+    if (!controls.isLocked || !gameStarted || isDead || isDialogOpen) return;
+    targetDayState = !targetDayState;
+    dayNightTimer = targetDayState ? 0 : 157;
+    manualSkyTransition = true;
+}
+
+function updateManualSkyTransition(delta) {
+    const step = delta / MANUAL_SKY_TRANSITION_SECONDS;
+    dayTransition = Math.max(0, Math.min(1, dayTransition + (targetDayState ? step : -step)));
+    if (dayTransition === (targetDayState ? 1 : 0)) manualSkyTransition = false;
+}
 
 const raycaster = new THREE.Raycaster();
 const centerVec = new THREE.Vector2(0, 0);
@@ -158,6 +177,10 @@ function interact() {
                 menus.setDialogText(activeDialogs[dialogIndex]);
             } else {
                 // Cerrar diálogo
+                if (activeDialogs === npcDialogs && !hasTorch) {
+                    hasTorch = true;
+                    menus.setTorchVisible(true);
+                }
                 if (deliveringHeart) { heartQuest.deliver(); menus.setHeartVisible(false); }
                 deliveringHeart = false;
                 isDialogOpen = false;
@@ -171,7 +194,7 @@ function interact() {
             const controlObj = controls.getObject();
             const currentGX = Math.floor((controlObj.position.x + UNIT_SIZE/2) / UNIT_SIZE);
             const currentGZ = Math.floor((controlObj.position.z + UNIT_SIZE/2) / UNIT_SIZE);
-            boatReference.position.set(currentGX * UNIT_SIZE, 0.2, currentGZ * UNIT_SIZE);
+            boatReference.position.set(currentGX * UNIT_SIZE, BOAT_FLOAT_HEIGHT, currentGZ * UNIT_SIZE);
             boatReference.userData.gx = currentGX;
             boatReference.userData.gz = currentGZ;
             scene.add(boatReference);
@@ -194,19 +217,20 @@ function interact() {
             } else if (targetInteractable.userData.type === 'BOAT') {
                 isRidingBoat = true;
                 boatReference = targetInteractable;
-                scene.remove(boatReference);
                 interactables.splice(interactables.indexOf(boatReference), 1);
                 collisionMap[boatReference.userData.gz][boatReference.userData.gx] = false;
                 targetInteractable = null;
                 const controlObj = controls.getObject();
                 controlObj.position.x = boatReference.userData.gx * UNIT_SIZE;
                 controlObj.position.z = boatReference.userData.gz * UNIT_SIZE;
+                controlObj.position.y = BOAT_FLOAT_HEIGHT + boatReference.geometry.parameters.height / 2 + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
                 velocityY = 0;
+                canJump = true;
             } else if (targetInteractable.userData.type === 'NPC') {
                 isDialogOpen = true;
-                deliveringHeart = heartQuest.hasHeart;
-                activeDialogs = deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : npcDialogs;
-                if (heartQuest.stage !== 'searching') dialogIndex = 0;
+                deliveringHeart = hasTorch && heartQuest.hasHeart;
+                activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : npcDialogs;
+                dialogIndex = 0;
                 menus.showDialog(activeDialogs[dialogIndex]);
             } else if (targetInteractable.userData.type === 'DOOR') {
                 if (targetInteractable.userData.locked) {
@@ -226,6 +250,7 @@ function interact() {
 
 bindKeyboard({
     toggleFlight,
+    toggleDayNight,
     start() { if (mapLoaded && !gameStarted) controls.lock(); },
     interact,
     move(direction, pressed) { moveState[direction] = pressed; },
@@ -235,7 +260,7 @@ bindKeyboard({
     crouch(pressed) { isCrouching = pressed; },
     run(pressed) { isRunning = pressed; },
     map() { if (mapLoaded) minimap.toggle(); },
-    torch() { if (gameStarted && !isDead) torchLight.visible = !torchLight.visible; },
+    torch() { if (gameStarted && !isDead && hasTorch) torchLight.visible = !torchLight.visible; },
     inventory() {
         if (gameStarted && !isDead) {
             isInventoryOpen = !isInventoryOpen;
@@ -258,6 +283,7 @@ let floorMap = [];
 let roofMap = [];
 let elevationMap = [];
 let woodFloorMap = [];
+let mountainPathProfile = null;
 let mapLoaded = false;
 let playerStartX = 0;
 let playerStartZ = 0;
@@ -334,11 +360,11 @@ puertaFlippedTex.repeat.x = -1;
 puertaFlippedTex.needsUpdate = true;
 
 // Cargar texturas del Cielo de Día
-const skyDayR = texLoader.load('./imagenes/Texturas/cielo_dia/OoT_h_bg_fine1_r_txt_0.png?v=' + Date.now());
-const skyDayL = texLoader.load('./imagenes/Texturas/cielo_dia/OoT_h_bg_fine1_l_txt_0.png?v=' + Date.now());
-const skyDayT = texLoader.load('./imagenes/Texturas/cielo_dia/OoT_h_bg_fine1_t_txt_0.png?v=' + Date.now());
-const skyDayF = texLoader.load('./imagenes/Texturas/cielo_dia/OoT_h_bg_fine1_f_txt_0.png?v=' + Date.now());
-const skyDayB = texLoader.load('./imagenes/Texturas/cielo_dia/OoT_h_bg_fine1_b_txt_0.png?v=' + Date.now());
+const skyDayR = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_r_txt_0.png?v=' + Date.now());
+const skyDayL = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_l_txt_0.png?v=' + Date.now());
+const skyDayT = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_t_txt_0.png?v=' + Date.now());
+const skyDayF = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_f_txt_0.png?v=' + Date.now());
+const skyDayB = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_b_txt_0.png?v=' + Date.now());
 
 [skyDayR, skyDayL, skyDayT, skyDayF, skyDayB].forEach(t => {
     t.magFilter = THREE.NearestFilter;
@@ -460,7 +486,7 @@ function buildWorld(mapData) {
     scene.add(seabedMesh);
 
     // Geometrías
-    const grassPlaneGeo = new THREE.PlaneGeometry(UNIT_SIZE, WALL_HEIGHT*0.8);
+    const grassPlaneGeo = new THREE.PlaneGeometry(UNIT_SIZE, VEGETATION_HEIGHT*0.8);
     const cubeGeo = new THREE.BoxGeometry(UNIT_SIZE, WALL_HEIGHT, UNIT_SIZE);
 
     // Materiales Instanced (Usamos Phong para recibir la luz de la antorcha por píxel)
@@ -475,6 +501,10 @@ function buildWorld(mapData) {
     const weed1Mat = new THREE.MeshPhongMaterial({ map: weed1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
     const weed2Mat = new THREE.MeshPhongMaterial({ map: weed2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
     const weed3Mat = new THREE.MeshPhongMaterial({ map: weed3Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    // Matiz frío para integrar pinos y hierba alta con la iluminación nocturna.
+    [pino1Mat, pino2Mat, weed1Mat, weed2Mat, weed3Mat].forEach(material => {
+        material.color.setHex(0xb0bed4);
+    });
     
     // Los colores son afectados por las luces para dar la sensación Dark Fantasy
     const bldgMat = new THREE.MeshPhongMaterial({ map: muroTex, shininess: 0 });
@@ -526,14 +556,14 @@ function buildWorld(mapData) {
     aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 0.66, shininess: 60 });
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
-    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, WALL_HEIGHT * 3 * 1.9);
+    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, VEGETATION_HEIGHT * 3 * 1.9);
     const pino1Mesh = new THREE.InstancedMesh(planeGeo, pino1Mat, counts.PINO1 * 2);
     const pino2Mesh = new THREE.InstancedMesh(planeGeo, pino2Mat, counts.PINO2 * 2);
     const alamo1Mesh = new THREE.InstancedMesh(planeGeo, alamo1Mat, counts.ALAMO1 * 2);
     const alamo2Mesh = new THREE.InstancedMesh(planeGeo, alamo2Mat, counts.ALAMO2 * 2);
     const arau1Mesh = new THREE.InstancedMesh(planeGeo, arau1Mat, counts.ARAU1 * 2);
     const arau2Mesh = new THREE.InstancedMesh(planeGeo, arau2Mat, counts.ARAU2 * 2);
-    const bushGeo = new THREE.PlaneGeometry(UNIT_SIZE * 2.0, WALL_HEIGHT * 1.6);
+    const bushGeo = new THREE.PlaneGeometry(UNIT_SIZE * 2.0, VEGETATION_HEIGHT * 1.6);
     const arbusto1Mesh = new THREE.InstancedMesh(bushGeo, arbusto1Mat, counts.BUSH1 * 2);
     const arbusto2Mesh = new THREE.InstancedMesh(bushGeo, arbusto2Mat, counts.BUSH2 * 2);
     const weed1Mesh = new THREE.InstancedMesh(grassPlaneGeo, weed1Mat, counts.WEED1 * 2);
@@ -541,6 +571,12 @@ function buildWorld(mapData) {
     const weed3Mesh = new THREE.InstancedMesh(grassPlaneGeo, weed3Mat, counts.WEED3 * 2);
     
     const bldgMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, WALL_HEIGHT, UNIT_SIZE), bldgMat, counts.BUILDING);
+    const doorCount = floorMap.reduce((total,row)=>total+row.filter(type=>['DOOR_UNLOCKED','DOOR_LOCKED'].includes(type)).length,0);
+    const lintelHeight = WALL_HEIGHT - DOOR_HEIGHT;
+    const lintelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, lintelHeight, UNIT_SIZE), bldgMat, doorCount);
+    let idxLintel = 0;
+    const jambMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, DOOR_HEIGHT, 1), bldgMat, doorCount * 2);
+    let idxJamb = 0;
     const ceilingMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE / 4, WALL_HEIGHT * 0.125, UNIT_SIZE / 4), roofMat, counts.ROOF * 16);
     const falseCeilingMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, 0.1, UNIT_SIZE), ceilingMat, counts.ROOF);
 
@@ -553,7 +589,7 @@ function buildWorld(mapData) {
     const globalWaterGeo = new THREE.PlaneGeometry(mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE);
     const globalWaterMesh = new THREE.Mesh(globalWaterGeo, aguaFloorMat);
     globalWaterMesh.rotation.x = -Math.PI / 2;
-    globalWaterMesh.position.set((mapWidth * UNIT_SIZE)/2 - UNIT_SIZE/2, -0.05, (mapHeight * UNIT_SIZE)/2 - UNIT_SIZE/2);
+    globalWaterMesh.position.set((mapWidth * UNIT_SIZE)/2 - UNIT_SIZE/2, WATER_SURFACE_HEIGHT, (mapHeight * UNIT_SIZE)/2 - UNIT_SIZE/2);
     scene.add(globalWaterMesh);
 
 
@@ -562,14 +598,14 @@ function buildWorld(mapData) {
     
     for (let z = 0; z < mapHeight; z++) {
         for (let x = 0; x < mapWidth; x++) {
-            if (floorMap[z][x] === 'WATER' || floorMap[z][x] === 'BOAT' || x === 0 || x === mapWidth-1 || z === 0 || z === mapHeight-1) {
+            if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[z][x]) || x === 0 || x === mapWidth-1 || z === 0 || z === mapHeight-1) {
                 let bordersLand = false;
                 for (let dz = -1; dz <= 1; dz++) {
                     for (let dx = -1; dx <= 1; dx++) {
                         const nz = z + dz, nx = x + dx;
                         if (nz >= 0 && nz < mapHeight && nx >= 0 && nx < mapWidth) {
                             const nt = floorMap[nz][nx];
-                            if (nt !== 'WATER' && nt !== 'BOAT') bordersLand = true;
+                            if (!['WATER', 'WATER_ROCK', 'BOAT'].includes(nt)) bordersLand = true;
                         }
                     }
                 }
@@ -601,6 +637,7 @@ function buildWorld(mapData) {
         const factor = {MOUNTAIN:1.5,PEAK:2,SNOW_PEAK:3}[floorMap[z][x]];
         if(factor) previousMountainMaximum=Math.max(previousMountainMaximum,elevationMap[z][x]*factor);
     }
+    previousMountainMaximum *= 0.85 * 0.8;
     const { heights: mountainHeights, mask: mountainMask } = createMountainHeights(floorMap, mapWidth, mapHeight, previousMountainMaximum);
     // Aplanar y esculpir
     for (let z = 0; z < mapHeight; z++) {
@@ -611,7 +648,7 @@ function buildWorld(mapData) {
             // Reglas de elevación según el tipo
             if (mountainMask[z][x]) elevationMap[z][x] = mountainHeights[z][x];
             else if (woodFloorMap[z][x]) elevationMap[z][x] = 1.0;
-            else if (type === 'WATER' || type === 'BOAT') {
+            else if (['WATER', 'WATER_ROCK', 'BOAT'].includes(type)) {
                 let sandDistance = 4;
                 for (let dz = -3; dz <= 3; dz++) {
                     for (let dx = -3; dx <= 3; dx++) {
@@ -657,7 +694,7 @@ function buildWorld(mapData) {
         const minX=Math.min(...summitCells.map(p=>p[0])),maxX=Math.max(...summitCells.map(p=>p[0]));
         const minZ=Math.min(...summitCells.map(p=>p[1])),maxZ=Math.max(...summitCells.map(p=>p[1]));
         const platformHeight=previousMountainMaximum;
-        const approachRadius=24;
+        const approachRadius=32;
         for(let z=Math.max(0,minZ-approachRadius);z<=Math.min(mapHeight-1,maxZ+approachRadius);z++) for(let x=Math.max(0,minX-approachRadius);x<=Math.min(mapWidth-1,maxX+approachRadius);x++) {
             if(!mountainMask[z][x]) continue;
             const distance=Math.hypot(Math.max(minX-x,0,x-maxX),Math.max(minZ-z,0,z-maxZ));
@@ -666,6 +703,7 @@ function buildWorld(mapData) {
             elevationMap[z][x]=platformHeight*(1-blend)+elevationMap[z][x]*blend;
         }
     }
+    mountainPathProfile = smoothMountainPath(floorMap, elevationMap, mountainMask, previousMountainMaximum);
     // Smooth indoor boundaries
     for (let z = 0; z < mapHeight; z++) {
         for (let x = 0; x < mapWidth; x++) {
@@ -685,6 +723,8 @@ function buildWorld(mapData) {
         }
     }
 
+    smoothMountainSlope(floorMap, elevationMap, mountainMask);
+    const roofBaseMap = createRoofBaseMap(roofMap, floorMap, elevationMap);
     let idxPino1=0, idxPino2=0, idxAlamo1=0, idxAlamo2=0, idxArau1=0, idxArau2=0, idxBUSH1=0, idxBUSH2=0, idxWeed1=0, idxWeed2=0, idxWeed3=0, idxBldg=0, idxMtn=0, idxPeak=0, idxSnowPeak=0, idxCeil=0, idxFalseCeil=0, idxRoof=0, idxMadera=0;
     const dummy = new THREE.Object3D(); 
     
@@ -741,7 +781,8 @@ function buildWorld(mapData) {
             dummy.rotation.set(0, 0, 0); 
             
             if (rType === 'ROOF') {
-                dummy.position.set(posX, baseH + WALL_HEIGHT, posZ);
+                const roofBaseH = roofBaseMap[z][x];
+                dummy.position.set(posX, roofBaseH + WALL_HEIGHT, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 falseCeilingMesh.setMatrixAt(idxFalseCeil++, dummy.matrix);
@@ -761,7 +802,7 @@ function buildWorld(mapData) {
                         const subPosX = posX + startOffset + (sx * subSize);
                         const subPosZ = posZ + startOffset + (sz * subSize);
                         
-                        const techoBottom = baseH + WALL_HEIGHT + (effectiveDist * stepHeight);
+                        const techoBottom = roofBaseH + WALL_HEIGHT + (effectiveDist * stepHeight);
                         const techoCenter = techoBottom + (stepHeight / 2);
                         
                         dummy.position.set(subPosX, techoCenter, subPosZ);
@@ -776,11 +817,18 @@ function buildWorld(mapData) {
                 const isBlueTorch = type === 'OTHER2' || rType === 'OTHER2';
                 let wallX = posX, wallZ = posZ;
                 const solid = value => ['BUILDING', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK'].includes(value);
-                if (solid(floorMap[z][x - 1])) wallX -= 0.8;
-                else if (solid(floorMap[z][x + 1])) wallX += 0.8;
-                else if (solid(floorMap[z - 1]?.[x])) wallZ -= 0.8;
-                else if (solid(floorMap[z + 1]?.[x])) wallZ += 0.8;
-                const torchY = getTerrainHeight(wallX, wallZ) + 1.6;
+                const neighbors = [[-1,0],[1,0],[0,-1],[0,1]];
+                const support = neighbors.find(([dx,dz])=>floorMap[z+dz]?.[x+dx]==='BUILDING')
+                    ?? neighbors.find(([dx,dz])=>solid(floorMap[z+dz]?.[x+dx]));
+                let supportHeight = getTerrainHeight(wallX, wallZ);
+                if (support) {
+                    const [dx,dz] = support;
+                    // La cara del muro está a media celda; dejar solo un pequeño margen visible.
+                    wallX = posX + dx * (UNIT_SIZE / 2 - 0.04);
+                    wallZ = posZ + dz * (UNIT_SIZE / 2 - 0.04);
+                    supportHeight = elevationMap[z+dz][x+dx];
+                }
+                const torchY = supportHeight + TORCH_MOUNT_HEIGHT;
                 worldTorches.push({ x: wallX, z: wallZ, y: torchY, isBlue: isBlueTorch, isIndoor: woodFloorMap[z][x], gx: x, gz: z });
                 const material = new THREE.SpriteMaterial({ map: torchFrames[0], transparent: true, fog: false, depthWrite: false, color: isBlueTorch ? 0x66ccff : 0xffffff });
                 const sprite = new THREE.Sprite(material);
@@ -799,7 +847,7 @@ function buildWorld(mapData) {
 
             if (type === 'TREE') {
                 const rand = ((x * 31 + z * 17) % 100);
-                dummy.position.set(posX, baseH + ((WALL_HEIGHT*3*1.9)/2) - 0.5, posZ);
+                dummy.position.set(posX, baseH + ((VEGETATION_HEIGHT*3*1.9)/2) - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 if (rand < 35) pino1Mesh.setMatrixAt(idxPino1++, dummy.matrix);
@@ -819,7 +867,7 @@ function buildWorld(mapData) {
                 else arau2Mesh.setMatrixAt(idxArau2++, dummy.matrix);
             } else if (type === 'BUSH') {
                 const isArbusto1 = ((x * 19 + z * 7) % 2) === 0;
-                dummy.position.set(posX, baseH + ((WALL_HEIGHT*1.6)/2) - 0.5, posZ);
+                dummy.position.set(posX, baseH + ((VEGETATION_HEIGHT*1.6)/2) - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 if(isArbusto1) arbusto1Mesh.setMatrixAt(idxBUSH1++, dummy.matrix); else arbusto2Mesh.setMatrixAt(idxBUSH2++, dummy.matrix);
@@ -830,7 +878,7 @@ function buildWorld(mapData) {
             } else if (type === 'TALL_GRASS') {
                 const rand = ((x * 13 + z * 7) % 100);
                 const weedVariant = rand % 3;
-                dummy.position.set(posX, baseH + ((WALL_HEIGHT*0.8)/2) - 0.5, posZ);
+                dummy.position.set(posX, baseH + ((VEGETATION_HEIGHT*0.8)/2) - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 if (weedVariant === 0) weed1Mesh.setMatrixAt(idxWeed1++, dummy.matrix);
@@ -855,7 +903,7 @@ function buildWorld(mapData) {
                 const boatGeo = new THREE.BoxGeometry(UNIT_SIZE*0.8, 0.4, UNIT_SIZE*0.8);
                 const boatMat = new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xaa8866, shininess: 0 }); 
                 const boatMesh = new THREE.Mesh(boatGeo, boatMat);
-                boatMesh.position.set(posX, baseH + 0.2, posZ); 
+                boatMesh.position.set(posX, BOAT_FLOAT_HEIGHT, posZ);
                 boatMesh.userData = { type: 'BOAT', gx: x, gz: z };
                 scene.add(boatMesh);
                 interactables.push(boatMesh);
@@ -864,15 +912,28 @@ function buildWorld(mapData) {
                 const tintColor = isLocked ? 0xffbbbb : 0xffffff;
                 
                 // Determinar orientación basada en los edificios vecinos (horizontal o vertical)
-                const isHorizontal = (x > 0 && floorMap[z][x-1] === 'BUILDING') || (x < mapWidth-1 && floorMap[z][x+1] === 'BUILDING') || (x > 0 && ['DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floorMap[z][x-1])) || (x < mapWidth-1 && ['DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floorMap[z][x+1]));
+                const opening = getDoorOpening(floorMap, x, z);
+                const { isHorizontal, isRightDoor } = opening;
                 
                 // Determinar si es la hoja derecha de una puerta doble
-                const isRightDoor = (isHorizontal && x > 0 && ['DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floorMap[z][x-1])) || (!isHorizontal && z > 0 && ['DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floorMap[z-1][x]));
 
                 const doorGroup = new THREE.Group();
-                doorGroup.position.set(posX, baseH + WALL_HEIGHT / 2, posZ);
+                doorGroup.position.set(posX + (isHorizontal?opening.centerOffset:0), baseH + DOOR_HEIGHT / 2, posZ + (isHorizontal?0:opening.centerOffset));
                 
-                const doorGeo = isHorizontal ? new THREE.BoxGeometry(UNIT_SIZE, WALL_HEIGHT, 0.4) : new THREE.BoxGeometry(0.4, WALL_HEIGHT, UNIT_SIZE);
+                const doorGeo = isHorizontal ? new THREE.BoxGeometry(opening.width, DOOR_HEIGHT, 0.4) : new THREE.BoxGeometry(0.4, DOOR_HEIGHT, opening.width);
+                // El dintel pertenece al muro y permanece fijo cuando la hoja se abre.
+                dummy.position.set(posX, baseH + DOOR_HEIGHT + lintelHeight / 2, posZ);
+                dummy.updateMatrix();
+                lintelMesh.setMatrixAt(idxLintel++, dummy.matrix);
+                for (const [margin,sign] of [[opening.leftMargin,-1],[opening.rightMargin,1]]) {
+                    if (!margin) continue;
+                    const offset=sign*(UNIT_SIZE-margin)/2;
+                    dummy.position.set(posX+(isHorizontal?offset:0),baseH+DOOR_HEIGHT/2,posZ+(isHorizontal?0:offset));
+                    dummy.scale.set(isHorizontal?margin:UNIT_SIZE,1,isHorizontal?UNIT_SIZE:margin);
+                    dummy.updateMatrix();
+                    jambMesh.setMatrixAt(idxJamb++,dummy.matrix);
+                }
+                dummy.scale.set(1,1,1);
                 
                 const matNormal = new THREE.MeshPhongMaterial({ map: puertaTex, color: tintColor, shininess: 0 });
                 const matFlipped = new THREE.MeshPhongMaterial({ map: puertaFlippedTex, color: tintColor, shininess: 0 });
@@ -890,11 +951,11 @@ function buildWorld(mapData) {
                 
                 // Desplazar el mesh para que el pivote quede en el borde
                 if (isHorizontal) {
-                    const offset = isRightDoor ? -UNIT_SIZE/2 : UNIT_SIZE/2;
+                    const offset = isRightDoor ? -opening.width/2 : opening.width/2;
                     doorMesh.position.set(offset, 0, 0);
                     doorGroup.position.x -= offset;
                 } else {
-                    const offset = isRightDoor ? -UNIT_SIZE/2 : UNIT_SIZE/2;
+                    const offset = isRightDoor ? -opening.width/2 : opening.width/2;
                     doorMesh.position.set(0, 0, offset);
                     doorGroup.position.z -= offset;
                 }
@@ -945,6 +1006,10 @@ function buildWorld(mapData) {
     scene.add(weed2Mesh);
     scene.add(weed3Mesh);
     scene.add(bldgMesh);
+    lintelMesh.count = idxLintel;
+    scene.add(lintelMesh);
+    jambMesh.count = idxJamb;
+    scene.add(jambMesh);
     scene.add(ceilingMesh);
     scene.add(falseCeilingMesh);
     maderaFloorMesh.count = idxMadera;
@@ -965,6 +1030,8 @@ function buildWorld(mapData) {
     const positions = terrainGeo.attributes.position.array;
     const uvs = terrainGeo.attributes.uv.array;
     const splatWeights = new Float32Array(positions.length / 3 * 4);
+    const mountainWeights = new Float32Array(positions.length / 3 * 3);
+    const terrainChannels = { DIRT: 1, SAND: 2, WATER: 5, BOAT: 5, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
 
     for (let i = 0; i < positions.length / 3; i++) {
         const vx = i % vertsW;
@@ -982,23 +1049,20 @@ function buildWorld(mapData) {
         const surfaceZ = Math.min(Math.floor(rowF + 0.5), mapHeight - 1);
         const type = floorMap[surfaceZ][surfaceX];
         
-        // Pesos para texturas: R=Pasto, G=Tierra, B=Arena, A=Cimientos
-        let wGrass = 0, wDirt = 0, wSand = 0, wBase = 0;
-        if (['GRASS', 'TALL_GRASS', 'TREE', 'TORCH', 'OTHER2', 'BUSH', 'BUILDING', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'INDOOR_FLOOR', 'WOOD', 'CHEST', 'POI'].includes(type)) wGrass = 1;
-        else if (type === 'DIRT') wDirt = 1;
-        else if (['SAND', 'WATER', 'BOAT'].includes(type)) wSand = 1;
-        else wBase = 1;
-        
-        splatWeights[i * 4] = wGrass;
-        splatWeights[i * 4 + 1] = wDirt;
-        splatWeights[i * 4 + 2] = wSand;
-        splatWeights[i * 4 + 3] = wBase;
+        // Interpolación compartida para pasto, tierra, arena, piedra, roca y nieve.
+        const tx = colF - c0, tz = rowF - r0;
+        for (const [x,z,weight] of [[c0,r0,(1-tx)*(1-tz)], [c1,r0,tx*(1-tz)], [c0,r1,(1-tx)*tz], [c1,r1,tx*tz]]) {
+            const channel = terrainChannels[floorMap[z][x]] ?? 0;
+            if (channel < 4) splatWeights[i*4+channel] += weight;
+            else mountainWeights[i*3+channel-4] += weight;
+        }
 
-        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap);
+        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile);
         positions[i * 3 + 1] = y;
     }
     
     terrainGeo.setAttribute('splatWeights', new THREE.BufferAttribute(splatWeights, 4));
+    terrainGeo.setAttribute('mountainWeights', new THREE.BufferAttribute(mountainWeights, 3));
 
     for(let i = 0; i < uvs.length; i += 2) {
         uvs[i] *= (mapWidth - 1);
@@ -1007,79 +1071,38 @@ function buildWorld(mapData) {
     
     terrainGeo.computeVertexNormals();
 
-    const baseIndices = terrainGeo.getIndex().array;
-    const mtnIndices = [];
-    const peakIndices = [];
-    const snowIndices = [];
-    const flatIndices = [];
-
-    for (let row = 0; row < segmentsH; row++) {
-        for (let col = 0; col < segmentsW; col++) {
-            const mapCol = Math.min(Math.floor(col / SUBDIVISIONS), mapWidth - 1);
-            const mapRow = Math.min(Math.floor(row / SUBDIVISIONS), mapHeight - 1);
-            
-            const mapCol1 = Math.min(Math.ceil(col / SUBDIVISIONS), mapWidth - 1);
-            const mapRow1 = Math.min(Math.ceil(row / SUBDIVISIONS), mapHeight - 1);
-
-            const v1 = floorMap[mapRow][mapCol];
-            const v2 = floorMap[mapRow][mapCol1];
-            const v3 = floorMap[mapRow1][mapCol];
-            const v4 = floorMap[mapRow1][mapCol1];
-            
-            const isMtn = (v1==='MOUNTAIN' || v2==='MOUNTAIN' || v3==='MOUNTAIN' || v4==='MOUNTAIN');
-            const isPeak = (v1==='PEAK' || v2==='PEAK' || v3==='PEAK' || v4==='PEAK');
-            const isSnow = (v1==='SNOW_PEAK' || v2==='SNOW_PEAK' || v3==='SNOW_PEAK' || v4==='SNOW_PEAK');
-
-            // 6 índices por cuadrado (2 triángulos)
-            const quadIdx = (row * segmentsW + col) * 6;
-            
-            const pathX=Math.min(Math.floor((col+0.5)/SUBDIVISIONS+0.5),mapWidth-1);
-            const pathZ=Math.min(Math.floor((row+0.5)/SUBDIVISIONS+0.5),mapHeight-1);
-            if (floorMap[pathZ][pathX] === 'DIRT') {
-                flatIndices.push(baseIndices[quadIdx], baseIndices[quadIdx+1], baseIndices[quadIdx+2], baseIndices[quadIdx+3], baseIndices[quadIdx+4], baseIndices[quadIdx+5]);
-            } else if (isSnow) {
-                snowIndices.push(baseIndices[quadIdx], baseIndices[quadIdx+1], baseIndices[quadIdx+2], baseIndices[quadIdx+3], baseIndices[quadIdx+4], baseIndices[quadIdx+5]);
-            } else if (isPeak) {
-                peakIndices.push(baseIndices[quadIdx], baseIndices[quadIdx+1], baseIndices[quadIdx+2], baseIndices[quadIdx+3], baseIndices[quadIdx+4], baseIndices[quadIdx+5]);
-            } else if (isMtn) {
-                mtnIndices.push(baseIndices[quadIdx], baseIndices[quadIdx+1], baseIndices[quadIdx+2], baseIndices[quadIdx+3], baseIndices[quadIdx+4], baseIndices[quadIdx+5]);
-            } else {
-                flatIndices.push(baseIndices[quadIdx], baseIndices[quadIdx+1], baseIndices[quadIdx+2], baseIndices[quadIdx+3], baseIndices[quadIdx+4], baseIndices[quadIdx+5]);
-            }
-        }
-    }
-
-    const mtnGeo = terrainGeo.clone(); mtnGeo.setIndex(mtnIndices);
-    scene.add(new THREE.Mesh(mtnGeo, new THREE.MeshPhongMaterial({ map: piedraTex, shininess: 0 })));
-
-    const peakGeo = terrainGeo.clone(); peakGeo.setIndex(peakIndices);
-    scene.add(new THREE.Mesh(peakGeo, new THREE.MeshPhongMaterial({ map: rocaTex, shininess: 0 })));
-
-    const snowGeo = terrainGeo.clone(); snowGeo.setIndex(snowIndices);
-    scene.add(new THREE.Mesh(snowGeo, new THREE.MeshPhongMaterial({ map: nieveTex, shininess: 0 })));
-
-    // --- MATERIAL SPlAT (DIFUMINADO) PARA EL TERRENO PLANO ---
+    // --- MATERIAL SPlAT COMPARTIDO POR TODO EL TERRENO ---
     const splatMaterial = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 }); // El map dummy activa USE_MAP
     splatMaterial.onBeforeCompile = function (shader) {
         shader.uniforms.tGrass = { value: pastoTex };
         shader.uniforms.tDirt = { value: tierraTex };
         shader.uniforms.tSand = { value: arenaTex };
+        shader.uniforms.tMountain = { value: piedraTex };
+        shader.uniforms.tRock = { value: rocaTex };
+        shader.uniforms.tSnow = { value: nieveTex };
 
         shader.vertexShader = `
             attribute vec4 splatWeights;
+            attribute vec3 mountainWeights;
             varying vec4 vSplat;
+            varying vec3 vMountain;
             ${shader.vertexShader}
         `.replace(
             `#include <uv_vertex>`,
             `#include <uv_vertex>
-             vSplat = splatWeights;`
+             vSplat = splatWeights;
+             vMountain = mountainWeights;`
         );
 
         shader.fragmentShader = `
             uniform sampler2D tGrass;
             uniform sampler2D tDirt;
             uniform sampler2D tSand;
+            uniform sampler2D tMountain;
+            uniform sampler2D tRock;
+            uniform sampler2D tSnow;
             varying vec4 vSplat;
+            varying vec3 vMountain;
             ${shader.fragmentShader}
         `.replace(
             `#include <map_fragment>`,
@@ -1091,15 +1114,17 @@ function buildWorld(mapData) {
                 vec4 texelBase = vec4(0.06, 0.06, 0.06, 1.0); 
 
                 // Promedio ponderado de texturas
-                vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y + texelSand * vSplat.z + texelBase * vSplat.w;
+                vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y + texelSand * vSplat.z + texelBase * vSplat.w
+                    + texture2D(tMountain, vMapUv) * vMountain.x
+                    + texture2D(tRock, vMapUv) * vMountain.y
+                    + texture2D(tSnow, vMapUv) * vMountain.z;
                 diffuseColor *= blendedTexel;
             #endif
             `
         );
     };
 
-    const flatGeo = terrainGeo.clone(); flatGeo.setIndex(flatIndices);
-    scene.add(new THREE.Mesh(flatGeo, splatMaterial));
+    scene.add(new THREE.Mesh(terrainGeo, splatMaterial));
 
     // Buscar punto de spawn seguro si POI no fue válido o se omitió
     let spawnSafe = false;
@@ -1158,7 +1183,7 @@ function alignGrahamToFloor() {
 }
 
 function getTerrainHeight(x, z) {
-    return sampleTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap);
+    return sampleTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile);
 }
 
 // --- COLISIONES ---
@@ -1195,6 +1220,8 @@ function animate() {
 
     if (controls.isLocked && mapLoaded) {
         const delta = Math.min(clock.getDelta(), 0.1);
+        // Girar solo el cubo nocturno: la luna conserva su orientación en el grupo del cielo.
+        nightSkyMesh.rotation.y = (nightSkyMesh.rotation.y + NIGHT_SKY_ROTATION_SPEED * delta) % (Math.PI * 2);
 
         // Lógica de mirada a la luna (Easter Egg)
         if (typeof moonSprite !== 'undefined') {
@@ -1359,7 +1386,9 @@ function animate() {
         targetDayState = (dayNightTimer < 157.0);
 
         // TRANSICIÓN DÍA/NOCHE: Amanecer (12s), Anochecer (25s)
-        if (targetDayState && dayTransition < 1.0) {
+        if (manualSkyTransition) {
+            updateManualSkyTransition(delta);
+        } else if (targetDayState && dayTransition < 1.0) {
             const dawnSpeed = delta / 12.0;
             dayTransition += dawnSpeed;
             if (dayTransition > 1.0) dayTransition = 1.0;
@@ -1434,7 +1463,7 @@ function animate() {
         const currentGZ = Math.floor((startZ + UNIT_SIZE/2) / UNIT_SIZE);
         let inWater = false;
         if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
-            if (floorMap[currentGZ][currentGX] === 'WATER' || floorMap[currentGZ][currentGX] === 'BOAT') inWater = true;
+            if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[currentGZ][currentGX])) inWater = true;
         }
 
         const waterSpeedMod = isRidingBoat ? 1.5 : (inWater ? 0.4 : 1.0);
@@ -1489,9 +1518,11 @@ function animate() {
         const currentTerrainHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z);
         let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
-        if (inWater && !isRidingBoat) {
+        if (isRidingBoat && boatReference) {
+            targetEyesHeight = BOAT_FLOAT_HEIGHT + boatReference.geometry.parameters.height / 2 + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
+        } else if (inWater) {
             // Caminar por el fondo somero; flotar solo al alcanzar suficiente profundidad.
-            targetEyesHeight = Math.max(targetEyesHeight, -0.05 + 0.2);
+            targetEyesHeight = Math.max(targetEyesHeight, WATER_SURFACE_HEIGHT + 0.2);
         }
 
         if (isFlying && controlObj.position.y < targetEyesHeight) {
@@ -1523,7 +1554,8 @@ function animate() {
         if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
             const currentFloor = floorMap[currentGZ][currentGX];
             if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED') {
-                const ceilingMaxHeight = currentTerrainHeight + WALL_HEIGHT - 0.3; // Margen para la cámara
+                const passageHeight = ['DOOR_UNLOCKED','DOOR_LOCKED'].includes(currentFloor) ? DOOR_HEIGHT : WALL_HEIGHT;
+                const ceilingMaxHeight = currentTerrainHeight + passageHeight - 0.3; // Margen para la cámara
                 if (controlObj.position.y > ceilingMaxHeight) {
                     controlObj.position.y = ceilingMaxHeight;
                     if (velocityY > 0) velocityY = 0;
@@ -1542,6 +1574,9 @@ function animate() {
             }
         }
 
+        if (isRidingBoat && boatReference) {
+            boatReference.position.set(controlObj.position.x, BOAT_FLOAT_HEIGHT, controlObj.position.z);
+        }
         minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE);
         
         // Efecto parpadeo antorcha jugador
@@ -1567,7 +1602,7 @@ function animate() {
     if (torchLighting) torchLighting.update(controlObj.position, performance.now() / 1000);
     if (torchLighting && grahamSprite) {
         // Relleno según luz local: el plano del NPC no debe oscurecerse al girar de espaldas a la llama.
-        grahamSprite.material.emissiveIntensity = Math.min(0.45, torchLighting.illuminationAt(grahamSprite.position) * 0.12);
+        grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
     renderer.render(scene, camera);
 }
