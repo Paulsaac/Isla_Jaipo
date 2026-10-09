@@ -86,7 +86,7 @@ export function prepareMap(mapData) {
             // Solid obstacles
             if (['BUILDING', 'CHEST', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK'].includes(type)) {
                 collisionMap[z][x] = type;
-            } else if (type === 'TREE' || type === 'BUSH') {
+            } else if (type === 'TREE') {
                 collisionMap[z][x] = 'TREE';
             }
 

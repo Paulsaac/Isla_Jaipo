@@ -16,3 +16,13 @@ export const heartDeliveredDialogs = [
     "Gracias de nuevo por recuperar el Corazón del Bosque.",
     "Todavía estoy buscando la llave del puente. Te avisaré cuando la tenga."
 ];
+
+// Preparados para la versión completa; el parámetro de configuración los habilita.
+export const bridgeKeyDeliveryDialogs = [
+    "¡Encontré la llave del puente! Gracias por recuperar el Corazón del Bosque.",
+    "Aquí tienes la llave. Ahora puedes cruzar el puente y conocer el resto de la isla."
+];
+export const bridgeKeyReceivedDialogs = [
+    "Gracias de nuevo por recuperar el Corazón del Bosque.",
+    "Ya te entregué la llave del puente. ¡Disfruta tu viaje por la isla!"
+];

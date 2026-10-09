@@ -9,5 +9,6 @@ export function getDoorOpening(floorMap, x, z) {
     const after = isDoor(isHorizontal?floorMap[z]?.[x+1]:floorMap[z+1]?.[x]);
     const leftMargin = before?0:DOOR_SIDE_MARGIN;
     const rightMargin = after?0:DOOR_SIDE_MARGIN;
-    return {isHorizontal,isRightDoor:before,leftMargin,rightMargin,width:UNIT_SIZE-leftMargin-rightMargin,centerOffset:(leftMargin-rightMargin)/2};
+    const isDouble = before || after;
+    return {isHorizontal,isDouble,isRightDoor:before || !isDouble,leftMargin,rightMargin,width:UNIT_SIZE-leftMargin-rightMargin,centerOffset:(leftMargin-rightMargin)/2};
 }

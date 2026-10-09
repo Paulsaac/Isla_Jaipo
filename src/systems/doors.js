@@ -21,6 +21,7 @@ function toggleDoorSingle(door, forceState, collisionMap) {
         door.userData.isOpen = true;
         group.userData.isOpen = true;
     }
+    group.updateMatrixWorld(true);
 }
 
 export function toggleDoor(door, interactables, collisionMap) {

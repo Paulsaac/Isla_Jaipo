@@ -49,7 +49,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     let y = y0 * (1 - tz) + y1 * tz;
 
     const interpolate = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
-    const noiseWeight = value => value === 'SAND' ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2'].includes(value) ? 1 : 0;
+    const noiseWeight = value => value === 'SAND' ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
     const t00 = floorMap[r0][c0], t10 = floorMap[r0][c1], t01 = floorMap[r1][c0], t11 = floorMap[r1][c1];
     // Interpolar profundidad y relieve evita el salto de dos metros al cambiar de celda.
     const coastalRelief = Math.max(0, Math.min(1, (y - 0.2) / 0.8));
@@ -95,11 +95,25 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     return y;
 }
 
-export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile) {
+export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile, renderedSurface) {
     if (floorMap.length === 0) return 0;
     const woodX = Math.floor((x + UNIT_SIZE / 2) / UNIT_SIZE);
     const woodZ = Math.floor((z + UNIT_SIZE / 2) / UNIT_SIZE);
     if (woodFloorMap?.[woodZ]?.[woodX]) return elevationMap[woodZ][woodX];
+    if (renderedSurface) {
+        // Consultar los vértices ya calculados evita repetir ruido y proyecciones del camino.
+        const { positions, verticesW, segmentsW, segmentsH, subdivisions } = renderedSurface;
+        const sx = Math.max(0, Math.min(segmentsW, x / UNIT_SIZE * subdivisions));
+        const sz = Math.max(0, Math.min(segmentsH, z / UNIT_SIZE * subdivisions));
+        const x0 = Math.floor(sx), z0 = Math.floor(sz);
+        const x1 = Math.min(x0 + 1, segmentsW), z1 = Math.min(z0 + 1, segmentsH);
+        const tx = sx - x0, tz = sz - z0;
+        const a = positions[(z0 * verticesW + x0) * 3 + 1];
+        const b = positions[(z0 * verticesW + x1) * 3 + 1];
+        const c = positions[(z1 * verticesW + x0) * 3 + 1];
+        const d = positions[(z1 * verticesW + x1) * 3 + 1];
+        return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+    }
 
     const gx = x / UNIT_SIZE;
     const gz = z / UNIT_SIZE;

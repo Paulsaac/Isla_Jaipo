@@ -90,3 +90,11 @@
 - C única tecla de agacharse. Inventario antorcha primero, corazón segundo; filtros de vegetación en materiales y reducción de relleno de Graham, sin editar sprites.
 - Cierre autoriza commit/push del proyecto vigente, incluidos mapa actualizado por el usuario y traslado de techo en capa2 solicitado. Excluir herramientas locales históricas y dependencias de desarrollo sin seguimiento.
 - Preparar GitHub Pages como sitio estático desde main/raíz con .nojekyll y rutas relativas sensibles a mayúsculas; documentar activación pendiente. No introducir empaquetador ni servicios.
+
+## 2026-10-09 — Cierre: optimización, muebles e inventario
+- Conservar distancia y detalle: sectores de terreno y compactación de vegetación por frustum; no LOD. Fusionar techos de igual altura y consultar física sobre vértices existentes. FPS real pendiente de medición.
+- Demo sin ciclo automático hasta llave futura; GRAHAM_BRIDGE_KEY_AVAILABLE=false. N manual permanece disponible.
+- M requiere mapa del cofre (229,429); inventario inferior antorcha/mapa/llave, llave oculta con cero. Cofres abiertos conservan colisión y no duplican premio.
+- Graham (235,421). Muebles por coordenadas/offsets en entities.js, con colisión visible; posiciones vigentes detalladas en HANDOFF.md.
+- Mar con fondo de arena, río/lago de rocas; agua 0.594 con ondas visuales. Solo árboles colisionan entre vegetación.
+- Cierre autoriza commit y push de toda la sesión, mapa actualizado por usuario y exportaciones GLB solicitadas; excluir auxiliares y dependencias locales históricas.

@@ -5,6 +5,7 @@ export function bindKeyboard(actions, target = document) {
     const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right' };
 
     function onKeyDown(event) {
+        if (actions.isPaused?.()) { sequenceIndex = 0; return; }
         const code = event.code;
         if (code === sequence[sequenceIndex]) {
             sequenceIndex++;
@@ -40,8 +41,10 @@ export function bindKeyboard(actions, target = document) {
 
     target.addEventListener('keydown', onKeyDown);
     target.addEventListener('keyup', onKeyUp);
-    return () => {
+    const dispose = () => {
         target.removeEventListener('keydown', onKeyDown);
         target.removeEventListener('keyup', onKeyUp);
     };
+    dispose.resetSequence = () => { sequenceIndex = 0; };
+    return dispose;
 }

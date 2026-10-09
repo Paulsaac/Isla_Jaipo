@@ -6,25 +6,40 @@ export function createTorchLighting(THREE, scene, torches, maximum = 12) {
         return light;
     });
     const slots = lights.map(light => ({ light, torch: null, strength: 0 }));
-    let selected = new Set();
+    const selected = new Set(), assigned = new Set(), candidates = [];
+    const entries = torches.map(torch => ({ torch, score: 0 }));
     let nextSelection = 0;
     let previousTime = null;
-    function update(position, time) {
+    function update(position, time, daylight = 0) {
+        const nightStrength = 1 - Math.max(0, Math.min(1, daylight));
         const delta = previousTime === null ? 0 : Math.max(0, Math.min(time - previousTime, 0.1));
         previousTime = time;
         if (time >= nextSelection) {
-            const assigned = new Set(slots.map(slot => slot.torch));
-            selected = new Set(torches.map(torch => ({ torch, distance: (torch.x - position.x) ** 2 + (torch.y - position.y) ** 2 + (torch.z - position.z) ** 2 }))
-                .filter(entry => entry.distance < 44 ** 2)
-                .sort((a, b) => a.distance * (assigned.has(a.torch) ? 0.9 : 1) - b.distance * (assigned.has(b.torch) ? 0.9 : 1))
-                .slice(0, lights.length).map(entry => entry.torch));
+            assigned.clear();
+            for (const slot of slots) assigned.add(slot.torch);
+            candidates.length = 0;
+            for (const entry of entries) {
+                const torch = entry.torch;
+                const distance = (torch.x - position.x) ** 2 + (torch.y - position.y) ** 2 + (torch.z - position.z) ** 2;
+                if (distance >= 44 ** 2 || (!torch.isIndoor && nightStrength === 0)) continue;
+                entry.score = distance * (assigned.has(torch) ? 0.9 : 1);
+                candidates.push(entry);
+            }
+            candidates.sort((a, b) => a.score - b.score);
+            selected.clear();
+            for (let index = 0; index < Math.min(lights.length, candidates.length); index++) selected.add(candidates[index].torch);
             nextSelection = time + 0.2;
         }
         // Conservar cada luz en su antorcha hasta completar el desvanecimiento.
         for (const torch of selected) {
             if (slots.some(slot => slot.torch === torch)) continue;
             const free = slots.find(slot => !slot.torch);
-            if (free) free.torch = torch;
+            if (free) {
+                free.torch = torch;
+                free.light.position.set(torch.x, torch.y, torch.z);
+                free.light.color.setHex(torch.isBlue ? 0x00a2e8 : 0xffa500);
+                free.light.distance = torch.isIndoor ? 24 : 19.2;
+            }
         }
         slots.forEach(slot => {
             const { light, torch } = slot;
@@ -39,17 +54,16 @@ export function createTorchLighting(THREE, scene, torches, maximum = 12) {
                 light.intensity = 0;
                 return;
             }
-            light.position.set(torch.x, torch.y, torch.z);
-            light.color.setHex(torch.isBlue ? 0x00a2e8 : 0xffa500);
-            light.distance = torch.isIndoor ? 24 : 19.2;
-            light.intensity = (12 + Math.sin(time * 17 + torch.x + torch.z) * 1.2) * 1.2 * (torch.isIndoor ? 3 : 1) * slot.strength;
+            light.intensity = (12 + Math.sin(time * 17 + torch.x + torch.z) * 1.2) * 1.2 * (torch.isIndoor ? 3 : nightStrength) * slot.strength;
         });
     }
     function illuminationAt(position) {
-        return lights.reduce((sum, light) => {
-            const distance = light.position.distanceTo(position);
-            return sum + (distance < light.distance ? light.intensity / (1 + distance * distance) : 0);
-        }, 0);
+        let sum = 0;
+        for (const light of lights) {
+            const distanceSquared = (light.position.x - position.x) ** 2 + (light.position.y - position.y) ** 2 + (light.position.z - position.z) ** 2;
+            if (distanceSquared < light.distance ** 2) sum += light.intensity / (1 + distanceSquared);
+        }
+        return sum;
     }
     return { update, illuminationAt };
 }
