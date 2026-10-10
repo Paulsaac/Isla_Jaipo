@@ -1,3 +1,55 @@
+# Estado vigente y relevo — cierre 2026-10-10 (segunda sesión)
+
+Agente Codex, rama main. Base: ea8cfb61881674134a38a94074e2ee8fd40162e9.
+Usuario solicitó documentación y push. Este encabezado sustituye los parámetros y comportamientos de los relevos históricos inferiores. Commit previsto: «Add quest-driven sky cycle, audio and atmosphere». Se escribe antes del commit: confirmar resultado con git log y origin/main.
+
+## Producto y ciclo vigente
+Demo web ligera, sin guardado persistente ni entrega de llave del puente; GRAHAM_BRIDGE_KEY_AVAILABLE sigue false. La activación del ciclo ya NO depende de recibir esa llave: el usuario pidió ligarla al corazón.
+- src/systems/quest-sky.js mantiene el atardecer central fijo al iniciar (timer 157.2). Obtener corazón dispara forest con espera de 5 segundos de juego. Cuando comienza realmente el audio, el reloj avanza hasta noche y queda detenido.
+- Entregar corazón a Graham coloca el reloj a 25 segundos del amanecer. Al comenzar amanecer se dispara morning una sola vez; desde allí continúa el ciclo automático completo. Si entrega ocurre temprano, primero completa oscurecimiento y después comienza ese tramo de 25 segundos.
+- N bloqueada durante introducción; habilitada desde primer amanecer. Conserva transición manual de 3 s pasando por amanecer/atardecer. P o fallo de audio no bloquean misión: tras la espera original se permite avanzar aunque forest haya sido cancelada o fallado.
+- Duraciones finales: día 134.6 s, atardecer 45.2 s, noche 44 s, amanecer 18.4 s; total 242.2 s. SKY_CYCLE_TIMING es la fuente común. Pausa detiene relojes.
+
+## Cielo, luz y presentación
+- sky-atlas.js: UV con margen interior 1.5 texeles evita línea negra del borde transparente x499 de Amanecer.png; atlas original sin reescritura. Noche usa distintas rotaciones por cara [0,1,2,3,1,3] y espejos en últimas dos, para disimular repetición.
+- Sol.png de imagenes/Sprites/luna - sol integrado: arco norte (-Z) a sur (+Z), pasando por altura máxima, sincronizado con recorrido diurno y transiciones. Luna independiente del giro del cielo, opacidad diurna 40% y nocturna 100%; glow/azul calculados separadamente antes de aplicar opacidad.
+- Rutas luna actualizadas a carpeta renombrada por usuario. cielo_falso ahora carga cielo_falso.png en lugar del JPG y evita caché con parámetro de versión.
+- Niebla densidad 0.02 (antes 0.025): día #C3CBD5, noche #030304, atardecer #D99966, amanecer #BFA0AD. Mezcla por pesos de los cuatro skybox, también al inicio; amanecer rosa y atardecer naranja suaves. Último ajuste de colores verificado por sintaxis, pendiente juicio visual del usuario.
+- Flicker global CRT más lento y discreto: 1.2 s ease-in-out, opacidad 0.97–0.98; antorchas conservan fluctuación propia.
+- Minimapa con colores naturales de terreno; agua dibujada opaca y paleta de autoría intacta. Flecha dorada con punta clara y cola roja; dirección extraída de quaternion en Euler YXZ, sigue giros completos y pitch sin salto de yaw. Norte hacia arriba.
+
+## Audio vigente
+src/systems/music-events.js: AudioContext habilitado por Enter, singleton compartido startup/game; sin dependencias nuevas.
+- forest.flac al obtener corazón, espera 5 s; morning.flac al primer amanecer sin retraso adicional. Una sola reproducción de cada pista por partida, sin bucles.
+- Música ganancia 0.8. Reverberación: mezcla seca 28% / húmeda 72%, impulso estéreo difuso 8 s, predelay 65 ms, filtro de cola 2400 Hz. Viento y pasos fuera del bus musical.
+- P detiene música actual y cancela pistas ya disparadas pendientes; no silencia viento/pasos ni eventos futuros. Cola de reverberación termina naturalmente. Menú pausa muestra P.
+- Pausa suspende contexto completo y conserva posición; también congela esperas musicales. Reanudar continúa audio.
+- Viento sintetizado: ruido blanco estéreo filtrado, base 0.078, ráfagas LFO 0.07/0.113 Hz con amplitudes 0.0234/0.0156; un solo generador por partida.
+- Pisadas al mínimo del balanceo de cámara en suelo, no vuelo/bote/agua/salto/inmovilidad. Onda senoidal 90→38 Hz, envolvente 0.15 s, ganancia caminar 0.0816 / correr 0.1122. Cadencia irregular al caminar; correr menos sincopado y bob rate 16.9 frente a caminar 8. Pausa bloquea nuevos pasos.
+
+## Movimiento, puertas y suelo
+- Multiplicadores caminar 1, correr 2, volar 3, volar con Shift 9; conservar física y modificadores existentes de agua/bote.
+- door-push.js empuja jugador tanto al abrir como cerrar, calculando huella en coordenadas locales de puerta girada. Prioriza atrás, prueba lado opuesto; si ambos bloqueados revierte movimiento de hoja sin dejar jugador atrapado.
+- Puertas (228,423) y (235,423) abren hacia sur mediante doorOverrides en entities.js.
+- Cofre corazón (165,308) ground SLAB: losa debajo y modelo ajustado sobre tapa, física coincide con altura. (166,308) y (166,309) conservan losa original. La primera petición inversa de tierra se corrigió; no quedó override de tierra ni se escribió mapa PNG.
+
+## Verificaciones realizadas
+- Cierre: sintaxis de 49 módulos game.js/src y git diff --check.
+- Durante sesión: navegador local carga sin pageerror, atlas/sol/luna correctos; UV evita borde transparente y genera seis orientaciones nocturnas diferentes. Flecha validada con 40 combinaciones yaw/pitch.
+- Puertas: 12 casos de apertura/cierre/ejes/ángulos, empuje alternativo y bloqueo seguro; ambas puertas hacia sur verificadas en mundo. Losa y base del cofre coinciden en tres celdas comprobadas.
+- Audio real FLAC: carga/decodificación/reproducción, pausa conserva reloj; viento sin duplicación y render offline sin clipping en prueba previa al último aumento. Secuencia misión comprobada con audio real: atardecer fijo → forest → noche fija → entrega → 25 s → amanecer/morning → libre, sin errores. Pruebas controladas también cubren entrega temprana, P durante espera y pausa.
+- Cambios finales de niebla, niveles y reverberación requieren evaluación auditiva/visual del usuario. No se repitió recorrido integral de demo ni medición FPS en hardware real ni despliegue público Pages. Instrumentación de pruebas intercepta HTTP o usa scripts inline; no hooks en producción.
+
+## Git, servidor y relevo
+- Incluir módulos intervenidos, documentos, dos FLAC, cielo_falso.png y traslado de sprites luna/sol necesario para rutas actuales. No git add indiscriminado.
+- Excluir cambios ajenos: capa2.png, Pasto.png, arena.png, modificación de Noche.jpeg y eliminación de cinco caras antiguas de Cielo; conservarlos localmente. Estas últimas caras ya no se usan; Noche del repositorio sigue siendo atlas compatible con orientación nueva.
+- Otros assets/copias/personajes, herramientas históricas, node_modules y package*.json sin seguimiento se conservan fuera del commit. No ejecutarlos sin inspeccionar escrituras.
+- Servidor local http://127.0.0.1:8000/ permanece encendido; usuario no pidió apagarlo. tools/serve.cjs sin cambios. GitHub Pages conserva sitio estático/rutas relativas/.nojekyll; push no acredita publicación terminada.
+- Protocolo sin cambios; ANTIGRAVITY_HANDOFF.md permanece como historia. Liberar sesión Codex después del push y leer este encabezado en próximo relevo.
+
+---
+## Relevos históricos (no prevalecen sobre estado actual)
+
 # Estado vigente y relevo
 
 Fecha: 2026-10-10 (America/Santiago). Agente: Codex. Rama main.

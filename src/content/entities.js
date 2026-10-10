@@ -7,6 +7,7 @@ export const entities = [
         type: 'CHEST',
         position: { x: 165, z: 308 },
         item: 'forest-heart',
+        ground: 'SLAB',
         rotationY: Math.PI
     },
     {
@@ -20,6 +21,11 @@ export const entities = [
 ];
 
 export const grahamPosition = { x: 235, z: 421 };
+
+export const doorOverrides = [
+    { position: { x: 228, z: 423 }, openDirection: 'south' },
+    { position: { x: 235, z: 423 }, openDirection: 'south' }
+];
 
 export const furniture = [
     { id: 'graham-bed', type: 'BED', position: { x: 237, z: 427 }, size: { x: 1, z: 2 }, rotationY: Math.PI },

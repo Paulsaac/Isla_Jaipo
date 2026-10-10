@@ -55,10 +55,8 @@ export function prepareMap(mapData, entityDefinitions = []) {
             if (rType === 'OTHER') counts.OTHER = (counts.OTHER || 0) + 1;
 
             floorMap[z][x] = type;
-            if (!['WATER', 'WATER_ROCK', 'BOAT'].includes(type)) {
-                floorCtx.fillStyle = FLOOR_COLORS[type] || '#000000';
-                floorCtx.fillRect(x, z, 1, 1);
-            }
+            floorCtx.fillStyle = FLOOR_COLORS[type] || '#000000';
+            floorCtx.fillRect(x, z, 1, 1);
 
             if (type === 'TREE') {
                 const rand = ((x * 31 + z * 17) % 100);

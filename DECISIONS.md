@@ -106,3 +106,11 @@
 - Vegetación por píxeles exactos distribuida con separación de vecinos iguales, preservando otros colores; aceptar reducción localizada de 122 árboles/178 hierbas.
 - Losas #7092BE de 0.4, altura física compartida. Agua opacidad 0.4752, saturación shader 0.7225; niebla diurna #8193AA. Cielo nuevo usa color propio del atlas.
 - Cierre autoriza apagar servidor, commit y push del trabajo encargado; excluir cambios ajenos en capa2/pasto/arena y herramientas auxiliares.
+
+## 2026-10-10 — Segunda sesión: misión, cielo y audio
+- Sustituye activación anterior del ciclo por llave: inicio detenido al centro del atardecer; corazón y comienzo de forest tras 5 s activan oscurecimiento; noche queda fija hasta entregar corazón a Graham. Entrega sitúa noche 25 s antes de amanecer, primer amanecer dispara morning y libera ciclo normal. N no salta introducción. P/fallo de música respetan espera pero no bloquean misión. Llave de puente continúa deshabilitada en demo.
+- Duraciones finales de ciclo: 134.6/45.2/44/18.4 s (día/atardecer/noche/amanecer), total 242.2 s. Sol recorre norte a sur según reloj; luna día 40% / noche 100%. UV interiores y distintas orientaciones nocturnas corrigen presentación sin regenerar atlas.
+- Niebla por pesos de cuatro estados: día #C3CBD5, noche #030304, atardecer #D99966, amanecer #BFA0AD, densidad 0.02. Minimapa natural y flecha por quaternion/YXZ.
+- Audio local con Web Audio: eventos únicos forest/morning; pausa congela audio y esperas, P detiene música. Viento/pasos sintetizados; música volumen 0.8, reverb húmeda 72%, cola difusa 8 s. No servicios/dependencias ni persistencia.
+- Puertas empujan al abrir/cerrar o revierten si no hay espacio; overrides de ambas puertas (228,423)/(235,423) hacia sur. Cofre del corazón sobre losa. Correr 2x, vuelo 3x y vuelo Shift 9x.
+- Cierre autoriza documentación, commit/push del trabajo realizado y assets necesarios. Servidor permanece encendido. Excluir cambios ajenos de mapas/texturas/atlas y auxiliares locales.

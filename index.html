@@ -86,13 +86,13 @@
             z-index: 9999;
             pointer-events: none;
             will-change: opacity; /* Optimización GPU */
-            animation: flicker 0.15s infinite;
+            animation: flicker 1.2s ease-in-out infinite;
         }
 
         @keyframes flicker {
-            0% { opacity: 0.95; }
-            50% { opacity: 1.0; }
-            100% { opacity: 0.95; }
+            0% { opacity: 0.97; }
+            50% { opacity: 0.98; }
+            100% { opacity: 0.97; }
         }
         
         .blinking-text {
@@ -258,6 +258,7 @@
                 <span>Minimapa</span><span style="text-align:right;">[M]</span>
                 <span>Antorcha</span><span style="text-align:right;">[T]</span>
                 <span>Día / noche</span><span style="text-align:right;">[N]</span>
+                <span>Detener música</span><span style="text-align:right;">[P]</span>
                 <span>Inventario</span><span style="text-align:right;">[Q]</span>
             </div>
         </div>

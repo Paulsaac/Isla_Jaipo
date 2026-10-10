@@ -1,8 +1,10 @@
 // El mundo y sus recursos se solicitan únicamente después de Enter.
+import { musicEvents } from './systems/music-events.js';
 let loading = false;
 document.addEventListener('keydown', function start(event) {
     if (event.code !== 'Enter' || event.repeat || loading) return;
     loading = true;
+    musicEvents.unlock();
     document.removeEventListener('keydown', start);
     document.getElementById('main-menu').style.display = 'none';
     const screen = document.getElementById('loading-screen');

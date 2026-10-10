@@ -26,8 +26,9 @@ import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { createChestGeometry } from './src/world/chest-geometry.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
+import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
-import { pushPlayerFromClosingDoors } from './src/player/door-push.js';
+import { pushPlayerFromMovingDoors } from './src/player/door-push.js';
 import { createTerrainSectors } from './src/world/terrain-sectors.js';
 import { createInstanceSectors } from './src/world/instance-sectors.js';
 import { mergeRoofBlocks } from './src/world/roof-blocks.js';
@@ -43,8 +44,10 @@ import { createShelfGeometry } from './src/world/shelf-geometry.js';
 import { createDresserGeometry } from './src/world/dresser-geometry.js';
 import { createBarrelStackGeometry } from './src/world/barrel-stack-geometry.js';
 import { createSkyAtlas } from './src/world/sky-atlas.js';
-import { createSkyCycle } from './src/world/sky-cycle.js';
-import { furniture } from './src/content/entities.js';
+import { createSkyCycle, SKY_CYCLE_TIMING } from './src/world/sky-cycle.js';
+import { musicEvents } from './src/systems/music-events.js';
+import { createQuestSkyCycle } from './src/systems/quest-sky.js';
+import { furniture, doorOverrides } from './src/content/entities.js';
 
 const minimap = createMinimap();
 const hud = createHud();
@@ -85,7 +88,7 @@ let deliveringHeart = false;
 // --- SETUP DE THREE.JS ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a14); // Noche azulada lúgubre
-scene.fog = new THREE.FogExp2(0x0a0a14, 0.025); // Desvanecimiento gradual, sin un límite de distancia abrupto.
+scene.fog = new THREE.FogExp2(0x030304, 0.02); // Desvanecimiento gradual, sin un límite de distancia abrupto.
 
 // Iluminación Dark Fantasy (Noche de Luna)
 const ambientLight = new THREE.AmbientLight(0x11111a, 0.2); // Luz ambiental suave (más oscura)
@@ -105,23 +108,40 @@ torchLight.visible = false;
 torchLight.position.set(1.0, 0.2, -0.5); // Posicionada más alta y movida en X
 camera.add(torchLight);
 
-let targetDayState = false;
-let dayTransition = 0.0;
+let targetDayState = true;
 const skyCycle = createSkyCycle(MANUAL_SKY_TRANSITION_SECONDS);
-let dayNightTimer = 157.0; // Inicia en el segundo 157 (exactamente el inicio de la Noche)
-let automaticDayNightEnabled = false;
+const questSkyCycle = createQuestSkyCycle();
+let dayNightTimer = questSkyCycle.timer;
+let dayTransition = skyCycle.update(0, true, dayNightTimer);
 
-const nightFogColor = new THREE.Color(0x05050a);
-const dayFogColor = new THREE.Color(0x8193aa); // Azul grisáceo acorde al cielo y agua desaturados.
+const nightFogColor = new THREE.Color(0x030304);
+const dayFogColor = new THREE.Color(0xc3cbd5); // Gris blanquecino con un leve matiz azul.
+const duskFogColor = new THREE.Color(0xd99966); // Naranja cálido del horizonte al atardecer.
+const dawnFogColor = new THREE.Color(0xbfa0ad); // Rosa apagado acorde al cielo del amanecer.
+function updateFogColor() {
+    const { night, day, dusk, dawn } = skyCycle.weights;
+    scene.fog.color.setRGB(
+        nightFogColor.r * night + dayFogColor.r * day + duskFogColor.r * dusk + dawnFogColor.r * dawn,
+        nightFogColor.g * night + dayFogColor.g * day + duskFogColor.g * dusk + dawnFogColor.g * dawn,
+        nightFogColor.b * night + dayFogColor.b * day + duskFogColor.b * dusk + dawnFogColor.b * dawn
+    );
+}
 const nightAmbientColor = new THREE.Color(0x11111a);
 const dayAmbientColor = new THREE.Color(0xffffff);
 const nightDirColor = new THREE.Color(0x445577);
 const dayDirColor = new THREE.Color(0xffffee);
+updateFogColor();
+ambientLight.color.lerpColors(nightAmbientColor, dayAmbientColor, dayTransition);
+ambientLight.intensity = 0.2 + 0.6 * dayTransition;
+dirLight.color.lerpColors(nightDirColor, dayDirColor, dayTransition);
+dirLight.intensity = 0.3 + 0.7 * dayTransition;
 
 function toggleDayNight() {
     if (!controls.isLocked || !gameStarted || isDead || isDialogOpen) return;
+    if (!questSkyCycle.isFree) return;
     targetDayState = !targetDayState;
-    dayNightTimer = targetDayState ? 0 : 157;
+    dayNightTimer = targetDayState ? 0 : SKY_CYCLE_TIMING.nightStart;
+    questSkyCycle.setTime(dayNightTimer);
     skyCycle.toggle(targetDayState);
 }
 
@@ -129,6 +149,7 @@ const raycaster = new THREE.Raycaster();
 raycaster.far = 3.5;
 const interactionHits = [];
 const frameCameraDirection = new THREE.Vector3();
+const frameCameraHeading = new THREE.Euler(0, 0, 0, 'YXZ');
 const frameMoonPosition = new THREE.Vector3();
 const centerVec = new THREE.Vector2(0, 0);
 
@@ -153,10 +174,13 @@ let isInventoryOpen = false;
 controls.addEventListener('lock', () => {
     if (isDead || !mapLoaded) return;
     gameStarted = true;
+    musicEvents.setPaused(false);
+    musicEvents.startWind();
     isInventoryOpen = false; // Siempre cerramos inventario al clickear para volver
     menus.hideForGameplay();
 });
 controls.addEventListener('unlock', () => {
+    musicEvents.setPaused(true);
     for (const direction of Object.keys(moveState)) moveState[direction] = false;
     velocity.set(0, 0, 0);
     isRunning = false;
@@ -205,13 +229,11 @@ function toggleFlight() {
 }
 
 function toggleDoorWithPlayer(door) {
-    const wasOpen = door.userData.isOpen;
     toggleDoor(door, interactables, collisionMap);
-    if (!wasOpen) return;
     const backward = camera.getWorldDirection(new THREE.Vector3()).negate();
-    const result = pushPlayerFromClosingDoors(controls.getObject().position, backward,
+    const result = pushPlayerFromMovingDoors(controls.getObject().position, backward,
         solidInteractables.filter(object => object.userData.type === 'DOOR'), isWall);
-    if (result.blocked) toggleDoor(door, interactables, collisionMap); // No encerrar al jugador si ambos lados están ocupados.
+    if (result.blocked) toggleDoor(door, interactables, collisionMap); // Revertir el movimiento si no hay un lado libre.
     if (result.moved) velocity.set(0, 0, 0);
 }
 
@@ -232,9 +254,6 @@ function interact() {
                 if (activeDialogs === bridgeKeyDeliveryDialogs && heartQuest.receiveBridgeKey(GRAHAM_BRIDGE_KEY_AVAILABLE)) {
                     keys++;
                     menus.setKeyCount(keys);
-                    automaticDayNightEnabled = true;
-                    // Continuar desde el día o la noche actuales, sin saltar la iluminación.
-                    dayNightTimer = targetDayState ? 0 : 157;
                 }
                 deliveringHeart = false;
                 isDialogOpen = false;
@@ -261,6 +280,7 @@ function interact() {
                 if (targetInteractable.userData.item === 'forest-heart') {
                     if (!heartQuest.collect()) return;
                     menus.setHeartVisible(true);
+                    musicEvents.trigger('forest');
                 } else if (targetInteractable.userData.item === 'map') {
                     hasMap = true;
                     menus.setMapVisible(true);
@@ -316,6 +336,7 @@ const keyboardBinding = bindKeyboard({
     isPaused: () => gameStarted && !isDead && !controls.isLocked && !isInventoryOpen,
     toggleFlight,
     toggleDayNight,
+    stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
     start() { if (mapLoaded && !gameStarted) controls.lock(); },
     interact,
     move(direction, pressed) { moveState[direction] = pressed; },
@@ -398,7 +419,7 @@ muroTex.wrapT = THREE.RepeatWrapping;
 const techoTex = texLoader.load('./imagenes/Texturas/techo.jpg?v=' + Date.now());
 techoTex.wrapS = THREE.RepeatWrapping;
 techoTex.wrapT = THREE.RepeatWrapping;
-const cieloFalsoTex = texLoader.load('./imagenes/Texturas/cielo_falso.jpg?v=' + Date.now());
+const cieloFalsoTex = texLoader.load('./imagenes/Texturas/cielo_falso.png?v=' + Date.now());
 cieloFalsoTex.wrapS = THREE.RepeatWrapping;
 cieloFalsoTex.wrapT = THREE.RepeatWrapping;
 const maderaTex = texLoader.load('./imagenes/Texturas/madera.jpg?v=' + Date.now());
@@ -430,7 +451,10 @@ puertaFlippedTex.repeat.x = -1;
 puertaFlippedTex.needsUpdate = true;
 
 // Cielos independientes para conservar la transición y la luna fija.
-const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Noche.jpeg?v=' + Date.now());
+const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Noche.jpeg?v=' + Date.now(), {
+    faceQuarterTurns: [0,1,2,3,1,3],
+    mirroredFaces: [false,false,false,false,true,true]
+});
 const nightMaterials = Array.from({length:6}, () => new THREE.MeshBasicMaterial({map:nightAtlas.texture,side:THREE.BackSide,fog:false,transparent:true,opacity:1,depthWrite:false}));
 const nightSkyMesh = new THREE.Mesh(nightAtlas.geometry,nightMaterials);
 nightSkyMesh.renderOrder = -1;
@@ -447,6 +471,7 @@ const createTransitionSky = (file,order) => {
 };
 const dawnSkyMesh=createTransitionSky('Amanecer.png',-3);
 const duskSkyMesh=createTransitionSky('Atardecer.png',-2);
+duskSkyMesh.material.opacity=skyCycle.weights.dusk;
 nightSkyMesh.renderOrder=-4;
 
 
@@ -458,16 +483,17 @@ skyMesh.add(dawnSkyMesh);
 skyMesh.add(duskSkyMesh);
 
 // --- LUNA ---
-const moonNormalTex = texLoader.load('./imagenes/Sprites/luna/Luna_B.png?v=' + Date.now());
-const moonGlowTex = texLoader.load('./imagenes/Sprites/luna/Luna_glow.png?v=' + Date.now());
-const moonAzulTex = texLoader.load('./imagenes/Sprites/luna/Luna_azul.png?v=' + Date.now());
+const moonNormalTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_B.png?v=' + Date.now());
+const moonGlowTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_glow.png?v=' + Date.now());
+const moonAzulTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_azul.png?v=' + Date.now());
+const sunTex = texLoader.load('./imagenes/Sprites/luna - sol/Sol.png?v=' + Date.now());
 
 
 
 
 
 
-[moonNormalTex, moonGlowTex, moonAzulTex].forEach(t => {
+[moonNormalTex, moonGlowTex, moonAzulTex, sunTex].forEach(t => {
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
     t.colorSpace = THREE.SRGBColorSpace;
@@ -475,7 +501,7 @@ const moonAzulTex = texLoader.load('./imagenes/Sprites/luna/Luna_azul.png?v=' + 
 
 
 
-const moonMat = new THREE.SpriteMaterial({ map: moonNormalTex, transparent: true, fog: false, depthWrite: false });
+const moonMat = new THREE.SpriteMaterial({ map: moonNormalTex, transparent: true, opacity:1-0.6*dayTransition, fog: false, depthWrite: false });
 const moonSprite = new THREE.Sprite(moonMat);
 moonSprite.scale.set(60, 60, 1);
 moonSprite.position.set(400, 250, 0);
@@ -499,10 +525,21 @@ moonPivot.add(moonGlowSprite);
 moonPivot.add(moonAzulSprite);
 skyMesh.add(moonPivot);
 
+// Trayectoria norte (-Z) a sur (+Z), independiente de la rotación de estrellas.
+const sunMat = new THREE.SpriteMaterial({map:sunTex,transparent:true,opacity:1,fog:false,depthWrite:false});
+const sunSprite = new THREE.Sprite(sunMat);
+sunSprite.scale.set(70,70,1);
+const initialSunAngle=Math.PI*skyCycle.sunProgress;
+sunSprite.position.set(0,camera.position.y-200+Math.sin(initialSunAngle)*580,-Math.cos(initialSunAngle)*580);
+sunSprite.renderOrder=-0.2;
+skyMesh.add(sunSprite);
+
 // Variables para la lógica de mirar la luna
 let moonLookTimer = 0;
 let moonIsAlternating = false;
 let moonCycle = 0.0;
+let moonGlowOpacity = 0;
+let moonAzulOpacity = 0;
 let hasShootingStarFired = false;
 let starSprite = null;
 let starTimer = 0;
@@ -1047,7 +1084,10 @@ function buildWorld(mapData) {
                 
                 doorGroup.add(doorMesh);
                 
-                const swingDir = isRightDoor ? -1 : 1;
+                const doorOverride = doorOverrides.find(definition => definition.position.x === x && definition.position.z === z);
+                const swingDir = doorOverride?.openDirection === 'south' && isHorizontal
+                    ? (isRightDoor ? 1 : -1)
+                    : (isRightDoor ? -1 : 1);
                 const uData = { type: 'DOOR', locked: isLocked, isOpen: false, gx: x, gz: z, parentGroup: doorGroup, isHorizontal: isHorizontal, swingDir: swingDir };
                 doorMesh.userData = uData;
                 doorGroup.userData = uData;
@@ -1110,6 +1150,10 @@ function buildWorld(mapData) {
     const splatWeights = new Float32Array(positions.length / 3 * 4);
     const mountainWeights = new Float32Array(positions.length / 3 * 3);
     const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
+    const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
+    for (const definition of entities) {
+        if (definition.ground === 'SLAB') slabGroundCells[definition.position.z * mapWidth + definition.position.x] = 1;
+    }
     // El marcador de bote conserva el fondo del agua que lo rodea.
     const boatBottomChannels = new Map();
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
@@ -1145,7 +1189,8 @@ function buildWorld(mapData) {
         // Interpolación compartida para pasto, tierra, arena, piedra, roca y nieve.
         const tx = colF - c0, tz = rowF - r0;
         for (const [x,z,weight] of [[c0,r0,(1-tx)*(1-tz)], [c1,r0,tx*(1-tz)], [c0,r1,(1-tx)*tz], [c1,r1,tx*tz]]) {
-            const channel = floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
+            const channel = slabGroundCells[z * mapWidth + x] ? 3
+                : floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
                 : boatBottomChannels.get(z * mapWidth + x) ?? terrainChannels[floorMap[z][x]] ?? 0;
             if (channel < 4) splatWeights[i*4+channel] += weight;
             else mountainWeights[i*3+channel-4] += weight;
@@ -1225,7 +1270,7 @@ function buildWorld(mapData) {
     scene.add(terrainSectors);
     const slabCells = [];
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
-        if (floorMap[z][x] === 'OTHER') slabCells.push([x,z]);
+        if (floorMap[z][x] === 'OTHER' || slabGroundCells[z * mapWidth + x]) slabCells.push([x,z]);
     }
     const slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, SLAB_HEIGHT, UNIT_SIZE),
         new THREE.MeshPhongMaterial({ map: losaTex, shininess: 0 }), slabCells.length);
@@ -1237,6 +1282,13 @@ function buildWorld(mapData) {
         slabTransform.updateMatrix();
         slabs.setMatrixAt(index,slabTransform.matrix);
         slabTops.set(z*mapWidth+x,bottom+SLAB_HEIGHT);
+        if (slabGroundCells[z * mapWidth + x]) {
+            const chest = solidInteractables.find(object => object.userData.type === 'CHEST' && object.userData.gx === x && object.userData.gz === z);
+            if (chest) {
+                chest.position.y = bottom + SLAB_HEIGHT - chest.geometry.boundingBox.min.y;
+                chest.updateMatrixWorld(true);
+            }
+        }
     });
     slabs.name='slab-blocks';
     slabs.computeBoundingSphere();
@@ -1356,6 +1408,8 @@ function moveBoatAxis(position, axis, distance) {
 // --- BUCLE PRINCIPAL ---
 const clock = new THREE.Clock();
 let bobTimer = 0;
+let bobCadence = 1;
+let footstepIndex = 0;
 
 let stamina = STAMINA_MAX;
 
@@ -1383,6 +1437,7 @@ function animate() {
 
     if (controls.isLocked && mapLoaded) {
         const delta = Math.min(clock.getDelta(), 0.1);
+        musicEvents.update(delta);
         vegetationWindTime.value += delta;
         // Girar ambos cubos a la misma velocidad; la luna conserva su orientación.
         nightSkyMesh.rotation.y = (nightSkyMesh.rotation.y + NIGHT_SKY_ROTATION_SPEED * delta) % (Math.PI * 2);
@@ -1510,16 +1565,16 @@ function animate() {
                 const smoothGlow = (Math.sin(glowOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
                 const smoothAzul = (Math.sin(azulOp * Math.PI - Math.PI / 2) + 1.0) / 2.0;
 
-                moonGlowMat.opacity = smoothGlow;
-                moonAzulMat.opacity = smoothAzul;
+                moonGlowOpacity = smoothGlow;
+                moonAzulOpacity = smoothAzul;
             } else {
                 // Volver a reposo rápidamente si el jugador deja de mirar a la luna
                 moonCycle = 0.0;
-                if (moonGlowMat.opacity > 0.0) {
-                    moonGlowMat.opacity = Math.max(0.0, moonGlowMat.opacity - delta * 2.0);
+                if (moonGlowOpacity > 0.0) {
+                    moonGlowOpacity = Math.max(0.0, moonGlowOpacity - delta * 2.0);
                 }
-                if (moonAzulMat.opacity > 0.0) {
-                    moonAzulMat.opacity = Math.max(0.0, moonAzulMat.opacity - delta * 2.0);
+                if (moonAzulOpacity > 0.0) {
+                    moonAzulOpacity = Math.max(0.0, moonAzulOpacity - delta * 2.0);
                 }
             }
             
@@ -1542,11 +1597,20 @@ function animate() {
             }
         }
 
-        // Solo empieza después de recibir la llave de Graham, cuando se habilite su entrega.
-        if (automaticDayNightEnabled && !skyCycle.transitioning) dayNightTimer = (dayNightTimer + delta) % 242;
-        if (automaticDayNightEnabled && !skyCycle.transitioning) targetDayState = dayNightTimer < 157;
-        dayTransition=skyCycle.update(delta,automaticDayNightEnabled,dayNightTimer);
+        // La misión controla las pausas iniciales; luego el reloj funciona normalmente.
+        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage, musicEvents.hasEventStarted('forest'));
+        if (!skyCycle.transitioning) targetDayState = dayNightTimer < SKY_CYCLE_TIMING.nightStart;
+        dayTransition=skyCycle.update(delta,true,dayNightTimer);
+        const moonOpacity=1-0.6*dayTransition;
+        moonMat.opacity=moonOpacity;
+        moonGlowMat.opacity=moonGlowOpacity*moonOpacity;
+        moonAzulMat.opacity=moonAzulOpacity*moonOpacity;
         const weights=skyCycle.weights;
+        if (weights.dawn>0) musicEvents.trigger('morning');
+        const sunAngle=Math.PI*skyCycle.sunProgress;
+        sunSprite.position.set(0,controlObj.position.y-200+Math.sin(sunAngle)*580,-Math.cos(sunAngle)*580);
+        sunMat.opacity=weights.day+weights.dawn+weights.dusk;
+        sunSprite.visible=sunMat.opacity>0.001;
         // Alfa acumulada: el resultado contiene exactamente la mezcla de los cuatro estados.
         nightMaterials.forEach(m=>{m.opacity=1;});
         let accumulated=weights.night;
@@ -1558,7 +1622,7 @@ function animate() {
         dayMaterials.forEach(m=>{m.opacity=accumulated?weights.day/accumulated:0;});
 
         // Interpolar Iluminación Global y Niebla
-        scene.fog.color.lerpColors(nightFogColor, dayFogColor, dayTransition);
+        updateFogColor();
 
         ambientLight.color.lerpColors(nightAmbientColor, dayAmbientColor, dayTransition);
         ambientLight.intensity = 0.2 + (0.6 * dayTransition); // De 0.2 a 0.8
@@ -1623,9 +1687,12 @@ function animate() {
         }
 
         const waterSpeedMod = isRidingBoat ? 1.5 : (inWater ? 0.4 : 1.0);
+        const movementMultiplier = isFlying
+            ? (isRunning ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
+            : (isRunning ? SPRINT_MULTIPLIER : 1);
 
-        if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * waterSpeedMod * delta;
-        if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * waterSpeedMod * delta;
+        if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+        if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
 
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
@@ -1639,8 +1706,8 @@ function animate() {
         if (isFlying) {
             controlObj.position.x += dx;
             controlObj.position.z += dz;
-            if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * delta;
-            if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * (isRunning ? (isFlying ? 10.0 : SPRINT_MULTIPLIER) : 1) * delta;
+            if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * movementMultiplier * delta;
+            if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * movementMultiplier * delta;
             
             velocityY = 0;
             stamina = STAMINA_MAX;
@@ -1727,10 +1794,28 @@ function animate() {
         const speed = Math.sqrt(velocity.x**2 + velocity.z**2);
         if (!isFlying) {
             if (speed > 1.0 && canJump && !isRidingBoat) {
-                bobTimer += delta * (isRunning ? 12.0 : 8.0); 
+                const previousBob = bobTimer;
+                bobTimer += delta * (isRunning ? 16.9 : 8.0) * bobCadence;
                 controlObj.position.y = targetEyesHeight + Math.sin(bobTimer) * 0.04;
+                // Un golpe al cruzar el punto más bajo; sigue la cadencia del balanceo.
+                const trough = Math.PI * 1.5;
+                const previousStep = Math.floor((previousBob - trough) / (Math.PI * 2));
+                const currentStep = Math.floor((bobTimer - trough) / (Math.PI * 2));
+                const moved = Math.hypot(controlObj.position.x-startX,controlObj.position.z-startZ)>0.0001;
+                if (currentStep > previousStep && moved && !inWater) {
+                    const accented = footstepIndex % 2 === 0;
+                    const accent = accented ? 1 : (isRunning ? 0.92 : 0.8);
+                    const variation = isRunning ? 0.98 + Math.random() * 0.04 : 0.95 + Math.random() * 0.1;
+                    musicEvents.playFootstep(isRunning, accent * variation);
+                    footstepIndex++;
+                    // Intervalos largos/cortos ligeramente distintos en cada pareja.
+                    bobCadence = isRunning
+                        ? (accented ? 0.97 : 1.03) * (0.985 + Math.random() * 0.03)
+                        : (accented ? 0.9 : 1.08) * (0.96 + Math.random() * 0.08);
+                }
             } else if (canJump) {
                 bobTimer = 0;
+                bobCadence = 1;
                 controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 10 * delta;
             }
         }
@@ -1738,7 +1823,8 @@ function animate() {
         if (isRidingBoat && boatReference) {
             boatReference.position.set(controlObj.position.x, BOAT_FLOAT_HEIGHT, controlObj.position.z);
         }
-        minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE);
+        frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
+        minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE, -frameCameraHeading.y);
         
         // Efecto parpadeo antorcha jugador
         torchLight.intensity = 6.0 + Math.random() * 4.0;

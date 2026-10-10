@@ -25,6 +25,7 @@ export function bindKeyboard(actions, target = document) {
             case 'KeyM': actions.map(); break;
             case 'KeyT': actions.torch(); break;
             case 'KeyN': if (!event.repeat) actions.toggleDayNight(); break;
+            case 'KeyP': if (!event.repeat) actions.stopMusic?.(); break;
             case 'KeyQ': actions.inventory(); break;
         }
     }
