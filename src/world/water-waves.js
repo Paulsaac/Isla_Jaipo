@@ -11,6 +11,8 @@ export function applyWaterWaves(THREE, material, time) {
             float waveB = vWaterPosition.x * -0.25 + vWaterPosition.z * 0.8 - waterTime * 0.55;
             vec2 waterUvOffset = vec2(sin(waveA), cos(waveB)) * 0.06;
             ${THREE.ShaderChunk.map_fragment.replaceAll('vMapUv', '(vMapUv + waterUvOffset)')}
+            float waterLuminance = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+            diffuseColor.rgb = mix(vec3(waterLuminance), diffuseColor.rgb, 0.7225);
         `);
         shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `
             #include <normal_fragment_maps>
@@ -18,5 +20,5 @@ export function applyWaterWaves(THREE, material, time) {
             normal = normalize(normal + (viewMatrix * vec4(ripple, 0.0)).xyz);
         `);
     };
-    material.customProgramCacheKey = () => 'water-waves-v1';
+    material.customProgramCacheKey = () => 'water-waves-v3';
 }

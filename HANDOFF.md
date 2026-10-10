@@ -1,5 +1,44 @@
 # Estado vigente y relevo
 
+Fecha: 2026-10-10 (America/Santiago). Agente: Codex. Rama main.
+Base de sesión: 5e96cbab575682a8e9fd3fab148de56180c4c858.
+Cierre, servidor apagado, documentación y push solicitados explícitamente. Commit previsto: «Add sky cycle atlases, stone slabs and world decoration». Documento escrito antes del commit/push: confirmar resultado mediante git log y origin/main.
+
+## Coordinación
+Leer AGENTS.md, docs/PROTOCOL.md, HANDOFF.md y DECISIONS.md antes de editar. Mantener sesión entre ajustes; actualizar documentos al cierre y usar Git solo con autorización. Protocolo sin cambios, ANTIGRAVITY_HANDOFF.md sigue como historial.
+Demo ligera web, sin guardado persistente; Graham busca llave y no la entrega. Ciclo automático apagado con GRAHAM_BRIDGE_KEY_AVAILABLE=false.
+
+## Cambios de esta sesión
+- Cofre de mapa movido de (229,429) a (231,425), orientación final 90°. entities.js conserva sourcePosition: prepareMap recibe entidades y sustituye marcadores en datos/suelo/colisión/minimapa sin editar ese píxel de capa1. M sigue requiriendo el mapa. Si se cambia el marcador en el PNG, actualizar sourcePosition para evitar validación fallida.
+- Cajas: siete en tres niveles, centro entre (230,429),(231,429),(230,430),(231,430); rotación 22.5°. Estante cinco niveles en (231,426), altura 2.4, girado -90° y offset X=0.65 junto al muro.
+- Cajonera dos niveles (227,425–426), altura 1.4, giro 90°, offset X=-0.45. Pirámide de tres barriles acostados (227–228,428), giro 90°, offset X=-1.39, a 1 cm del muro. Colisiones por modelo; sin abrir cajones ni escalar muebles.
+- Vegetación de capa1 redistribuida solo entre #008000/#7F7F7F/#3C2F7F/#22B14C, sin modificar otros píxeles. Cada tipo separado incluso diagonalmente: árboles exactos 7679→7557, arbustos 2293→2293, hierba 5458→5280. Desplazamiento local máximo ~11.31 celdas, reducción de densidad para abrir espacio. Copia anterior en .coordination/capa1-before-vegetation-20261010.png. Otros colores cercanos que decodificador aproxima no incluidos en esos conteos exactos.
+- #7092BE/OTHER usa losa.png y bloques instanciados de celda completa: altura final SLAB_HEIGHT=0.4 en game.js. slabTops ajusta altura al caminar; 203 bloques en mapa probado. Material mezclado con terreno bajo ellos, base por altura central de celda. Revisar encuentro con terreno irregular si se amplían esas áreas.
+- Agua2/3 igualadas al color de Agua1 editada por usuario. Ajustes posteriores azul/cielo conservan patrones y tamaño 64x64. Opacidad final 0.4752 (0.594 *0.8), saturación en shader 0.7225 (dos reducciones consecutivas 15%). Animación/ondas conservadas. Niebla día #8193AA, densidad 0.025 sin cambios.
+
+## Cielo vigente (sustituye ajustes de caras individuales)
+- Nuevo src/world/sky-atlas.js lee despliegue 4x3, cubo 1400 por lado. Orden de caras +X,-X,+Y,-Y,+Z,-Z: celdas (3,1),(1,1),(2,0),(2,2),(2,1),(0,1), coordenadas desde cero. UV comparte imagen sin recortes ni regenerar atlas diurnos.
+- Assets activos: imagenes/Texturas/Cielo/Ciclo/Dia.png, Amanecer.png, Atardecer.png (500x375); Noche.jpeg convertido a atlas 1280x960 con seis caras 320x320, repitiendo textura de estrellas anterior. Original nocturno guardado en .coordination/Noche-before-atlas.jpeg. No es panorámica nueva con estrellas únicas por cara.
+- Cuatro cubos rotan sincronizados, horizonte centrado en ojos y luna independiente. Día/noche tienen seis materiales; amanecer/atardecer uno cada uno. Alfa acumulada según pesos para evitar oscurecer artificialmente el fundido. Los colores del atlas se usan directamente: se retiró filtro de saturación anterior del cielo al reemplazar el skybox.
+- src/world/sky-cycle.js: ciclo preparado de 242 s = día139, atardecer18, noche73, amanecer12. No automático en demo; mantiene activación futura al recibir llave de Graham.
+- N manual: 3 segundos noche→amanecer→día / día→atardecer→noche, fundidos smoothstep, breve tramo central; segunda pulsación parte de pesos actuales sin salto inicial. Pausa detiene avance y rotación. Luces/niebla/intensidad antorchas siguen dayTransition = peso día +0.5*(amanecer+atardecer); colores cálidos de niebla para esos estados aún no configurados.
+- Hubo varias pruebas de color de cinco imágenes individuales y cambios de orientación; se conservan en Cielo/ con nombres fila,columna, pero ya no se usan por el juego. Sustituir futuros colores editando los atlas activos. Antiguas rutas Cielo_dia y Cielo.jpeg retiradas al reorganizar carpeta por usuario.
+
+## Verificaciones
+- Sintaxis de game.js y todos los módulos src al cierre; git diff --check.
+- Puppeteer durante sesión: carga sin pageerror, cofres sin duplicación/mapa conservado, posiciones y colisiones de cajas/cajonera/barriles, 203 losas con altura física igual a tapa, separación de vegetación (cero pares iguales adyacentes), texturas agua/cielo conservan tamaños.
+- Pruebas de ciclo: al centro de manual se ve amanecer/atardecer y al final día/noche; inversión con delta0 mantiene pesos. Estados automáticos muestreados en 0,148,180,236 s; cuatro atlas cargan, nocturno seis caras y cubo correcto sin errores.
+- No repetir recorrido integral demo ni prometer mejora FPS por estos cambios. Pendiente revisión visual del usuario de uniones del nuevo atlas, ciclos y decoración, y medición en hardware real. No se comprobó despliegue público Pages.
+- Servidor local tools/serve.cjs detenido por solicitud del usuario; puerto 8000 sin escucha. Próximo inicio: node tools/serve.cjs.
+
+## Git y material local
+- Commit solo cambios de la sesión, mapa capa1 intervenido, agua/losa, atlas activos y caras individuales trabajadas, nuevas geometrías/controladores y documentación. No incluir indiscriminadamente archivos auxiliares.
+- Cambios ajenos detectados y conservados fuera del commit: capa2.png, Pasto.png, arena.png. También sprites/personajes nuevos y copias de imágenes sin seguimiento; no fueron encargados ni editados por Codex en esta sesión.
+- Scripts históricos, node_modules, package.json/lock, temporales y .coordination permanecen locales; no borrarlos ni ejecutarlos a ciegas.
+- Estado base anterior y sus pendientes se conserva abajo como historial; las coordenadas y parámetros de este encabezado prevalecen.
+
+## Relevo anterior (historial del cierre 2026-10-09)
+
 Fecha: 2026-10-09 (America/Santiago). Agente: Codex. Rama: main.
 Base: 06a8ec8d22e5c19cc30b85e3f8f399753df1a44d.
 Usuario solicitó cierre, documentación y carga a GitHub. Commit previsto: «Optimize world rendering and add furniture, inventory and demo interactions». Este documento se escribe antes del commit y push; confirmar resultado con git log y origin/main.

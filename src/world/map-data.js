@@ -2,9 +2,22 @@ import { FLOOR_COLORS } from './palette.js';
 import { getClosestType } from './map-decoder.js';
 
 // Prepara datos y minimapa; no crea objetos Three.js ni modifica el estado del juego.
-export function prepareMap(mapData) {
+export function prepareMap(mapData, entityDefinitions = []) {
     const mapWidth = mapData.width;
     const mapHeight = mapData.height;
+    const relocations = new Map();
+    for (const entity of entityDefinitions) {
+        if (!entity.sourcePosition) continue;
+        const { sourcePosition: from, position: to } = entity;
+        const source = (from.z * mapWidth + from.x) * 4;
+        const target = (to.z * mapWidth + to.x) * 4;
+        const decode = index => getClosestType(...mapData.basePixels.slice(index, index + 4));
+        if (decode(source) !== entity.type || !['INDOOR_FLOOR', 'WOOD'].includes(decode(target))) {
+            throw new Error('No se puede trasladar la entidad ' + entity.id + ': revisar origen y destino.');
+        }
+        relocations.set(from.x + ',' + from.z, decode(target));
+        relocations.set(to.x + ',' + to.z, entity.type);
+    }
     const imgData = mapData.basePixels;
     const roofImgData = mapData.roofPixels;
 
@@ -26,6 +39,8 @@ export function prepareMap(mapData) {
         for (let x = 0; x < mapWidth; x++) {
             const idx = (z * mapWidth + x) * 4;
             let type = getClosestType(imgData[idx], imgData[idx+1], imgData[idx+2], imgData[idx+3]);
+
+            type = relocations.get(x + ',' + z) ?? type;
 
             let rType = getClosestType(roofImgData[idx], roofImgData[idx+1], roofImgData[idx+2], roofImgData[idx+3]);
             // Conservar el carácter exterior: la antorcha no crea un piso interior.

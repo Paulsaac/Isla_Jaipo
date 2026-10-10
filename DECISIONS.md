@@ -98,3 +98,11 @@
 - Graham (235,421). Muebles por coordenadas/offsets en entities.js, con colisión visible; posiciones vigentes detalladas en HANDOFF.md.
 - Mar con fondo de arena, río/lago de rocas; agua 0.594 con ondas visuales. Solo árboles colisionan entre vegetación.
 - Cierre autoriza commit y push de toda la sesión, mapa actualizado por usuario y exportaciones GLB solicitadas; excluir auxiliares y dependencias locales históricas.
+
+## 2026-10-10 — Atlas, decoración y superficies
+- Usar atlas 4x3 de seis caras para los cuatro estados del cielo, reemplazando caras sueltas. Rotación conjunta, luna fija y horizonte centrado en jugador. Ciclo automático permanece apagado en demo; N atraviesa amanecer/atardecer en 3 s. Ciclo futuro: 242 s (139/18/73/12).
+- Noche.jpeg se compone de la textura original repetida en seis caras; preservar original en copia local. Atlas diurnos proporcionados por usuario no se regeneran.
+- Cofre del mapa ahora (231,425), orientación 90°, traslado de datos desde (229,429). Decoración y posiciones finales en HANDOFF.md.
+- Vegetación por píxeles exactos distribuida con separación de vecinos iguales, preservando otros colores; aceptar reducción localizada de 122 árboles/178 hierbas.
+- Losas #7092BE de 0.4, altura física compartida. Agua opacidad 0.4752, saturación shader 0.7225; niebla diurna #8193AA. Cielo nuevo usa color propio del atlas.
+- Cierre autoriza apagar servidor, commit y push del trabajo encargado; excluir cambios ajenos en capa2/pasto/arena y herramientas auxiliares.

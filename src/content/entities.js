@@ -12,8 +12,10 @@ export const entities = [
     {
         id: 'island-map-chest',
         type: 'CHEST',
-        position: { x: 229, z: 429 },
-        item: 'map'
+        position: { x: 231, z: 425 },
+        sourcePosition: { x: 229, z: 429 },
+        item: 'map',
+        rotationY: Math.PI / 2
     }
 ];
 
@@ -31,5 +33,9 @@ export const furniture = [
     { id: 'graham-chair-right', type: 'CHAIR', position: { x: 233, z: 422 }, size: { x: 1, z: 1 }, offset: { x: -0.65 }, rotationY: -Math.PI / 2 },
     { id: 'graham-wardrobe', type: 'WARDROBE', position: { x: 236, z: 424 }, size: { x: 2, z: 1 }, offset: { z: -0.45 } },
     { id: 'graham-desk', type: 'DESK', position: { x: 234, z: 428 }, size: { x: 2, z: 1 }, offset: { z: 0.35 } },
-    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 427 }, size: { x: 1, z: 1 }, offset: { z: 1.3 } }
+    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 427 }, size: { x: 1, z: 1 }, offset: { z: 1.3 } },
+    { id: 'graham-crate-stack', type: 'CRATE_STACK', position: { x: 230, z: 429 }, size: { x: 2, z: 2 }, rotationY: Math.PI / 8 },
+    { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 426 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: -Math.PI / 2 },
+    { id: 'graham-dresser', type: 'DRESSER', position: { x: 227, z: 425 }, size: { x: 1, z: 2 }, offset: { x: -0.45 }, rotationY: Math.PI / 2 },
+    { id: 'graham-barrel-pyramid', type: 'BARREL_STACK', position: { x: 227, z: 428 }, size: { x: 2, z: 1 }, offset: { x: -1.39 }, rotationY: Math.PI / 2 }
 ];

@@ -38,6 +38,12 @@ import { createBookshelfGeometry } from './src/world/bookshelf-geometry.js';
 import { createTableGeometry, createChairGeometry } from './src/world/table-chair-geometry.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
+import { createCrateStackGeometry } from './src/world/crate-stack-geometry.js';
+import { createShelfGeometry } from './src/world/shelf-geometry.js';
+import { createDresserGeometry } from './src/world/dresser-geometry.js';
+import { createBarrelStackGeometry } from './src/world/barrel-stack-geometry.js';
+import { createSkyAtlas } from './src/world/sky-atlas.js';
+import { createSkyCycle } from './src/world/sky-cycle.js';
 import { furniture } from './src/content/entities.js';
 
 const minimap = createMinimap();
@@ -57,6 +63,8 @@ let hasTorch = false;
 let hasMap = false;
 const heartQuest = createForestHeartQuest();
 const interactables = [];
+const slabTops = new Map();
+const SLAB_HEIGHT = 0.4;
 const solidInteractables = []; // Incluye cofres abiertos y hojas de puerta en su posición actual.
 const worldTorches = [];
 let torchLighting = null;
@@ -99,12 +107,12 @@ camera.add(torchLight);
 
 let targetDayState = false;
 let dayTransition = 0.0;
-let manualSkyTransition = false;
+const skyCycle = createSkyCycle(MANUAL_SKY_TRANSITION_SECONDS);
 let dayNightTimer = 157.0; // Inicia en el segundo 157 (exactamente el inicio de la Noche)
 let automaticDayNightEnabled = false;
 
 const nightFogColor = new THREE.Color(0x05050a);
-const dayFogColor = new THREE.Color(0x87CEEB);
+const dayFogColor = new THREE.Color(0x8193aa); // Azul grisáceo acorde al cielo y agua desaturados.
 const nightAmbientColor = new THREE.Color(0x11111a);
 const dayAmbientColor = new THREE.Color(0xffffff);
 const nightDirColor = new THREE.Color(0x445577);
@@ -114,13 +122,7 @@ function toggleDayNight() {
     if (!controls.isLocked || !gameStarted || isDead || isDialogOpen) return;
     targetDayState = !targetDayState;
     dayNightTimer = targetDayState ? 0 : 157;
-    manualSkyTransition = true;
-}
-
-function updateManualSkyTransition(delta) {
-    const step = delta / MANUAL_SKY_TRANSITION_SECONDS;
-    dayTransition = Math.max(0, Math.min(1, dayTransition + (targetDayState ? step : -step)));
-    if (dayTransition === (targetDayState ? 1 : 0)) manualSkyTransition = false;
+    skyCycle.toggle(targetDayState);
 }
 
 const raycaster = new THREE.Raycaster();
@@ -385,7 +387,7 @@ const weed2Tex = texLoader.load('./imagenes/Sprites/vegetacion/weed2.png?v=' + D
 const weed3Tex = texLoader.load('./imagenes/Sprites/vegetacion/weed3.png?v=' + Date.now());
 const pastoTex = texLoader.load('./imagenes/Texturas/Pasto.png?v=' + Date.now());
 const tierraTex = texLoader.load('./imagenes/Texturas/Tierra.png?v=' + Date.now());
-const cieloTex = texLoader.load('./imagenes/Texturas/Cielo.jpeg?v=' + Date.now());
+
 const arenaTex = texLoader.load('./imagenes/Texturas/arena.png?v=' + Date.now());
 const agua1Tex = texLoader.load('./imagenes/Texturas/Agua1.png?v=' + Date.now());
 const agua2Tex = texLoader.load('./imagenes/Texturas/Agua2.png?v=' + Date.now());
@@ -401,11 +403,12 @@ cieloFalsoTex.wrapS = THREE.RepeatWrapping;
 cieloFalsoTex.wrapT = THREE.RepeatWrapping;
 const maderaTex = texLoader.load('./imagenes/Texturas/madera.jpg?v=' + Date.now());
 const puertaTex = texLoader.load('./imagenes/Texturas/puerta.png?v=' + Date.now());
+const losaTex = texLoader.load('./imagenes/Texturas/losa.png?v=' + Date.now());
 const piedraTex = texLoader.load('./imagenes/Texturas/piedra.png?v=' + Date.now());
 const rocaTex = texLoader.load('./imagenes/Texturas/rocas.jpg?v=' + Date.now());
 const nieveTex = texLoader.load('./imagenes/Texturas/nieve.png?v=' + Date.now());
 
-[npcTex, pino1Tex, pino2Tex, alamo1Tex, alamo2Tex, arau1Tex, arau2Tex, arbusto1Tex, arbusto2Tex, weed1Tex, weed2Tex, weed3Tex, pastoTex, tierraTex, cieloTex, arenaTex, agua1Tex, agua2Tex, agua3Tex, muroTex, maderaTex, puertaTex, piedraTex, rocaTex, nieveTex, techoTex, cieloFalsoTex].forEach(t => {
+[npcTex, pino1Tex, pino2Tex, alamo1Tex, alamo2Tex, arau1Tex, arau2Tex, arbusto1Tex, arbusto2Tex, weed1Tex, weed2Tex, weed3Tex, pastoTex, tierraTex, arenaTex, agua1Tex, agua2Tex, agua3Tex, muroTex, maderaTex, puertaTex, losaTex, piedraTex, rocaTex, nieveTex, techoTex, cieloFalsoTex].forEach(t => {
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
     t.colorSpace = THREE.SRGBColorSpace;
@@ -416,7 +419,7 @@ rocaTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
 
 
-[piedraTex, rocaTex, nieveTex, pastoTex, tierraTex, arenaTex, agua1Tex, agua2Tex, agua3Tex].forEach(t => {
+[losaTex, piedraTex, rocaTex, nieveTex, pastoTex, tierraTex, arenaTex, agua1Tex, agua2Tex, agua3Tex].forEach(t => {
     t.wrapS = THREE.RepeatWrapping;
     t.wrapT = THREE.RepeatWrapping;
 });
@@ -426,47 +429,33 @@ puertaFlippedTex.wrapS = THREE.RepeatWrapping;
 puertaFlippedTex.repeat.x = -1;
 puertaFlippedTex.needsUpdate = true;
 
-// Cargar texturas del Cielo de Día
-const skyDayR = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_r_txt_0.png?v=' + Date.now());
-const skyDayL = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_l_txt_0.png?v=' + Date.now());
-const skyDayT = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_t_txt_0.png?v=' + Date.now());
-const skyDayF = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_f_txt_0.png?v=' + Date.now());
-const skyDayB = texLoader.load('./imagenes/Texturas/Cielo_dia/OoT_h_bg_fine1_b_txt_0.png?v=' + Date.now());
-
-[skyDayR, skyDayL, skyDayT, skyDayF, skyDayB].forEach(t => {
-    t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.NearestFilter;
-    t.colorSpace = THREE.SRGBColorSpace;
-});
-
-
-
-// Caja de Cielo (Skybox) - Noche y Día
-const skyGeo = new THREE.BoxGeometry(1400, 700, 1400);
-
-// Materiales Noche
-const skyMatNight = new THREE.MeshBasicMaterial({ map: cieloTex, side: THREE.BackSide, fog: false, transparent: true, opacity: 1, depthWrite: false });
-const skyMatInvisible = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.BackSide, fog: false, depthWrite: false });
-const nightMaterials = [skyMatNight, skyMatNight, skyMatNight, skyMatInvisible, skyMatNight, skyMatNight];
-const nightSkyMesh = new THREE.Mesh(skyGeo, nightMaterials);
+// Cielos independientes para conservar la transición y la luna fija.
+const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Noche.jpeg?v=' + Date.now());
+const nightMaterials = Array.from({length:6}, () => new THREE.MeshBasicMaterial({map:nightAtlas.texture,side:THREE.BackSide,fog:false,transparent:true,opacity:1,depthWrite:false}));
+const nightSkyMesh = new THREE.Mesh(nightAtlas.geometry,nightMaterials);
 nightSkyMesh.renderOrder = -1;
-
-// Materiales Día
-const createDayMat = (tex) => new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, transparent: true, opacity: 0, depthWrite: false });
-const dayMaterials = [
-    createDayMat(skyDayR), // Right
-    createDayMat(skyDayL), // Left
-    createDayMat(skyDayT), // Top
-    skyMatInvisible,       // Bottom
-    createDayMat(skyDayB), // Front (pz) -> OOT "back" maps to Threejs +Z
-    createDayMat(skyDayF)  // Back (nz) -> OOT "front" maps to Threejs -Z
-];
-const daySkyMesh = new THREE.Mesh(skyGeo, dayMaterials);
+const dayAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Dia.png?v=' + Date.now());
+const dayMaterials = Array.from({length:6}, () => new THREE.MeshBasicMaterial({ map: dayAtlas.texture, side: THREE.BackSide, fog:false, transparent:true, opacity:0, depthWrite:false }));
+const daySkyMesh = new THREE.Mesh(dayAtlas.geometry, dayMaterials);
 daySkyMesh.renderOrder = -1;
+const createTransitionSky = (file,order) => {
+    const atlas=createSkyAtlas(THREE,texLoader,'./imagenes/Texturas/Cielo/Ciclo/'+file+'?v='+Date.now());
+    const material=new THREE.MeshBasicMaterial({map:atlas.texture,side:THREE.BackSide,fog:false,transparent:true,opacity:0,depthWrite:false});
+    const mesh=new THREE.Mesh(atlas.geometry,material);
+    mesh.renderOrder=order;
+    return mesh;
+};
+const dawnSkyMesh=createTransitionSky('Amanecer.png',-3);
+const duskSkyMesh=createTransitionSky('Atardecer.png',-2);
+nightSkyMesh.renderOrder=-4;
+
 
 skyMesh = new THREE.Group();
 skyMesh.add(nightSkyMesh);
 skyMesh.add(daySkyMesh);
+// Orden explícito de render para fundidos sin oscurecimiento artificial.
+skyMesh.add(dawnSkyMesh);
+skyMesh.add(duskSkyMesh);
 
 // --- LUNA ---
 const moonNormalTex = texLoader.load('./imagenes/Sprites/luna/Luna_B.png?v=' + Date.now());
@@ -542,7 +531,7 @@ Promise.all([
 
 
 function buildWorld(mapData) {
-    const prepared = prepareMap(mapData);
+    const prepared = prepareMap(mapData, entities);
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
@@ -627,7 +616,7 @@ function buildWorld(mapData) {
     const grassFloorMat = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 });
     const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
-    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xb8d9ff, transparent: true, opacity: 0.594, shininess: 60 });
+    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xb8d9ff, transparent: true, opacity: 0.4752, shininess: 60 });
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime);
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
@@ -1120,7 +1109,7 @@ function buildWorld(mapData) {
     const uvs = terrainGeo.attributes.uv.array;
     const splatWeights = new Float32Array(positions.length / 3 * 4);
     const mountainWeights = new Float32Array(positions.length / 3 * 3);
-    const terrainChannels = { DIRT: 1, SAND: 2, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
+    const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
     // El marcador de bote conserva el fondo del agua que lo rodea.
     const boatBottomChannels = new Map();
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
@@ -1186,6 +1175,7 @@ function buildWorld(mapData) {
         shader.uniforms.tMountain = { value: piedraTex };
         shader.uniforms.tRock = { value: rocaTex };
         shader.uniforms.tSnow = { value: nieveTex };
+        shader.uniforms.tSlab = { value: losaTex };
 
         shader.vertexShader = `
             attribute vec4 splatWeights;
@@ -1207,6 +1197,7 @@ function buildWorld(mapData) {
             uniform sampler2D tMountain;
             uniform sampler2D tRock;
             uniform sampler2D tSnow;
+            uniform sampler2D tSlab;
             varying vec4 vSplat;
             varying vec3 vMountain;
             ${shader.fragmentShader}
@@ -1217,7 +1208,7 @@ function buildWorld(mapData) {
                 vec4 texelGrass = texture2D(tGrass, vMapUv);
                 vec4 texelDirt = texture2D(tDirt, vMapUv);
                 vec4 texelSand = texture2D(tSand, vMapUv);
-                vec4 texelBase = vec4(0.06, 0.06, 0.06, 1.0); 
+                vec4 texelBase = texture2D(tSlab, vMapUv);
 
                 // Promedio ponderado de texturas
                 vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y + texelSand * vSplat.z + texelBase * vSplat.w
@@ -1232,10 +1223,28 @@ function buildWorld(mapData) {
 
     const terrainSectors = createTerrainSectors(THREE, terrainGeo, splatMaterial, segmentsW, segmentsH);
     scene.add(terrainSectors);
+    const slabCells = [];
+    for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
+        if (floorMap[z][x] === 'OTHER') slabCells.push([x,z]);
+    }
+    const slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, SLAB_HEIGHT, UNIT_SIZE),
+        new THREE.MeshPhongMaterial({ map: losaTex, shininess: 0 }), slabCells.length);
+    const slabTransform = new THREE.Object3D();
+    slabCells.forEach(([x,z],index) => {
+        const worldX=x*UNIT_SIZE, worldZ=z*UNIT_SIZE;
+        const bottom=sampleTerrainHeight(worldX,worldZ,mapWidth,mapHeight,floorMap,elevationMap,woodFloorMap,mountainPathProfile,terrainHeightSamples);
+        slabTransform.position.set(worldX,bottom+SLAB_HEIGHT/2,worldZ);
+        slabTransform.updateMatrix();
+        slabs.setMatrixAt(index,slabTransform.matrix);
+        slabTops.set(z*mapWidth+x,bottom+SLAB_HEIGHT);
+    });
+    slabs.name='slab-blocks';
+    slabs.computeBoundingSphere();
+    scene.add(slabs);
     terrainGeo.dispose(); // Los sectores conservan los atributos compartidos; la malla global ya no se dibuja.
 
     for (const definition of furniture) {
-        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK'].includes(definition.type)) continue;
+        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK'].includes(definition.type)) continue;
         const { position, size } = definition;
         for (let z = position.z; z < position.z + size.z; z++) for (let x = position.x; x < position.x + size.x; x++) {
             if (!['INDOOR_FLOOR', 'WOOD'].includes(floorMap[z]?.[x])) throw new Error(`El mueble ${definition.id} requiere suelo interior en (${x},${z}).`);
@@ -1243,7 +1252,7 @@ function buildWorld(mapData) {
         const x = (position.x + (size.x - 1) / 2) * UNIT_SIZE + (definition.offset?.x ?? 0);
         const z = (position.z + (size.z - 1) / 2) * UNIT_SIZE + (definition.offset?.z ?? 0);
         const isBed = definition.type === 'BED';
-        const model = new THREE.Mesh(isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
+        const model = new THREE.Mesh(isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd8ceb3, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x40566b, shininess: 0 })
@@ -1252,7 +1261,7 @@ function buildWorld(mapData) {
             ...[0x783d32, 0x354e65, 0x486044, 0xc5b78c].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
         ] : [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
-            new THREE.MeshPhongMaterial({ color: 0x555555, shininess: 12 })
+            new THREE.MeshPhongMaterial({ color: definition.type === 'CRATE_STACK' ? 0x55351f : 0x555555, shininess: 12 })
         ]);
         model.name = definition.id;
         model.rotation.y = definition.rotationY ?? 0;
@@ -1320,6 +1329,9 @@ function alignGrahamToFloor() {
 }
 
 function getTerrainHeight(x, z) {
+    const gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
+    const top=slabTops.get(gz*mapWidth+gx);
+    if(gx>=0&&gz>=0&&gx<mapWidth&&gz<mapHeight&&top!==undefined) return top;
     return sampleTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile, terrainHeightSamples);
 }
 
@@ -1366,6 +1378,8 @@ function animate() {
         grahamSprite.rotation.y = Math.atan2(controlObj.position.x - grahamSprite.position.x, controlObj.position.z - grahamSprite.position.z);
     }
     skyMesh.position.set(controlObj.position.x, 200, controlObj.position.z);
+    daySkyMesh.position.y = controlObj.position.y - 200;
+    nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y; // Horizonte del atlas a la altura de los ojos.
 
     if (controls.isLocked && mapLoaded) {
         const delta = Math.min(clock.getDelta(), 0.1);
@@ -1373,6 +1387,7 @@ function animate() {
         // Girar ambos cubos a la misma velocidad; la luna conserva su orientación.
         nightSkyMesh.rotation.y = (nightSkyMesh.rotation.y + NIGHT_SKY_ROTATION_SPEED * delta) % (Math.PI * 2);
         daySkyMesh.rotation.y = nightSkyMesh.rotation.y;
+        dawnSkyMesh.rotation.y = duskSkyMesh.rotation.y = nightSkyMesh.rotation.y;
 
         // Lógica de mirada a la luna (Easter Egg)
         if (typeof moonSprite !== 'undefined') {
@@ -1528,27 +1543,19 @@ function animate() {
         }
 
         // Solo empieza después de recibir la llave de Graham, cuando se habilite su entrega.
-        if (automaticDayNightEnabled) dayNightTimer = (dayNightTimer + delta) % 242;
-        
-        // Día: 157s (2m 37s). Noche: 85s (1m 25s).
-        targetDayState = (dayNightTimer < 157.0);
-
-        // TRANSICIÓN DÍA/NOCHE: Amanecer (12s), Anochecer (25s)
-        if (manualSkyTransition) {
-            updateManualSkyTransition(delta);
-        } else if (targetDayState && dayTransition < 1.0) {
-            const dawnSpeed = delta / 12.0;
-            dayTransition += dawnSpeed;
-            if (dayTransition > 1.0) dayTransition = 1.0;
-        } else if (!targetDayState && dayTransition > 0.0) {
-            const duskSpeed = delta / 25.0;
-            dayTransition -= duskSpeed;
-            if (dayTransition < 0.0) dayTransition = 0.0;
-        }
-
-        // Interpolar Opacidad del Cielo
-        skyMesh.children[0].material.forEach((m, idx) => { if (idx !== 3) m.opacity = 1.0 - dayTransition; }); // Noche
-        skyMesh.children[1].material.forEach((m, idx) => { if (idx !== 3) m.opacity = dayTransition; }); // Día
+        if (automaticDayNightEnabled && !skyCycle.transitioning) dayNightTimer = (dayNightTimer + delta) % 242;
+        if (automaticDayNightEnabled && !skyCycle.transitioning) targetDayState = dayNightTimer < 157;
+        dayTransition=skyCycle.update(delta,automaticDayNightEnabled,dayNightTimer);
+        const weights=skyCycle.weights;
+        // Alfa acumulada: el resultado contiene exactamente la mezcla de los cuatro estados.
+        nightMaterials.forEach(m=>{m.opacity=1;});
+        let accumulated=weights.night;
+        accumulated+=weights.dawn;
+        dawnSkyMesh.material.opacity=accumulated?weights.dawn/accumulated:0;
+        accumulated+=weights.dusk;
+        duskSkyMesh.material.opacity=accumulated?weights.dusk/accumulated:0;
+        accumulated+=weights.day;
+        dayMaterials.forEach(m=>{m.opacity=accumulated?weights.day/accumulated:0;});
 
         // Interpolar Iluminación Global y Niebla
         scene.fog.color.lerpColors(nightFogColor, dayFogColor, dayTransition);
