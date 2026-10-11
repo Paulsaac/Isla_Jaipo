@@ -128,4 +128,4 @@
 - Modelos procedurales ligeros con Three.js, sin dependencias nuevas ni assets originales regenerados: restos de naufragio, barco hundido, troncos, mesón/hacha y tocón.
 - Bote sin remos con proporción 1:2. Giro inicial a izquierda y proa controlada por mirada horizontal; barrer giro y movimiento con huella orientada contra costas y río.
 - Asiento 0.70 detrás y ojos 0.70 más bajos que posición original. Flotación visual suave con cámara acompañando altura, conservando centro de navegación y control libre de mirada.
-- Cierre incluye solo código, documentación y recursos necesarios para solicitudes; otras ediciones de sprites/texturas se preservan locales fuera del commit.
+- El primer commit de cierre incluyó código, documentación y recursos necesarios. El usuario amplió después la autorización para subir todos los archivos modificados: las 13 ediciones pendientes de sprites y texturas se incorporan en un segundo commit sin modificar sus imágenes.

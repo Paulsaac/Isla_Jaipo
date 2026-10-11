@@ -3,6 +3,8 @@
 Agente Codex, rama main. Base de sesión: b3eeba30cb0a464b6534a7015526988a04318200.
 Usuario solicitó terminar, apagar servidor, documentar y hacer push a GitHub. Este encabezado prevalece sobre relevos históricos inferiores. Commit de cierre: «Improve waterfront, boats and quest progression». Documento escrito antes del commit: confirmar resultado con git log y origin/main.
 
+Ampliación del cierre: primer push confirmado en fec4dbe. El usuario autorizó después incluir todos los archivos modificados, incluidos los 13 sprites/texturas pendientes. Segundo commit: «Include updated sprites and textures». Se verificó que las 13 imágenes se decodifican y tienen dimensiones válidas con System.Drawing; no se alteraron sus píxeles ni nombres. El servidor permanece apagado. Confirmar segundo commit/push con git log y origin/main; liberar la sesión adicional al concluir.
+
 ## Misión, cielo, audio y presentación
 - GRAHAM_BRIDGE_KEY_AVAILABLE=true: Graham entrega la llave tras recibir el Corazón del Bosque. El ciclo alcanza noche y queda detenido hasta recibir la llave; entonces conserva 25 segundos de noche antes del amanecer y libera el ciclo habitual. La entrega del corazón por sí sola ya no activa amanecer. Pausa conserva relojes de misión.
 - El cofre del mapa permanece bloqueado hasta recibir esa llave. Graham menciona el regalo en el otro cuarto para orientarse; la entrega es única.
@@ -32,7 +34,7 @@ Usuario solicitó terminar, apagar servidor, documentar y hacer push a GitHub. E
 - Pendiente: recorrido completo de demo en navegador (consola, audio, inventario, diálogos, muerte/reinicio) y revisar shader/flare/costas en distintos dispositivos. Las pruebas de geometría y shader por código no acreditan compilación GPU visual completa.
 - Servidor Node tools/serve.cjs PID 9360 detenido por solicitud; puerto 8000 sin listener tras cierre. Reiniciar con node tools/serve.cjs.
 - Recursos necesarios incluidos: capa1.png, mapa_menu.png, arena_mojada.png, fondo.png, forest.mpeg; retirar anteriores mapa_menu.jpg y forest.flac conforme reemplazos del usuario.
-- Excluir cambios locales ajenos: alamo1.png, alamo2.png, araucaria2.png, arbusto1.png, arbusto2.png, weed1.png, weed2.png, weed3.png, Tierra.png, muro.png, piedra.png, rocas.jpg, techo.jpg. Se preservan en disco y no forman parte del commit/push de esta sesión.
+- El segundo commit incluye por autorización explícita alamo1.png, alamo2.png, araucaria2.png, arbusto1.png, arbusto2.png, weed1.png, weed2.png, weed3.png, Tierra.png, muro.png, piedra.png, rocas.jpg y techo.jpg. Estas 13 imágenes habían quedado fuera del primer push y ahora forman parte del cierre completo.
 - .coordination contiene validación temporal ignorada por Git; no incorporar. No se agregaron dependencias para el jugador. AGENTS.md y docs/PROTOCOL.md actualizados para reflejar entrega de llave; enlace histórico actualizado en ANTIGRAVITY_HANDOFF.md.
 - Push autorizado a origin/main sin force. Liberar sesión después de confirmar commit/push con tools/session.ps1 finish -Agent Codex -Token d18d652f-7620-44c9-a075-2df5ba31a5d5.
 
