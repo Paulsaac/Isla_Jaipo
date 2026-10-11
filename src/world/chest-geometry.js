@@ -48,7 +48,7 @@ function mergeChestParts(THREE, pieces, materials) {
     return result;
 }
 
-function createOpenChestGeometry(THREE) {
+function createOpenChestGeometry(THREE, angle = Math.PI * 0.58) {
     const pieces = [], materials = [];
     const add = (geometry, material) => { pieces.push(geometry); materials.push(material); };
     const box = (width, height, depth, x, y, z, material = 0) => {
@@ -69,6 +69,7 @@ function createOpenChestGeometry(THREE) {
         box(0.055, 0.505, 0.012, x, -0.1523, 0.326, 1);
     }
     const lidProfile = new THREE.Shape();
+    const lidStart = pieces.reduce((total, geometry) => total + geometry.attributes.position.count, 0);
     lidProfile.moveTo(-0.32, 0.1);
     lidProfile.lineTo(0.32, 0.1);
     for (let step = 1; step <= 8; step++) {
@@ -78,7 +79,7 @@ function createOpenChestGeometry(THREE) {
     lidProfile.closePath();
     const raiseLid = geometry => {
         geometry.translate(0, -0.1, -0.32);
-        geometry.rotateX(Math.PI * 0.58);
+        geometry.rotateX(angle);
         geometry.translate(0, 0.1, 0.32);
     };
     for (const [width, x, material] of [[0.8, 0, 0], [0.055, -0.26, 1], [0.055, 0.26, 1]]) {
@@ -95,5 +96,38 @@ function createOpenChestGeometry(THREE) {
     latch.translate(0, 0.08, -0.337);
     raiseLid(latch);
     add(latch, 1);
-    return mergeChestParts(THREE, pieces, materials);
+    const result = mergeChestParts(THREE, pieces, materials);
+    result.userData.lidStart = lidStart;
+    return result;
+}
+
+// Conserva cuerpo, materiales y bisagra del modelo abierto existente.
+export function createChestOpening(THREE, chest) {
+    const geometry = createOpenChestGeometry(THREE, 0);
+    chest.geometry.dispose();
+    chest.geometry = geometry;
+    const positions = geometry.attributes.position;
+    const normals = geometry.attributes.normal;
+    const originalPositions = positions.array.slice();
+    const originalNormals = normals.array.slice();
+    let elapsed = 0;
+    return {
+        update(delta) {
+            elapsed = Math.min(0.7, elapsed + delta);
+            const progress = elapsed / 0.7;
+            const angle = progress * progress * (3 - 2 * progress) * Math.PI * 0.58;
+            const cos = Math.cos(angle), sin = Math.sin(angle);
+            for (let vertex = geometry.userData.lidStart; vertex < positions.count; vertex++) {
+                const i = vertex * 3;
+                const y = originalPositions[i + 1] - 0.1, z = originalPositions[i + 2] - 0.32;
+                positions.setXYZ(vertex, originalPositions[i], y * cos - z * sin + 0.1, y * sin + z * cos + 0.32);
+                const ny = originalNormals[i + 1], nz = originalNormals[i + 2];
+                normals.setXYZ(vertex, originalNormals[i], ny * cos - nz * sin, ny * sin + nz * cos);
+            }
+            positions.needsUpdate = normals.needsUpdate = true;
+            geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
+            return progress === 1;
+        }
+    };
 }

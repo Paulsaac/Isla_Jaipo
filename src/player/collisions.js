@@ -2,18 +2,22 @@ import { UNIT_SIZE, COLLISION_RADIUS, BOAT_WIDTH } from '../config.js';
 import { getDoorOpening } from '../world/door-opening.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
-export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = []) {
+export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null) {
     if (collisionMap.length === 0) return true;
     if (isRidingBoat) {
         // Toda la huella del casco debe estar sobre agua libre, no solo el centro del jugador.
-        const half=BOAT_WIDTH/2;
-        const minX=Math.floor((x-half+UNIT_SIZE/2)/UNIT_SIZE);
-        const maxX=Math.floor((x+half+UNIT_SIZE/2)/UNIT_SIZE);
-        const minZ=Math.floor((z-half+UNIT_SIZE/2)/UNIT_SIZE);
-        const maxZ=Math.floor((z+half+UNIT_SIZE/2)/UNIT_SIZE);
+        const width=boat?.geometry.parameters.width ?? BOAT_WIDTH;
+        const depth=boat?.geometry.parameters.depth ?? BOAT_WIDTH*2;
+        const angle=boat?.rotation.y ?? 0;
+        const halfX=(Math.abs(Math.cos(angle))*width+Math.abs(Math.sin(angle))*depth)/2;
+        const halfZ=(Math.abs(Math.sin(angle))*width+Math.abs(Math.cos(angle))*depth)/2;
+        const minX=Math.floor((x-halfX+UNIT_SIZE/2)/UNIT_SIZE);
+        const maxX=Math.floor((x+halfX+UNIT_SIZE/2)/UNIT_SIZE);
+        const minZ=Math.floor((z-halfZ+UNIT_SIZE/2)/UNIT_SIZE);
+        const maxZ=Math.floor((z+halfZ+UNIT_SIZE/2)/UNIT_SIZE);
         for(let rz=minZ;rz<=maxZ;rz++) for(let rx=minX;rx<=maxX;rx++) {
             if(rx<0||rz<0||rx>=mapWidth||rz>=mapHeight) return true;
-            if(!['WATER','WATER_ROCK','BOAT'].includes(floorMap[rz][rx])||collisionMap[rz][rx]) return true;
+            if(!['WATER','BOAT'].includes(floorMap[rz][rx])||collisionMap[rz][rx]) return true;
         }
         return false;
     }

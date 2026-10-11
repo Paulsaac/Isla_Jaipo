@@ -1,11 +1,21 @@
 import { FLOOR_COLORS } from './palette.js';
 import { getClosestType } from './map-decoder.js';
+import { validateGridPosition } from './coordinates.js';
 
 // Prepara datos y minimapa; no crea objetos Three.js ni modifica el estado del juego.
-export function prepareMap(mapData, entityDefinitions = []) {
+export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions = []) {
     const mapWidth = mapData.width;
     const mapHeight = mapData.height;
     const relocations = new Map();
+    for (const prop of sceneryDefinitions) {
+        validateGridPosition(prop.position, mapWidth, mapHeight);
+        const { x, z } = prop.position;
+        const pixel = (z * mapWidth + x) * 4;
+        if (getClosestType(...mapData.basePixels.slice(pixel, pixel + 4)) !== prop.type) {
+            throw new Error(`El resto ${prop.id} requiere ${prop.type} en (${x},${z}).`);
+        }
+        relocations.set(x + ',' + z, prop.ground);
+    }
     for (const entity of entityDefinitions) {
         if (!entity.sourcePosition) continue;
         const { sourcePosition: from, position: to } = entity;
@@ -91,7 +101,7 @@ export function prepareMap(mapData, entityDefinitions = []) {
 
             if (type === 'GRASS' || type === 'TALL_GRASS' || type === 'TREE' || type === 'BUSH') counts.GRASS_FLOOR++;
             else if (type === 'DIRT') counts.DIRT_FLOOR++;
-            else if (type === 'SAND') counts.ARENA_FLOOR++;
+            else if (['SAND', 'WET_SAND'].includes(type)) counts.ARENA_FLOOR++;
             else if (['WATER', 'WATER_ROCK', 'BOAT'].includes(type)) counts.AGUA_FLOOR++;
 
             if (!['WATER', 'WATER_ROCK', 'BOAT', 'POI'].includes(type)) counts.BASE_FLOOR++;

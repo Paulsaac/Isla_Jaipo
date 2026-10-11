@@ -10,6 +10,7 @@ export const PALETTE = {
     OTHER: {r:112, g:146, b:190},
     TREE: {r:127, g:127, b:127},
     SAND: {r:255, g:201, b:14},
+    WET_SAND: {r:125, g:98, b:7}, // #7D6207: mismas reglas costeras que la arena.
     DIRT: {r:237, g:28, b:36},
     MOUNTAIN: {r:185, g:122, b:87},
     PEAK: {r:200, g:191, b:231},
@@ -36,6 +37,7 @@ export const FLOOR_COLORS = {
     PLAZA: '#3B444C',
     TREE: '#32472D',
     SAND: '#A58B6B',
+    WET_SAND: '#7D6207',
     DIRT: '#826D54',
     MOUNTAIN: '#655E55',
     PEAK: '#84817B',

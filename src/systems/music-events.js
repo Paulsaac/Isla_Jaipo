@@ -5,7 +5,7 @@ export function createMusicEvents() {
     let paused = false;
     let musicOutput = null;
     const tracks = {
-        forest: {url:'./sonidos/musica/forest.flac',delay:5},
+        forest: {url:'./sonidos/musica/forest.mpeg',delay:4},
         morning: {url:'./sonidos/musica/morning.flac',delay:0}
     };
 
@@ -145,13 +145,13 @@ export function createMusicEvents() {
         highpass.frequency.value = 100;
         const volume = context.createGain();
         volume.gain.setValueAtTime(0, now);
-        volume.gain.linearRampToValueAtTime(0.078, now + 4);
+        volume.gain.linearRampToValueAtTime(0.061776, now + 4);
         noise.connect(lowpass);
         lowpass.connect(highpass);
         highpass.connect(volume);
         volume.connect(context.destination);
         // Dos ritmos lentos distintos evitan una ráfaga repetitiva de metrónomo.
-        for (const [rate, intensity, tone] of [[0.07,0.0234,250],[0.113,0.0156,150]]) {
+        for (const [rate, intensity, tone] of [[0.07,0.0185328,250],[0.113,0.0123552,150]]) {
             const gust = context.createOscillator();
             gust.type = 'sine';
             gust.frequency.value = rate;

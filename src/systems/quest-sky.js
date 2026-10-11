@@ -9,13 +9,13 @@ export function createQuestSkyCycle(timing = SKY_CYCLE_TIMING) {
         get stage() { return stage; },
         get isFree() { return stage === 'free'; },
         setTime(value) { if (stage === 'free') timer = value; },
-        update(delta, questStage, forestStarted) {
+        update(delta, questStage, forestStarted, bridgeKeyReceived = false) {
             if (stage === 'waiting-heart' && questStage !== 'searching' && forestStarted) stage = 'dusk';
             if (stage === 'dusk') {
                 timer = Math.min(timing.nightStart, timer + delta);
                 if (timer >= timing.nightStart) stage = 'waiting-delivery';
             }
-            if (stage === 'waiting-delivery' && questStage === 'delivered') {
+            if (stage === 'waiting-delivery' && bridgeKeyReceived) {
                 timer = timing.dawnStart - 25;
                 stage = 'last-night';
                 return timer;

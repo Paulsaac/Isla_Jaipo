@@ -22,12 +22,30 @@ export const entities = [
 
 export const grahamPosition = { x: 235, z: 421 };
 
+// Marcadores amarillos del naufragio; el suelo es playa, no un muelle.
+export const shipwreckProps = [
+    { id: 'wreck-plank', type: 'WOOD', position: { x: 239, z: 484 }, model: 'BROKEN_PLANK', ground: 'WET_SAND', rotationY: -0.35 },
+    { id: 'wreck-life-ring', type: 'WOOD', position: { x: 241, z: 484 }, model: 'LIFE_RING', ground: 'WET_SAND', rotationY: 0.3 },
+    { id: 'wreck-rope', type: 'WOOD', position: { x: 238, z: 485 }, model: 'COILED_ROPE', ground: 'WET_SAND', rotationY: -0.6 },
+    { id: 'wreck-mast', type: 'WOOD', position: { x: 240, z: 486 }, model: 'BROKEN_MAST', ground: 'WET_SAND', rotationY: 0.65 }
+];
+
+export const sunkenShip = {
+    id: 'southern-sunken-ship',
+    bounds: { minX: 240, maxX: 245, minZ: 498, maxZ: 508 },
+    rotationY: Math.PI / 2,
+    burial: 0.08
+};
+
 export const doorOverrides = [
     { position: { x: 228, z: 423 }, openDirection: 'south' },
     { position: { x: 235, z: 423 }, openDirection: 'south' }
 ];
 
 export const furniture = [
+    { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 419 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },
+    { id: 'graham-workbench', type: 'WORKBENCH', position: { x: 237, z: 420 }, size: { x: 1, z: 2 }, rotationY: 0 },
+    { id: 'graham-log-stack', type: 'LOG_STACK', position: { x: 238, z: 422 }, size: { x: 2, z: 1 }, rotationY: Math.PI / 2 },
     { id: 'graham-bed', type: 'BED', position: { x: 237, z: 427 }, size: { x: 1, z: 2 }, rotationY: Math.PI },
     { id: 'graham-side-table', type: 'SIDE_TABLE', position: { x: 238, z: 428 }, size: { x: 1, z: 1 }, offset: { z: 0.525 }, rotationY: Math.PI },
     { id: 'graham-barrel-1', type: 'BARREL', position: { x: 235, z: 419 }, size: { x: 1, z: 1 }, offset: { z: -0.5 } },

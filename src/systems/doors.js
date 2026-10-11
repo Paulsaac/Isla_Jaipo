@@ -11,17 +11,43 @@ function toggleDoorSingle(door, forceState, collisionMap) {
     if (door.userData.isOpen === shouldOpen) return;
 
     if (!shouldOpen) {
-        group.rotation.y = 0;
         collisionMap[door.userData.gz][door.userData.gx] = door.userData.locked ? 'DOOR_LOCKED' : 'DOOR_UNLOCKED';
         door.userData.isOpen = false;
         group.userData.isOpen = false;
     } else {
-        group.rotation.y = (Math.PI / 2) * door.userData.swingDir;
         collisionMap[door.userData.gz][door.userData.gx] = false;
         door.userData.isOpen = true;
         group.userData.isOpen = true;
     }
-    group.updateMatrixWorld(true);
+    door.userData.motion = { from: group.rotation.y,
+        to: shouldOpen ? (Math.PI / 2) * door.userData.swingDir : 0, elapsed: 0 };
+}
+
+// Colisiones y empuje consultan la hoja en su ángulo visible de cada fotograma.
+export function updateDoorAnimations(doors, delta, movePlayer) {
+    const moving = doors.filter(door => door.userData.motion);
+    if (!moving.length) return;
+    const previous = moving.map(door => ({ door, angle: door.userData.parentGroup.rotation.y,
+        elapsed: door.userData.motion.elapsed }));
+    for (const door of moving) {
+        const motion = door.userData.motion;
+        motion.elapsed = Math.min(0.7, motion.elapsed + delta);
+        const t = motion.elapsed / 0.7;
+        door.userData.parentGroup.rotation.y = motion.from + (motion.to - motion.from) * t * t * (3 - 2 * t);
+        door.userData.parentGroup.updateMatrixWorld(true);
+    }
+    if (!movePlayer()) {
+        // Si no hay espacio seguro, detener este paso hasta que el jugador se aparte.
+        for (const { door, angle, elapsed } of previous) {
+            door.userData.motion.elapsed = elapsed;
+            door.userData.parentGroup.rotation.y = angle;
+            door.userData.parentGroup.updateMatrixWorld(true);
+        }
+        return;
+    }
+    for (const door of moving) {
+        if (door.userData.motion.elapsed === 0.7) delete door.userData.motion;
+    }
 }
 
 export function toggleDoor(door, interactables, collisionMap) {

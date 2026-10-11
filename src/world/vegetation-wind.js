@@ -1,7 +1,7 @@
 // Balanceo en GPU: las dos caras de cada planta comparten movimiento y base fija.
 export function applyVegetationWind(THREE, materials, time) {
     materials.forEach((material, index) => {
-        const amplitude = index < 6 ? 0.12 : index < 8 ? 0.065 : 0.085;
+        const amplitude = (index < 6 ? 0.12 : index < 8 ? 0.065 : 0.085) * 1.1;
         const speed = (0.65 + (index % 5) * 0.11) * (index >= 6 ? 1.2 : 1);
         const phase = index * 1.73;
         material.onBeforeCompile = shader => {

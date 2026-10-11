@@ -2,7 +2,12 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartDeliveryDialogs, heartDeliveredDialogs } from './src/content/dialogues.js';
-import { entities, grahamPosition } from './src/content/entities.js';
+import { entities, grahamPosition, shipwreckProps, sunkenShip } from './src/content/entities.js';
+import { createSunkenShipGeometry } from './src/world/sunken-ship-geometry.js';
+import { createShipwreckGeometry } from './src/world/shipwreck-geometry.js';
+import { createLogStackGeometry } from './src/world/log-stack-geometry.js';
+import { createWorkbenchGeometry } from './src/world/workbench-geometry.js';
+import { createStumpGeometry } from './src/world/stump-geometry.js';
 import { createEntityRegistry } from './src/world/entity-registry.js';
 import { createForestHeartQuest } from './src/systems/forest-heart.js';
 import { loadMapImage, readMapLayers } from './src/world/map-loader.js';
@@ -13,8 +18,8 @@ import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
 import { getTerrainVertexY, getTerrainHeight as sampleTerrainHeight } from './src/world/terrain-height.js';
 import { isWall as hasObstacle } from './src/player/collisions.js';
-import { toggleDoor, unlockDoor } from './src/systems/doors.js';
-import { createWoodFloorMap } from './src/world/surfaces.js';
+import { toggleDoor, unlockDoor, updateDoorAnimations } from './src/systems/doors.js';
+import { createWoodFloorMap, createWaterDeckMap, createWaterDeckTerrain, levelBuildingAtTerrain, createWetSandShoreMap } from './src/world/surfaces.js';
 import { createTorchLighting } from './src/systems/torch-lighting.js';
 import { createMountainHeights } from './src/world/mountain-height.js';
 import { smoothMountainPath } from './src/world/mountain-path.js';
@@ -22,9 +27,12 @@ import { createRoofBaseMap } from './src/world/roof-height.js';
 import { getDoorOpening } from './src/world/door-opening.js';
 import { smoothMountainSlope } from './src/world/mountain-slope.js';
 import { createBoatGeometry } from './src/world/boat-geometry.js';
+import { updateBoatFloating } from './src/world/boat-floating.js';
+import { steerBoat } from './src/world/boat-steering.js';
 import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
-import { createChestGeometry } from './src/world/chest-geometry.js';
+import { createRiverCurrentField } from './src/world/river-current.js';
+import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
 import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
@@ -47,6 +55,7 @@ import { createSkyAtlas } from './src/world/sky-atlas.js';
 import { createSkyCycle, SKY_CYCLE_TIMING } from './src/world/sky-cycle.js';
 import { musicEvents } from './src/systems/music-events.js';
 import { createQuestSkyCycle } from './src/systems/quest-sky.js';
+import { createSunFlare } from './src/world/sun-flare.js';
 import { furniture, doorOverrides } from './src/content/entities.js';
 
 const minimap = createMinimap();
@@ -66,8 +75,10 @@ let hasTorch = false;
 let hasMap = false;
 const heartQuest = createForestHeartQuest();
 const interactables = [];
+const chestOpenings = [];
 const slabTops = new Map();
 const SLAB_HEIGHT = 0.4;
+const WATER_DECK_THICKNESS = 0.25;
 const solidInteractables = []; // Incluye cofres abiertos y hojas de puerta en su posición actual.
 const worldTorches = [];
 let torchLighting = null;
@@ -79,6 +90,16 @@ let grahamSprite = null;
 let targetInteractable = null;
 let isRidingBoat = false;
 let boatReference = null;
+const boats = [];
+let boatFloatTime = 0;
+const BOAT_EYE_OFFSET = 0.70;
+const BOAT_SEAT_BACK_OFFSET = 0.70;
+const boatSeatOffset = new THREE.Vector3();
+
+function getBoatEyesHeight(boat) {
+    return boat.position.y + boat.geometry.parameters.height / 2
+        + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) - BOAT_EYE_OFFSET;
+}
 
 let isDialogOpen = false;
 let dialogIndex = 0;
@@ -104,6 +125,7 @@ scene.add(camera);
 
 // Luz de Antorcha (Faltaba definirla, causaba el crash)
 const torchLight = new THREE.PointLight(0xff8800, 8.0, 45, 1.0);
+let handTorchFlickerTime = 0;
 torchLight.visible = false;
 torchLight.position.set(1.0, 0.2, -0.5); // Posicionada más alta y movida en X
 camera.add(torchLight);
@@ -230,11 +252,6 @@ function toggleFlight() {
 
 function toggleDoorWithPlayer(door) {
     toggleDoor(door, interactables, collisionMap);
-    const backward = camera.getWorldDirection(new THREE.Vector3()).negate();
-    const result = pushPlayerFromMovingDoors(controls.getObject().position, backward,
-        solidInteractables.filter(object => object.userData.type === 'DOOR'), isWall);
-    if (result.blocked) toggleDoor(door, interactables, collisionMap); // Revertir el movimiento si no hay un lado libre.
-    if (result.moved) velocity.set(0, 0, 0);
 }
 
 function interact() {
@@ -267,16 +284,17 @@ function interact() {
             const controlObj = controls.getObject();
             const currentGX = Math.floor((controlObj.position.x + UNIT_SIZE/2) / UNIT_SIZE);
             const currentGZ = Math.floor((controlObj.position.z + UNIT_SIZE/2) / UNIT_SIZE);
-            boatReference.position.set(currentGX * UNIT_SIZE, BOAT_FLOAT_HEIGHT, currentGZ * UNIT_SIZE);
-            boatReference.userData.gx = currentGX;
-            boatReference.userData.gz = currentGZ;
+            boatReference.userData.gx = Math.floor((boatReference.position.x + UNIT_SIZE/2) / UNIT_SIZE);
+            boatReference.userData.gz = Math.floor((boatReference.position.z + UNIT_SIZE/2) / UNIT_SIZE);
             scene.add(boatReference);
             interactables.push(boatReference);
             boatReference = null;
+            boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
             if (targetInteractable.userData.type === 'CHEST') {
                 if (targetInteractable.userData.opened) return;
+                if (targetInteractable.userData.item === 'map' && !heartQuest.hasBridgeKey) return;
                 if (targetInteractable.userData.item === 'forest-heart') {
                     if (!heartQuest.collect()) return;
                     menus.setHeartVisible(true);
@@ -288,9 +306,7 @@ function interact() {
                     keys++;
                     menus.setKeyCount(keys);
                 }
-                const closedGeometry = targetInteractable.geometry;
-                targetInteractable.geometry = createChestGeometry(THREE, true);
-                closedGeometry.dispose();
+                chestOpenings.push(createChestOpening(THREE, targetInteractable));
                 targetInteractable.userData.opened = true;
                 interactables.splice(interactables.indexOf(targetInteractable), 1);
                 targetInteractable = null;
@@ -302,9 +318,11 @@ function interact() {
                 collisionMap[boatReference.userData.gz][boatReference.userData.gx] = false;
                 targetInteractable = null;
                 const controlObj = controls.getObject();
-                controlObj.position.x = boatReference.userData.gx * UNIT_SIZE;
-                controlObj.position.z = boatReference.userData.gz * UNIT_SIZE;
-                controlObj.position.y = BOAT_FLOAT_HEIGHT + boatReference.geometry.parameters.height / 2 + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
+                boatSeatOffset.set(Math.sin(boatReference.rotation.y) * BOAT_SEAT_BACK_OFFSET, 0,
+                    Math.cos(boatReference.rotation.y) * BOAT_SEAT_BACK_OFFSET);
+                controlObj.position.x = boatReference.position.x + boatSeatOffset.x;
+                controlObj.position.z = boatReference.position.z + boatSeatOffset.z;
+                controlObj.position.y = getBoatEyesHeight(boatReference);
                 velocityY = 0;
                 canJump = true;
             } else if (targetInteractable.userData.type === 'NPC') {
@@ -410,6 +428,15 @@ const pastoTex = texLoader.load('./imagenes/Texturas/Pasto.png?v=' + Date.now())
 const tierraTex = texLoader.load('./imagenes/Texturas/Tierra.png?v=' + Date.now());
 
 const arenaTex = texLoader.load('./imagenes/Texturas/arena.png?v=' + Date.now());
+const arenaMojadaTex = texLoader.load('./imagenes/Texturas/arena_mojada.png?v=' + Date.now());
+arenaMojadaTex.magFilter = arenaMojadaTex.minFilter = THREE.NearestFilter;
+arenaMojadaTex.colorSpace = THREE.SRGBColorSpace;
+arenaMojadaTex.wrapS = arenaMojadaTex.wrapT = THREE.RepeatWrapping;
+const fondoTex = texLoader.load('./imagenes/Texturas/fondo.png?v=' + Date.now());
+fondoTex.magFilter = THREE.LinearFilter;
+fondoTex.minFilter = THREE.LinearMipmapLinearFilter;
+fondoTex.colorSpace = THREE.SRGBColorSpace;
+fondoTex.wrapS = fondoTex.wrapT = THREE.RepeatWrapping;
 const agua1Tex = texLoader.load('./imagenes/Texturas/Agua1.png?v=' + Date.now());
 const agua2Tex = texLoader.load('./imagenes/Texturas/Agua2.png?v=' + Date.now());
 const agua3Tex = texLoader.load('./imagenes/Texturas/Agua3.png?v=' + Date.now());
@@ -533,6 +560,8 @@ const initialSunAngle=Math.PI*skyCycle.sunProgress;
 sunSprite.position.set(0,camera.position.y-200+Math.sin(initialSunAngle)*580,-Math.cos(initialSunAngle)*580);
 sunSprite.renderOrder=-0.2;
 skyMesh.add(sunSprite);
+const sunFlare = createSunFlare(sunSprite, camera, renderer);
+scene.add(sunFlare.object);
 
 // Variables para la lógica de mirar la luna
 let moonLookTimer = 0;
@@ -568,11 +597,12 @@ Promise.all([
 
 
 function buildWorld(mapData) {
-    const prepared = prepareMap(mapData, entities);
+    const prepared = prepareMap(mapData, entities, shipwreckProps);
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
     woodFloorMap = createWoodFloorMap(floorMap, roofMap, mapWidth, mapHeight, prepared.externalTorchMap);
+    const waterDeckMap = createWaterDeckMap(floorMap, roofMap, mapWidth, mapHeight);
     // El floorCanvas se utilizará ahora exclusivamente para el minimapa
     // Eliminado el floorMesh (la imagen del mapa 2D en el mundo 3D) para no interferir con las laderas y profundidades del terreno continuo.
     
@@ -654,10 +684,11 @@ function buildWorld(mapData) {
     const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
     aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xb8d9ff, transparent: true, opacity: 0.4752, shininess: 60 });
-    applyWaterWaves(THREE, aguaFloorMat, waterWaveTime);
+    applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
+        createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight), UNIT_SIZE);
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
-    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, VEGETATION_HEIGHT * 3 * 1.9);
+    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, VEGETATION_HEIGHT * 3 * 1.9 - 2);
     const pino1Mesh = new THREE.InstancedMesh(planeGeo, pino1Mat, counts.PINO1 * 2);
     const pino2Mesh = new THREE.InstancedMesh(planeGeo, pino2Mat, counts.PINO2 * 2);
     const alamo1Mesh = new THREE.InstancedMesh(planeGeo, alamo1Mat, counts.ALAMO1 * 2);
@@ -685,6 +716,8 @@ function buildWorld(mapData) {
 
     const floorTileGeo = new THREE.BoxGeometry(UNIT_SIZE, 1.0, UNIT_SIZE);
     const maderaFloorMesh = new THREE.InstancedMesh(floorTileGeo, maderaFloorMat, counts.MADERA_FLOOR + 500);
+    const waterDeckMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, WATER_DECK_THICKNESS, UNIT_SIZE), maderaFloorMat, counts.MADERA_FLOOR + 500);
+    let waterDeckCount = 0;
 
     [agua1Tex, agua2Tex, agua3Tex].forEach(t => {
         t.repeat.set(mapWidth, mapHeight);
@@ -750,23 +783,23 @@ function buildWorld(mapData) {
             
             // Reglas de elevación según el tipo
             if (mountainMask[z][x]) elevationMap[z][x] = mountainHeights[z][x];
-            else if (woodFloorMap[z][x]) elevationMap[z][x] = 1.0;
+            else if (woodFloorMap[z][x]) elevationMap[z][x] = waterDeckMap[z][x] ? WATER_SURFACE_HEIGHT + WATER_DECK_THICKNESS : 1.0;
             else if (['WATER', 'WATER_ROCK', 'BOAT'].includes(type)) {
                 let sandDistance = 4;
                 for (let dz = -3; dz <= 3; dz++) {
                     for (let dx = -3; dx <= 3; dx++) {
-                        if (floorMap[z + dz]?.[x + dx] === 'SAND') sandDistance = Math.min(sandDistance, Math.hypot(dx, dz));
+                        if (['SAND', 'WET_SAND'].includes(floorMap[z + dz]?.[x + dx])) sandDistance = Math.min(sandDistance, Math.hypot(dx, dz));
                     }
                 }
                 elevationMap[z][x] = -0.5 - Math.min(2, Math.max(0, sandDistance - 1) * 0.8);
             }
-            else if (type === 'SAND') elevationMap[z][x] = 0.2;
+            else if (['SAND', 'WET_SAND'].includes(type)) elevationMap[z][x] = 0.2;
             else if (['GRASS', 'TALL_GRASS', 'TREE', 'BUSH', 'DIRT', 'TORCH', 'OTHER', 'OTHER2', 'CHEST'].includes(type)) {
                 let height = Math.min(dist * 0.2, 1.0);
                 let sandDistance = 4;
                 for (let dz = -3; dz <= 3; dz++) {
                     for (let dx = -3; dx <= 3; dx++) {
-                        if (floorMap[z + dz]?.[x + dx] === 'SAND') sandDistance = Math.min(sandDistance, Math.hypot(dx, dz));
+                        if (['SAND', 'WET_SAND'].includes(floorMap[z + dz]?.[x + dx])) sandDistance = Math.min(sandDistance, Math.hypot(dx, dz));
                     }
                 }
                 if (sandDistance < 4) {
@@ -777,7 +810,7 @@ function buildWorld(mapData) {
                 elevationMap[z][x] = height;
             } else if (['BUILDING', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'INDOOR_FLOOR', 'WOOD', 'CHEST', 'POI'].includes(type)) {
                 // Flatten buildings to ground level
-                elevationMap[z][x] = 1.0;
+                elevationMap[z][x] = waterDeckMap[z][x] ? WATER_SURFACE_HEIGHT + WATER_DECK_THICKNESS : 1.0;
             } else if (type === 'MOUNTAIN') {
                 elevationMap[z][x] = mountainHeights[z][x];
             } else if (type === 'PEAK') {
@@ -820,14 +853,28 @@ function buildWorld(mapData) {
                     }
                 }
                 if (isAdjacentToIndoor) {
-                    if(!mountainMask[z][x]) elevationMap[z][x] = 1.0;
+                    if(!mountainMask[z][x]) elevationMap[z][x] = waterDeckMap[z][x] ? WATER_SURFACE_HEIGHT + WATER_DECK_THICKNESS : 1.0;
                 }
             }
         }
     }
 
     smoothMountainSlope(floorMap, elevationMap, mountainMask);
+    // Elevar cada puente cubierto al terreno de sus accesos, antes de construir sus piezas.
+    for (const bridge of waterDeckMap.coveredBridges) {
+        const midX = (bridge.minX + bridge.maxX) / 2, midZ = (bridge.minZ + bridge.maxZ) / 2;
+        const accesses = bridge.maxZ - bridge.minZ > bridge.maxX - bridge.minX
+            ? [[midX, bridge.minZ - 1], [midX, bridge.maxZ + 1]]
+            : [[bridge.minX - 1, midZ], [bridge.maxX + 1, midZ]];
+        const base = Math.max(...accesses.map(([x, z]) => getTerrainVertexY(
+            Math.max(0, Math.min(mapWidth - 1, x)), Math.max(0, Math.min(mapHeight - 1, z)),
+            mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile)));
+        for (const [x, z] of bridge.cells) elevationMap[z][x] = base;
+    }
+    levelBuildingAtTerrain(grahamPosition, floorMap, roofMap, elevationMap, (x, z) =>
+        getTerrainVertexY(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile));
     const roofBaseMap = createRoofBaseMap(roofMap, floorMap, elevationMap);
+
     let idxPino1=0, idxPino2=0, idxAlamo1=0, idxAlamo2=0, idxArau1=0, idxArau2=0, idxBUSH1=0, idxBUSH2=0, idxWeed1=0, idxWeed2=0, idxWeed3=0, idxBldg=0, idxMtn=0, idxPeak=0, idxSnowPeak=0, idxCeil=0, idxFalseCeil=0, idxRoof=0, idxMadera=0;
     const dummy = new THREE.Object3D(); 
     
@@ -965,7 +1012,7 @@ function buildWorld(mapData) {
 
             if (type === 'TREE') {
                 const rand = ((x * 31 + z * 17) % 100);
-                dummy.position.set(posX, baseH + ((VEGETATION_HEIGHT*3*1.9)/2) - 0.5, posZ);
+                dummy.position.set(posX, baseH + planeGeo.parameters.height / 2 - 0.5, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
                 if (rand < 35) pino1Mesh.setMatrixAt(idxPino1++, dummy.matrix);
@@ -1022,11 +1069,22 @@ function buildWorld(mapData) {
                 solidInteractables.push(chestMesh);
                 interactables.push(chestMesh);
             } else if (type === 'BOAT') {
+                // Un marcador de dos celdas representa un único bote, centrado entre ambas.
+                if (floorMap[z]?.[x - 1] === 'BOAT' || floorMap[z - 1]?.[x] === 'BOAT') continue;
+                const horizontalBoat = floorMap[z]?.[x + 1] === 'BOAT';
+                const pairedBoat = horizontalBoat || floorMap[z + 1]?.[x] === 'BOAT';
                 const boatGeo = createBoatGeometry(THREE, BOAT_WIDTH);
-                const boatMat = new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xaa8866, shininess: 0 }); 
+                const boatMat = [
+                    new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xaa8866, shininess: 0 }),
+                    new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x61452c, shininess: 0 })
+                ];
                 const boatMesh = new THREE.Mesh(boatGeo, boatMat);
                 boatMesh.position.set(posX, BOAT_FLOAT_HEIGHT, posZ);
-                boatMesh.userData = { type: 'BOAT', gx: x, gz: z };
+                if (pairedBoat) boatMesh.position[horizontalBoat ? 'x' : 'z'] += UNIT_SIZE / 2;
+                boatMesh.rotation.y = (horizontalBoat ? Math.PI / 2 : 0) + Math.PI / 2;
+                boatMesh.userData = { type: 'BOAT', gx: x, gz: z, floatPhase: (x * 0.73 + z * 0.41) % (Math.PI * 2) };
+                boats.push(boatMesh);
+                updateBoatFloating(boatMesh, boatFloatTime, BOAT_FLOAT_HEIGHT);
                 scene.add(boatMesh);
                 interactables.push(boatMesh);
             } else if (type === 'DOOR_UNLOCKED' || type === 'DOOR_LOCKED') {
@@ -1105,10 +1163,11 @@ function buildWorld(mapData) {
             const needsWoodFloor = woodFloorMap[z][x];
 
             if (needsWoodFloor) {
-                dummy.position.set(posX, baseH - 0.5, posZ);
+                dummy.position.set(posX, baseH - (waterDeckMap[z][x] ? WATER_DECK_THICKNESS / 2 : 0.5), posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
-                maderaFloorMesh.setMatrixAt(idxMadera++, dummy.matrix);
+                if (waterDeckMap[z][x]) waterDeckMesh.setMatrixAt(waterDeckCount++, dummy.matrix);
+                else maderaFloorMesh.setMatrixAt(idxMadera++, dummy.matrix);
             } else if (type === 'POI') {
                 // Techo para spawn eliminado de aquí
                 
@@ -1132,6 +1191,8 @@ function buildWorld(mapData) {
     scene.add(falseCeilingMesh);
     maderaFloorMesh.count = idxMadera;
     scene.add(maderaFloorMesh);
+    waterDeckMesh.count = waterDeckCount;
+    scene.add(waterDeckMesh);
     torchLighting = createTorchLighting(THREE, scene, worldTorches);
     
     // --- GENERACIÓN DE TERRENO (MONTAÑAS CONTINUAS CON TEXTURAS) ---
@@ -1148,8 +1209,13 @@ function buildWorld(mapData) {
     const positions = terrainGeo.attributes.position.array;
     const uvs = terrainGeo.attributes.uv.array;
     const splatWeights = new Float32Array(positions.length / 3 * 4);
-    const mountainWeights = new Float32Array(positions.length / 3 * 3);
-    const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
+    const wetSandWeights = new Float32Array(positions.length / 3);
+    // El tablero mantiene su cota física; solo el terreno debajo baja al lecho acuático.
+    const { floorMap: terrainFloorMap, elevations: terrainElevations, woodMap: terrainWoodMap } =
+        createWaterDeckTerrain(floorMap, elevationMap, woodFloorMap, waterDeckMap);
+    const mountainWeights = new Float32Array(positions.length / 3 * 4);
+    const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
+    const wetSandShoreMap = createWetSandShoreMap(terrainFloorMap, mapWidth, mapHeight);
     const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
     for (const definition of entities) {
         if (definition.ground === 'SLAB') slabGroundCells[definition.position.z * mapWidth + definition.position.x] = 1;
@@ -1189,19 +1255,24 @@ function buildWorld(mapData) {
         // Interpolación compartida para pasto, tierra, arena, piedra, roca y nieve.
         const tx = colF - c0, tz = rowF - r0;
         for (const [x,z,weight] of [[c0,r0,(1-tx)*(1-tz)], [c1,r0,tx*(1-tz)], [c0,r1,(1-tx)*tz], [c1,r1,tx*tz]]) {
-            const channel = slabGroundCells[z * mapWidth + x] ? 3
+            let channel = slabGroundCells[z * mapWidth + x] ? 3
                 : floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
-                : boatBottomChannels.get(z * mapWidth + x) ?? terrainChannels[floorMap[z][x]] ?? 0;
-            if (channel < 4) splatWeights[i*4+channel] += weight;
-            else mountainWeights[i*3+channel-4] += weight;
+                : boatBottomChannels.get(z * mapWidth + x) ?? terrainChannels[terrainFloorMap[z][x]] ?? 0;
+            const seaCell = terrainFloorMap[z][x] === 'WATER' || (floorMap[z][x] === 'BOAT' && boatBottomChannels.get(z * mapWidth + x) === 2);
+            if (seaCell && wetSandShoreMap[z][x]) channel = 8;
+            if (seaCell && terrainElevations[z][x] <= -2.5) channel = 7;
+            if (channel === 8) wetSandWeights[i] += weight;
+            else if (channel < 4) splatWeights[i*4+channel] += weight;
+            else mountainWeights[i*4+channel-4] += weight;
         }
 
-        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile);
+        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, terrainFloorMap, terrainElevations, terrainWoodMap, mountainPathProfile);
         positions[i * 3 + 1] = y;
     }
     
     terrainGeo.setAttribute('splatWeights', new THREE.BufferAttribute(splatWeights, 4));
-    terrainGeo.setAttribute('mountainWeights', new THREE.BufferAttribute(mountainWeights, 3));
+    terrainGeo.setAttribute('wetSandWeight', new THREE.BufferAttribute(wetSandWeights, 1));
+    terrainGeo.setAttribute('mountainWeights', new THREE.BufferAttribute(mountainWeights, 4));
 
     for(let i = 0; i < uvs.length; i += 2) {
         uvs[i] *= (mapWidth - 1);
@@ -1217,6 +1288,9 @@ function buildWorld(mapData) {
         shader.uniforms.tGrass = { value: pastoTex };
         shader.uniforms.tDirt = { value: tierraTex };
         shader.uniforms.tSand = { value: arenaTex };
+        shader.uniforms.tWetSand = { value: arenaMojadaTex };
+        shader.uniforms.terrainWaterHeight = { value: WATER_SURFACE_HEIGHT };
+        shader.uniforms.tSeabed = { value: fondoTex };
         shader.uniforms.tMountain = { value: piedraTex };
         shader.uniforms.tRock = { value: rocaTex };
         shader.uniforms.tSnow = { value: nieveTex };
@@ -1224,27 +1298,37 @@ function buildWorld(mapData) {
 
         shader.vertexShader = `
             attribute vec4 splatWeights;
-            attribute vec3 mountainWeights;
+            attribute float wetSandWeight;
+            varying float vWetSand;
+            varying float vTerrainHeight;
+            attribute vec4 mountainWeights;
             varying vec4 vSplat;
-            varying vec3 vMountain;
+            varying vec4 vMountain;
             ${shader.vertexShader}
         `.replace(
             `#include <uv_vertex>`,
             `#include <uv_vertex>
              vSplat = splatWeights;
+             vWetSand = wetSandWeight;
              vMountain = mountainWeights;`
-        );
+        ).replace('#include <begin_vertex>',
+            '#include <begin_vertex>\nvTerrainHeight = (modelMatrix * vec4(transformed, 1.0)).y;');
 
         shader.fragmentShader = `
             uniform sampler2D tGrass;
             uniform sampler2D tDirt;
             uniform sampler2D tSand;
+            uniform sampler2D tWetSand;
+            varying float vWetSand;
+            uniform float terrainWaterHeight;
+            varying float vTerrainHeight;
+            uniform sampler2D tSeabed;
             uniform sampler2D tMountain;
             uniform sampler2D tRock;
             uniform sampler2D tSnow;
             uniform sampler2D tSlab;
             varying vec4 vSplat;
-            varying vec3 vMountain;
+            varying vec4 vMountain;
             ${shader.fragmentShader}
         `.replace(
             `#include <map_fragment>`,
@@ -1252,14 +1336,17 @@ function buildWorld(mapData) {
             #ifdef USE_MAP
                 vec4 texelGrass = texture2D(tGrass, vMapUv);
                 vec4 texelDirt = texture2D(tDirt, vMapUv);
-                vec4 texelSand = texture2D(tSand, vMapUv);
+                float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.12, terrainWaterHeight + 0.02, vTerrainHeight);
+                vec4 texelSand = mix(texture2D(tSand, vMapUv), texture2D(tWetSand, vMapUv), submergedSand);
                 vec4 texelBase = texture2D(tSlab, vMapUv);
 
                 // Promedio ponderado de texturas
                 vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y + texelSand * vSplat.z + texelBase * vSplat.w
                     + texture2D(tMountain, vMapUv) * vMountain.x
                     + texture2D(tRock, vMapUv) * vMountain.y
-                    + texture2D(tSnow, vMapUv) * vMountain.z;
+                    + texture2D(tSnow, vMapUv) * vMountain.z
+                    + texture2D(tSeabed, vMapUv) * vMountain.w
+                    + texture2D(tWetSand, vMapUv) * vWetSand;
                 diffuseColor *= blendedTexel;
             #endif
             `
@@ -1295,19 +1382,62 @@ function buildWorld(mapData) {
     scene.add(slabs);
     terrainGeo.dispose(); // Los sectores conservan los atributos compartidos; la malla global ya no se dibuja.
 
+    const wreckMaterials = [
+        new THREE.MeshPhongMaterial({map:maderaTex,color:0x80654b,shininess:0}),
+        new THREE.MeshPhongMaterial({color:0x51483b,shininess:8}),
+        new THREE.MeshPhongMaterial({color:0xdbd1ae,shininess:0}),
+        new THREE.MeshPhongMaterial({color:0x9c4234,shininess:0}),
+        new THREE.MeshPhongMaterial({color:0xa58a58,shininess:0})
+    ];
+    for (const definition of shipwreckProps) {
+        const {x,z} = definition.position;
+        const wreck = new THREE.Mesh(createShipwreckGeometry(THREE,definition.model),wreckMaterials);
+        wreck.name = definition.id;
+        wreck.rotation.y = definition.rotationY;
+        wreck.position.set(x * UNIT_SIZE,getTerrainHeight(x * UNIT_SIZE,z * UNIT_SIZE) + 0.01,z * UNIT_SIZE);
+        scene.add(wreck);
+    }
+
+    const shipGeometry = createSunkenShipGeometry(THREE);
+    const shipX = (sunkenShip.bounds.minX + sunkenShip.bounds.maxX) / 2 * UNIT_SIZE;
+    const shipZ = (sunkenShip.bounds.minZ + sunkenShip.bounds.maxZ) / 2 * UNIT_SIZE;
+    const shipBottom = getTerrainHeight(shipX,shipZ) - sunkenShip.burial;
+    const submergedShip = new THREE.Mesh(shipGeometry,[
+        new THREE.MeshPhongMaterial({map:maderaTex,color:0x74644c,shininess:0}),
+        new THREE.MeshPhongMaterial({color:0x65513d,shininess:4}),
+        new THREE.MeshPhongMaterial({color:0xa59b7c,shininess:0})
+    ]);
+    submergedShip.name = sunkenShip.id;
+    submergedShip.rotation.y = sunkenShip.rotationY;
+    submergedShip.position.set(shipX,Math.min(shipBottom,WATER_SURFACE_HEIGHT - 0.15 - shipGeometry.boundingBox.max.y),shipZ);
+    scene.add(submergedShip);
+
     for (const definition of furniture) {
-        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK'].includes(definition.type)) continue;
+        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP'].includes(definition.type)) continue;
         const { position, size } = definition;
+        const allowedGround = ['LOG_STACK', 'WORKBENCH', 'STUMP'].includes(definition.type)
+            ? ['INDOOR_FLOOR', 'WOOD', 'GRASS', 'DIRT', 'SAND', 'WET_SAND'] : ['INDOOR_FLOOR', 'WOOD'];
         for (let z = position.z; z < position.z + size.z; z++) for (let x = position.x; x < position.x + size.x; x++) {
-            if (!['INDOOR_FLOOR', 'WOOD'].includes(floorMap[z]?.[x])) throw new Error(`El mueble ${definition.id} requiere suelo interior en (${x},${z}).`);
+            if (!allowedGround.includes(floorMap[z]?.[x])) throw new Error(`El mueble ${definition.id} requiere suelo compatible en (${x},${z}).`);
         }
         const x = (position.x + (size.x - 1) / 2) * UNIT_SIZE + (definition.offset?.x ?? 0);
         const z = (position.z + (size.z - 1) / 2) * UNIT_SIZE + (definition.offset?.z ?? 0);
         const isBed = definition.type === 'BED';
-        const model = new THREE.Mesh(isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
+        const model = new THREE.Mesh(definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd8ceb3, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x40566b, shininess: 0 })
+        ] : definition.type === 'STUMP' ? [
+            new THREE.MeshPhongMaterial({ color: 0xc3a372, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x594333, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ color: 0x866340, shininess: 0 })
+        ] : definition.type === 'WORKBENCH' ? [
+            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x987448, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ color: 0x45433e, shininess: 12 }),
+            new THREE.MeshPhongMaterial({ color: 0xa4a4a0, shininess: 22 })
+        ] : definition.type === 'LOG_STACK' ? [
+            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xc6a46e, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x594333, shininess: 0 })
         ] : definition.type === 'BOOKSHELF' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             ...[0x783d32, 0x354e65, 0x486044, 0xc5b78c].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
@@ -1317,7 +1447,7 @@ function buildWorld(mapData) {
         ]);
         model.name = definition.id;
         model.rotation.y = definition.rotationY ?? 0;
-        model.position.set(x, getTerrainHeight(x, z), z);
+        model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
         model.userData = { type: definition.type, id: definition.id, gx: position.x, gz: position.z };
         scene.add(model);
         model.updateMatrixWorld(true);
@@ -1389,7 +1519,9 @@ function getTerrainHeight(x, z) {
 
 // --- COLISIONES ---
 function isWall(x, z) {
-    return hasObstacle(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables);
+    return hasObstacle(isRidingBoat ? x - boatSeatOffset.x : x,
+        isRidingBoat ? z - boatSeatOffset.z : z,
+        mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference);
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -1437,7 +1569,29 @@ function animate() {
 
     if (controls.isLocked && mapLoaded) {
         const delta = Math.min(clock.getDelta(), 0.1);
+        boatFloatTime += delta;
+        for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
         musicEvents.update(delta);
+        const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
+        updateDoorAnimations(doors, delta, () => {
+            const position = controlObj.position;
+            const beforeX = position.x, beforeZ = position.z;
+            const backward = camera.getWorldDirection(frameCameraDirection).negate();
+            // Comprobar todas las hojas, también después de un primer empuje.
+            for (let attempt = 0; attempt <= doors.length; attempt++) {
+                const result = pushPlayerFromMovingDoors(position, backward, doors, isWall);
+                if (result.blocked || (result.moved && attempt === doors.length)) {
+                    position.x = beforeX; position.z = beforeZ;
+                    return false;
+                }
+                if (!result.moved) return true;
+                velocity.set(0, 0, 0);
+            }
+            return true;
+        });
+        for (let i = chestOpenings.length - 1; i >= 0; i--) {
+            if (chestOpenings[i].update(delta)) chestOpenings.splice(i, 1);
+        }
         vegetationWindTime.value += delta;
         // Girar ambos cubos a la misma velocidad; la luna conserva su orientación.
         nightSkyMesh.rotation.y = (nightSkyMesh.rotation.y + NIGHT_SKY_ROTATION_SPEED * delta) % (Math.PI * 2);
@@ -1598,7 +1752,7 @@ function animate() {
         }
 
         // La misión controla las pausas iniciales; luego el reloj funciona normalmente.
-        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage, musicEvents.hasEventStarted('forest'));
+        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage, musicEvents.hasEventStarted('forest'), heartQuest.hasBridgeKey);
         if (!skyCycle.transitioning) targetDayState = dayNightTimer < SKY_CYCLE_TIMING.nightStart;
         dayTransition=skyCycle.update(delta,true,dayNightTimer);
         const moonOpacity=1-0.6*dayTransition;
@@ -1639,7 +1793,9 @@ function animate() {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
             if (targetInteractable.userData.type === 'CHEST') {
-                hud.setInteractionText("Presiona E para abrir Cofre");
+                const mapLocked = targetInteractable.userData.item === 'map' && !heartQuest.hasBridgeKey;
+                hud.setInteractionText(mapLocked ? "Cofre bloqueado: habla con Graham" : "Presiona E para abrir Cofre");
+                hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
             } else if (targetInteractable.userData.type === 'BOAT') {
                 hud.setInteractionText("Presiona E para usar Bote");
                 hud.setInteractionColor("#00ffff");
@@ -1675,6 +1831,13 @@ function animate() {
         direction.x = Number(moveState.right) - Number(moveState.left);
         direction.normalize(); 
 
+
+        if (isRidingBoat && boatReference) {
+            frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
+            steerBoat(boatReference, controlObj.position, boatSeatOffset, BOAT_SEAT_BACK_OFFSET,
+                frameCameraHeading.y, delta, (x, z) =>
+                    hasObstacle(x, z, mapWidth, mapHeight, collisionMap, floorMap, true, solidInteractables, boatReference));
+        }
 
         const startX = controlObj.position.x;
         const startZ = controlObj.position.z;
@@ -1747,7 +1910,7 @@ function animate() {
         let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
         if (isRidingBoat && boatReference) {
-            targetEyesHeight = BOAT_FLOAT_HEIGHT + boatReference.geometry.parameters.height / 2 + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
+            targetEyesHeight = getBoatEyesHeight(boatReference);
         } else if (inWater) {
             // Caminar por el fondo somero; flotar solo al alcanzar suficiente profundidad.
             targetEyesHeight = Math.max(targetEyesHeight, WATER_SURFACE_HEIGHT + 0.2);
@@ -1821,13 +1984,16 @@ function animate() {
         }
 
         if (isRidingBoat && boatReference) {
-            boatReference.position.set(controlObj.position.x, BOAT_FLOAT_HEIGHT, controlObj.position.z);
+            boatReference.position.x = controlObj.position.x - boatSeatOffset.x;
+            boatReference.position.z = controlObj.position.z - boatSeatOffset.z;
         }
         frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
         minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE, -frameCameraHeading.y);
         
-        // Efecto parpadeo antorcha jugador
-        torchLight.intensity = 6.0 + Math.random() * 4.0;
+        // Variación suave de la antorcha de mano, conservando intensidad media 8.
+        handTorchFlickerTime += delta;
+        torchLight.intensity = 8.0 + Math.sin(handTorchFlickerTime * 2.4) * 0.22
+            + Math.sin(handTorchFlickerTime * 4.1) * 0.1;
         
         // Animar las antorchas del mundo
         const frameIndex = Math.floor(Date.now() / 150) % 5;
@@ -1856,6 +2022,7 @@ function animate() {
         grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
     if (vegetationSectors) vegetationSectors.update(camera);
+    sunFlare.update();
     renderer.render(scene, camera);
 }
 

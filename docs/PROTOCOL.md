@@ -36,5 +36,5 @@ El usuario marca el cierre: terminar una respuesta no termina la sesión de trab
 No caducan automáticamente. Si la herramienta se cierra inesperadamente, conservar los archivos y el bloqueo. Después de que el usuario confirme que el anterior agente dejó de trabajar, revisar el estado y usar `finish` con el agente y token registrados para liberar el bloqueo. Registrar en HANDOFF.md que fue una recuperación. Adquirir una nueva sesión antes de editar. No borrar el bloqueo a ciegas.
 
 ## Verificaciones de la demo
-Según el cambio, comprobar carga y consola, spawn, movimiento/costas/interiores, techos, puertas/cofres/llaves, pausa/inventario/diálogo, agua/muerte/reinicio y el recorrido del corazón. Confirmar que el río continúa limitando el acceso y Graham no entrega la llave en la demo.
+Según el cambio, comprobar carga y consola, spawn, movimiento/costas/interiores, techos, puertas/cofres/llaves, pausa/inventario/diálogo, agua/muerte/reinicio y el recorrido del corazón. Confirmar que los botes no navegan por el río de corriente, Graham entrega la llave tras el corazón, el cofre del mapa requiere esa llave y el amanecer no se activa antes de recibirla.
 Estas son verificaciones manuales pendientes hasta ejecutarlas; el arnés de sesiones no valida el gameplay. Los test*.js existentes son herramientas históricas y deben revisarse antes de usarse.

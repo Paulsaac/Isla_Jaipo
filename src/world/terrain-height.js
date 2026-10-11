@@ -49,7 +49,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     let y = y0 * (1 - tz) + y1 * tz;
 
     const interpolate = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
-    const noiseWeight = value => value === 'SAND' ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
+    const noiseWeight = value => ['SAND', 'WET_SAND'].includes(value) ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
     const t00 = floorMap[r0][c0], t10 = floorMap[r0][c1], t01 = floorMap[r1][c0], t11 = floorMap[r1][c1];
     // Interpolar profundidad y relieve evita el salto de dos metros al cambiar de celda.
     const coastalRelief = Math.max(0, Math.min(1, (y - 0.2) / 0.8));

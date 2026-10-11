@@ -4,8 +4,8 @@ Estas reglas se aplican a Codex y Antigravity. Las instrucciones explícitas del
 
 ## Producto
 - Juego web ligero en JavaScript, Three.js, HTML y CSS, ejecutado en el navegador del jugador. No migrar a otros motores ni añadir servicios o dependencias sin necesidad de la tarea.
-- La demo permite explorar la zona inicial, encontrar el Corazón del Bosque y entregarlo a Graham. Graham sigue buscando la llave; no la entrega en la demo. El río limita el acceso al resto de la isla.
-- En la versión completa, una actualización cambia el diálogo y permite entregar la llave. No implementar una espera de meses ni desbloqueo por fecha.
+- La demo permite explorar la zona inicial, encontrar el Corazón del Bosque y entregarlo a Graham. Por petición del usuario, Graham entrega la llave del puente y desbloquea el cofre del mapa. Recibir esa llave activa el tramo final de noche previo al amanecer; sin ella permanece de noche.
+- El río de agua en movimiento limita la navegación de los botes. El desbloqueo de la llave depende de la misión, sin espera de meses ni desbloqueo por fecha.
 - No implementar guardado persistente de progreso para la demo salvo petición del usuario. Una nueva sesión comienza otra vez; el comportamiento al morir debe definirse por separado.
 
 ## Trabajo

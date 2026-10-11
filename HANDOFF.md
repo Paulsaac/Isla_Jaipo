@@ -1,3 +1,43 @@
+# Estado vigente y relevo — cierre 2026-10-11
+
+Agente Codex, rama main. Base de sesión: b3eeba30cb0a464b6534a7015526988a04318200.
+Usuario solicitó terminar, apagar servidor, documentar y hacer push a GitHub. Este encabezado prevalece sobre relevos históricos inferiores. Commit de cierre: «Improve waterfront, boats and quest progression». Documento escrito antes del commit: confirmar resultado con git log y origin/main.
+
+## Misión, cielo, audio y presentación
+- GRAHAM_BRIDGE_KEY_AVAILABLE=true: Graham entrega la llave tras recibir el Corazón del Bosque. El ciclo alcanza noche y queda detenido hasta recibir la llave; entonces conserva 25 segundos de noche antes del amanecer y libera el ciclo habitual. La entrega del corazón por sí sola ya no activa amanecer. Pausa conserva relojes de misión.
+- El cofre del mapa permanece bloqueado hasta recibir esa llave. Graham menciona el regalo en el otro cuarto para orientarse; la entrega es única.
+- forest.mpeg reemplaza forest.flac; espera final 4 segundos. Viento reducido sucesivamente 12% y 10%: ganancia 0.061776, ráfagas 0.0185328 y 0.0123552.
+- Árboles reducidos 2 unidades (altura 10.54); balanceo de vegetación aumentado 10% sin aumentar frecuencia. Antorcha de mano: intensidad media 8, oscilaciones suaves de amplitud 0.22 y 0.10 a frecuencias angulares 2.4 y 4.1.
+- Lens flare del sol con texturas procedurales de círculos y aros de distintos tamaños, crecimiento con distancia al sol, activación angular suavizada y oclusión del addon Three.js. Intensidad final 0.325 (reducción solicitada del 50%). No se agregó una imagen de referencia como dependencia.
+- Menú inicial usa imagenes/Mapa/mapa_menu.png?v=6. La pantalla de carga acompaña la carga real; no se agregó una espera estética.
+- Cofres abren tapa mediante animación de 0.7 s; puertas abren/cierran en 0.7 s con colisión y posibilidad de invertir movimiento. Cofre bloqueado no anima ni entrega contenido.
+
+## Costa, agua y construcciones
+- Fondo profundo marino usa fondo.png con filtrado suave. Río #3282F6 corresponde a WATER_ROCK; #00A2E8 mantiene agua habitual. river-current.js calcula dirección hacia desembocaduras, con continuidad bajo puentes. Shader anima flujo con dos fases fundidas, factor 1.6 y frecuencia final 0.588; es movimiento visual sin fuerza física sobre jugador.
+- Botes pueden navegar WATER/BOAT; WATER_ROCK queda prohibido, incluida toda la huella del casco.
+- Madera exterior conectada al agua se interpreta como muelle. Tablero de agua de grosor 0.25; contacto terrestre mantiene arena, pasto o tierra hasta el tablero. Tramos sobre agua tienen lecho rebajado a -2.5, incluidos muros del puente; muros junto a tierra mantienen apoyo terrestre.
+- Puentes cubiertos se identifican por cubierta estrecha, alargada y agua en ambos flancos. Puente actual: X263..266/Z271..281, 44 celdas, nivelado a accesos exteriores (base aproximada 1.283). Casa de Graham identificada por cubierta en (235,421), 222 celdas, nivelada a accesos (base aproximada 1.24618); techos, muebles y luces se construyen después de nivelar.
+- #7D6207 identifica WET_SAND y arena_mojada.png. Comparte condiciones de altura/costa de arena. Arena sumergida mezcla textura mojada y la franja pintada se prolonga al fondo somero contiguo; fondo profundo conserva fondo.png. No se regeneraron mapas; capa1 fue editada por el usuario y se incluye por ser necesaria para sus ubicaciones y nuevos colores.
+
+## Modelos y botes
+- Restos de naufragio en marcadores amarillos: tabla rota (239,484), salvavidas (241,484), cuerda (238,485), mástil roto (240,486). prepareMap sustituye el suelo de esos marcadores por arena mojada sin reescribir PNG.
+- Zona de Graham: cinco troncos en pirámide 3+2 en (238,422)/(239,422); mesón con hacha en (237,420)/(237,421); tocón (239,419) hundido 0.12. Muebles sólidos usan huellas de geometría.
+- Barco naufragado bajo mar, centro del rectángulo X240..245/Z498..508, girado 90 grados sobre eje vertical, enterrado 0.08. Geometría decorativa sin colisiones; giro puede extender su huella más allá del rectángulo inicial.
+- Botes detallados: casco abierto facetado, tablones, borda reforzada, costillas y bancos. Sin remos. Proporción ancho/largo 1:2 (parámetros 1.6 x 3.2, altura 0.4, con margen respecto a celdas). Dos marcadores adyacentes producen un único bote; marcadores individuales siguen funcionando.
+- Giro inicial 90 grados a la izquierda. Al embarcar, proa sigue suavemente el yaw de la cámara; barrido angular de pasos <=0.04 rad revisa orillas y evita girar a través de ellas. La posición del asiento acompaña giro sin desplazar el centro del casco. Colisión conservadora rectangular considera orientación.
+- Vista 0.70 más baja que altura original y asiento 0.70 atrás. Flotación vertical <=0.033, cabeceo 0.016 rad y balanceo lateral 0.028 rad; cámara acompaña vertical sin imponer inclinación a la mirada. Animación se detiene al pausar.
+
+## Verificación, recursos y cierre
+- Verificaciones de esta sesión: sintaxis de módulos, git diff --check; geometrías reales con Three.js r160 para cofres, modelos y botes; lógica de puertas, misión, clasificación de superficies/nivelación, corrientes y navegación. Último giro verificado: centro fijo, asiento posterior, giro corto al cruzar ±pi, detención ante orilla. El usuario probó visualmente los cambios y confirmó el modelo de bote; esto no sustituye un recorrido integral.
+- Pendiente: recorrido completo de demo en navegador (consola, audio, inventario, diálogos, muerte/reinicio) y revisar shader/flare/costas en distintos dispositivos. Las pruebas de geometría y shader por código no acreditan compilación GPU visual completa.
+- Servidor Node tools/serve.cjs PID 9360 detenido por solicitud; puerto 8000 sin listener tras cierre. Reiniciar con node tools/serve.cjs.
+- Recursos necesarios incluidos: capa1.png, mapa_menu.png, arena_mojada.png, fondo.png, forest.mpeg; retirar anteriores mapa_menu.jpg y forest.flac conforme reemplazos del usuario.
+- Excluir cambios locales ajenos: alamo1.png, alamo2.png, araucaria2.png, arbusto1.png, arbusto2.png, weed1.png, weed2.png, weed3.png, Tierra.png, muro.png, piedra.png, rocas.jpg, techo.jpg. Se preservan en disco y no forman parte del commit/push de esta sesión.
+- .coordination contiene validación temporal ignorada por Git; no incorporar. No se agregaron dependencias para el jugador. AGENTS.md y docs/PROTOCOL.md actualizados para reflejar entrega de llave; enlace histórico actualizado en ANTIGRAVITY_HANDOFF.md.
+- Push autorizado a origin/main sin force. Liberar sesión después de confirmar commit/push con tools/session.ps1 finish -Agent Codex -Token d18d652f-7620-44c9-a075-2df5ba31a5d5.
+
+---
+## Relevos históricos (no prevalecen sobre estado actual)
 # Estado vigente y relevo — cierre 2026-10-10 (segunda sesión)
 
 Agente Codex, rama main. Base: ea8cfb61881674134a38a94074e2ee8fd40162e9.

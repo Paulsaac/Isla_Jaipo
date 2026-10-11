@@ -114,3 +114,18 @@
 - Audio local con Web Audio: eventos únicos forest/morning; pausa congela audio y esperas, P detiene música. Viento/pasos sintetizados; música volumen 0.8, reverb húmeda 72%, cola difusa 8 s. No servicios/dependencias ni persistencia.
 - Puertas empujan al abrir/cerrar o revierten si no hay espacio; overrides de ambas puertas (228,423)/(235,423) hacia sur. Cofre del corazón sobre losa. Correr 2x, vuelo 3x y vuelo Shift 9x.
 - Cierre autoriza documentación, commit/push del trabajo realizado y assets necesarios. Servidor permanece encendido. Excluir cambios ajenos de mapas/texturas/atlas y auxiliares locales.
+
+## 2026-10-11 — Misión y presentación solicitadas
+- Graham entrega llave del puente al completar misión del corazón; recibirla inicia los 25 segundos finales de noche previos al primer amanecer. Cofre del mapa requiere esa llave y diálogo señala regalo para orientarse. Reemplaza anteriores decisiones de llave deshabilitada y amanecer por entrega del corazón.
+- forest usa archivo MPEG y espera 4 segundos. Ajustes finales de viento, antorcha, vegetación y flare están en HANDOFF.md; no volver a valores históricos.
+
+## 2026-10-11 — Agua, costa y edificaciones
+- WET_SAND #7D6207 usa arena_mojada.png con condiciones costeras de arena; prolongar al fondo somero vecino y conservar fondo.png en mar profundo.
+- Agua corre visualmente por WATER_ROCK #3282F6, pero es no navegable para botes. Frecuencia final 0.588 y desplazamiento 1.6; no introduce empuje físico.
+- Madera exterior conectada al agua es muelle. Conservar contacto terrestre bajo extremos apoyados en arena/pasto/tierra y dejar agua bajo tramos acuáticos, incluidos muros de puentes. Nivelar puente cubierto y casa de Graham a accesos exteriores antes de construir sus elementos.
+
+## 2026-10-11 — Botes y utilería
+- Modelos procedurales ligeros con Three.js, sin dependencias nuevas ni assets originales regenerados: restos de naufragio, barco hundido, troncos, mesón/hacha y tocón.
+- Bote sin remos con proporción 1:2. Giro inicial a izquierda y proa controlada por mirada horizontal; barrer giro y movimiento con huella orientada contra costas y río.
+- Asiento 0.70 detrás y ojos 0.70 más bajos que posición original. Flotación visual suave con cámara acompañando altura, conservando centro de navegación y control libre de mirada.
+- Cierre incluye solo código, documentación y recursos necesarios para solicitudes; otras ediciones de sprites/texturas se preservan locales fuera del commit.
