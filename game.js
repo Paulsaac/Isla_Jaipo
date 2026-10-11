@@ -39,6 +39,7 @@ import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/conten
 import { pushPlayerFromMovingDoors } from './src/player/door-push.js';
 import { createTerrainSectors } from './src/world/terrain-sectors.js';
 import { createInstanceSectors } from './src/world/instance-sectors.js';
+import { createFogCulling } from './src/world/fog-culling.js';
 import { mergeRoofBlocks } from './src/world/roof-blocks.js';
 import { createBedGeometry } from './src/world/bed-geometry.js';
 import { createSideTableGeometry } from './src/world/side-table-geometry.js';
@@ -86,6 +87,8 @@ const torchSprites = [];
 const vegetationWindTime = { value: 0 };
 const waterWaveTime = { value: 0 };
 let vegetationSectors = null;
+let structureSectors = null;
+let fogCulling = null;
 let grahamSprite = null;
 let targetInteractable = null;
 let isRidingBoat = false;
@@ -109,7 +112,10 @@ let deliveringHeart = false;
 // --- SETUP DE THREE.JS ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a14); // Noche azulada lúgubre
-scene.fog = new THREE.FogExp2(0x030304, 0.02); // Desvanecimiento gradual, sin un límite de distancia abrupto.
+const WORLD_VISIBILITY_DISTANCE = 300;
+const MOUNTAIN_VISIBILITY_DISTANCE = 600;
+const FOG_RESIDUAL = 0.0001;
+scene.fog = new THREE.FogExp2(0x030304, Math.sqrt(-Math.log(FOG_RESIDUAL)) / WORLD_VISIBILITY_DISTANCE);
 
 // Iluminación Dark Fantasy (Noche de Luna)
 const ambientLight = new THREE.AmbientLight(0x11111a, 0.2); // Luz ambiental suave (más oscura)
@@ -1283,7 +1289,7 @@ function buildWorld(mapData) {
     terrainHeightSamples = { positions, verticesW: vertsW, segmentsW, segmentsH, subdivisions: SUBDIVISIONS };
 
     // --- MATERIAL SPlAT COMPARTIDO POR TODO EL TERRENO ---
-    const splatMaterial = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 }); // El map dummy activa USE_MAP
+    const splatMaterial = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0, alphaHash: true }); // Recorte gradual sin ordenar superficies transparentes.
     splatMaterial.onBeforeCompile = function (shader) {
         shader.uniforms.tGrass = { value: pastoTex };
         shader.uniforms.tDirt = { value: tierraTex };
@@ -1295,6 +1301,8 @@ function buildWorld(mapData) {
         shader.uniforms.tRock = { value: rocaTex };
         shader.uniforms.tSnow = { value: nieveTex };
         shader.uniforms.tSlab = { value: losaTex };
+        shader.uniforms.mountainFogScale = { value: WORLD_VISIBILITY_DISTANCE / MOUNTAIN_VISIBILITY_DISTANCE };
+        shader.uniforms.terrainVisibilityDistance = { value: WORLD_VISIBILITY_DISTANCE };
 
         shader.vertexShader = `
             attribute vec4 splatWeights;
@@ -1327,6 +1335,8 @@ function buildWorld(mapData) {
             uniform sampler2D tRock;
             uniform sampler2D tSnow;
             uniform sampler2D tSlab;
+            uniform float mountainFogScale;
+            uniform float terrainVisibilityDistance;
             varying vec4 vSplat;
             varying vec4 vMountain;
             ${shader.fragmentShader}
@@ -1350,10 +1360,29 @@ function buildWorld(mapData) {
                 diffuseColor *= blendedTexel;
             #endif
             `
-        );
+        ).replace('#include <alphahash_fragment>', `
+            #ifdef USE_FOG
+                float terrainMountainPresence = max(clamp(vMountain.x + vMountain.y + vMountain.z, 0.0, 1.0),
+                    smoothstep(3.0, 10.0, vTerrainHeight));
+                float terrainFadeLimit = terrainVisibilityDistance / mix(1.0, mountainFogScale, terrainMountainPresence);
+                // Disolver la silueta contra el cielo antes de retirar los sectores completos.
+                diffuseColor.a *= 1.0 - smoothstep(terrainFadeLimit * 0.7, terrainFadeLimit, vFogDepth);
+            #endif
+            #include <alphahash_fragment>
+        `).replace('#include <fog_fragment>', `
+            #ifdef USE_FOG
+                float mountainPresence = max(clamp(vMountain.x + vMountain.y + vMountain.z, 0.0, 1.0),
+                    smoothstep(3.0, 10.0, vTerrainHeight));
+                float terrainFogScale = mix(1.0, mountainFogScale, mountainPresence);
+                ${THREE.ShaderChunk.fog_fragment.replaceAll('vFogDepth', '(vFogDepth * terrainFogScale)')}
+            #endif
+        `);
     };
 
     const terrainSectors = createTerrainSectors(THREE, terrainGeo, splatMaterial, segmentsW, segmentsH);
+    for (const sector of terrainSectors.children) {
+        if (sector.userData.hasMountain) sector.userData.fogDistanceMultiplier = MOUNTAIN_VISIBILITY_DISTANCE / WORLD_VISIBILITY_DISTANCE;
+    }
     scene.add(terrainSectors);
     const slabCells = [];
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
@@ -1490,6 +1519,13 @@ function buildWorld(mapData) {
     scene.add(grahamSprite);
     interactables.push(grahamSprite);
     
+    // Agrupar también los bloques estáticos para descartar partes ocultas, no edificios enteros.
+    const structureMeshes = scene.children.filter(object => object.isInstancedMesh);
+    structureSectors = createInstanceSectors(THREE, structureMeshes, 32, 0);
+    structureSectors.group.name = 'structure-sectors';
+    scene.add(structureSectors.group);
+    fogCulling = createFogCulling(THREE, scene, [skyMesh, sunFlare.object, camera], FOG_RESIDUAL);
+    fogCulling.register();
     minimap.initialize(floorCanvas);
 }
 
@@ -2021,7 +2057,9 @@ function animate() {
         // Relleno según luz local: el plano del NPC no debe oscurecerse al girar de espaldas a la llama.
         grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
-    if (vegetationSectors) vegetationSectors.update(camera);
+    const fogPlane = fogCulling?.update(camera);
+    if (vegetationSectors) vegetationSectors.update(camera, fogPlane);
+    if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
     renderer.render(scene, camera);
 }

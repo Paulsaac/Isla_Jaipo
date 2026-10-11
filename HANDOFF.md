@@ -1,3 +1,51 @@
+# Estado vigente — cierre 2026-10-11: descarte por niebla y alcance de montaña
+
+Codex, rama main. Base actualizada al retomar: 555f5cd9678dbfd868b68037a64a427e530535e8. Usuario pidió cierre completo según comando acordado: documentación, commit/push y apagar servidor. Commit previsto: «Cull fog-hidden world sectors and smooth mountain visibility». Documento escrito antes del commit; verificar resultado con git log y remoto. Este encabezado prevalece sobre parámetros de relevos anteriores.
+
+## Inicio y cierre acordados
+- «Retomemos la sesión» autoriza verificar remoto y actualizar por fast-forward seguro, encender/reutilizar servidor comprobando HTTP y proponer trabajo según código/relevo. «Finalicemos/cerremos la sesión» autoriza documentación, commit/push del trabajo realizado, apagado del servidor y liberación de bloqueo, salvo excepción explícita. Procedimiento en docs/PROTOCOL.md; AGENTS.md y enlace de ANTIGRAVITY_HANDOFF.md alineados.
+- Al retomar se descargaron fec4dbe/555f5cd con costas, botes, misión y recursos; documentos locales de los comandos combinados con nuevo relevo. Git bloqueó merge habitual de documentos. Tras respaldos y comprobación de 46 archivos contra versiones anterior/remota (solo finales de línea ignorados en textos), se completó avance exclusivo al descendiente remoto sin commit adicional ni stash/reset/force. Copias en .coordination/resume-20261011, ignoradas; preservarlas. HEAD y origin/main coincidieron antes de esta sesión de cambios.
+- Se mantienen las reglas de producto del relevo 555f5cd: Graham entrega llave tras corazón, cofre del mapa requiere llave, recibirla inicia 25 s finales de noche. El usuario confirmó que misión y botes funcionan correctamente; no repetir decisiones antiguas de llave deshabilitada.
+
+## Rendimiento y visibilidad vigentes
+- Problema informado: tirones/FPS bajos en otros equipos al jugar desde Pages, no carga inicial. Equipo personal funciona bien. No se atribuyó por defecto al hosting ni se acreditó mejora FPS real.
+- Nuevo src/world/fog-culling.js: plano de profundidad de cámara calculado para FogExp2 con resto 0.0001 (99.99% de mezcla). Conserva objetos cuya esfera completa cruza límite, actualiza transformaciones/geométricas dinámicas y reaparición. Excluye skyMesh, flare, cámara y materiales sin niebla. Interacciones/física siguen activas; descarte solo visual.
+- instance-sectors.js combina frustum y plano de niebla, compacta matrices solo si cambian sectores; también responde a cambio de densidad. Se reutiliza para bloques estáticos: muros, techos fusionados, jambas/dinteles, pisos, losas y tableros. Vegetación conserva detalle, animación y distancia visible.
+- Alcance final común WORLD_VISIBILITY_DISTANCE=300, montaña MOUNTAIN_VISIBILITY_DISTANCE=600 en game.js. Densidad común derivada sqrt(-log(0.0001))/300 ≈0.01011618. Cámara permanece 1500; skybox/sol/luna sin este recorte.
+- Montaña: niebla se reduce gradualmente por pesos de piedra/nieve y altura smoothstep(3,10,Y), incluyendo camino elevado. terrain-sectors marca hasMountain si algún vértice tiene esos pesos o altura >3; límite conservador de ese sector x2. El resto del terreno sigue niebla común aunque comparta sector.
+- Para evitar silueta que desaparece de golpe contra un skybox de color distinto, material del terreno usa alphaHash. Shader disuelve cobertura entre 70% y 100% de su alcance: montaña 420–600, suelo común 210–300, transiciones interpoladas. Mantiene profundidad de superficies sin ordenación transparente; puede apreciarse trama fina durante fundido. No reducir detalle cercano ni regenerar mapas.
+
+## Audio final
+- Música ganancia 0.8, reverberación húmeda 0.6 / seca 0.4; cola difusa 8 s y predelay 65 ms conservados.
+- Viento base 0.04, ráfagas 0.012 y 0.008 (rango teórico 0.02–0.06), conservando ritmos/filtros y fade inicial 4 s. forest.mpeg con espera 4 s y morning sin retraso adicional, eventos únicos, pausa y P intactos.
+
+## Verificaciones y límites
+- Cierre: sintaxis de todos los módulos game.js/src; git diff --check para archivos intervenidos/documentación antes de commit.
+- Navegador real: carga sin pageerror; primer descarte con alcance ~151.74 (ANTES de extensión a 300/600) redujo triángulos dibujados 86–90% en spawn/bosque/costa. Datos iniciales: 6,028,445→794,879 / 3,731,848→516,678 / 6,884,033→680,087; calls 713→250 / 425→55 / 984→443. No aplicar esas cifras al alcance final ni presentarlas como ganancia FPS.
+- Pruebas de descarte: cielo/materiales sin niebla excluidos, objeto reaparece al acercarse, objetos parcialmente visibles conservados, cambio de geometría y densidad respetado, instancias restauradas. Cámara far 1500.
+- Prueba montaña: 56/256 sectores marcados; sector de cumbre visible a 450 con alcance extendido, oculto con alcance normal, oculto a 800; shader sin fallos de compilación. Único 404 identificado: favicon.ico, no asset de juego.
+- Fundido GPU con material real en render target: cobertura 2116/1978/1095/151/6/0/0 píxeles a 420/450/510/570/595/600/650; cero fallos de programas/consola. Hooks solo en respuesta HTTP de prueba, no en producción.
+- Último audio: sintaxis/diff correctos; evaluación auditiva posterior pendiente. El usuario observó desaparición brusca antes de incorporar fundido; falta su revisión final del resultado. No reejecutar recorrido integral ni prometer FPS estable; medir en equipos afectados con alcance final. Próxima prioridad: comprobar giro/alejamiento de montaña y fluidez final; diagnóstico opcional de tiempos de fotograma/draw calls si persisten tirones.
+
+## Cierre y material pendiente
+- Servidor tools/serve.cjs PID 3844 detenido, comando verificado; puerto 8000 sin listener. Próximo inicio usa protocolo de retomar.
+- Commit solo game.js, fog-culling.js, instance-sectors.js, terrain-sectors.js, music-events.js y cinco documentos del protocolo/relevo. No incorporar cambios ajenos: capa2.png, Pasto.png, arena.png, Noche.jpeg y eliminación de cinco imágenes antiguas Cielo/1,2..3,2. Conservados localmente.
+- Auxiliares, copias, personajes, node_modules y package*.json sin seguimiento permanecen fuera del commit. No se añadieron dependencias ni assets ni se escribió mapa original.
+- GitHub Pages mantiene rutas relativas/.nojekyll. Confirmar push remoto; no afirmar publicación terminada sin comprobación. Liberar sesión Codex token 8137ba61-1c48-4185-8739-1d82c2bb8577 después del cierre.
+
+---
+## Relevos anteriores y acuerdos (historial)
+
+## Comando de inicio acordado — 2026-10-11
+
+Cuando el usuario diga «retomemos la sesión» o una petición equivalente de retomar el proyecto, ejecutar el inicio completo descrito en docs/PROTOCOL.md: leer el relevo, revisar/adquirir la sesión, verificar la versión remota y hacer pull seguro si corresponde, encender o reutilizar el servidor local y comprobar HTTP, y dar sugerencias concretas según el estado actual del proyecto. Esta instrucción autoriza la sincronización Git de inicio; no autoriza commit ni push. Preservar cambios locales y archivos sin seguimiento; no reset, force ni stash automático. Si la actualización está bloqueada, explicar la causa y continuar con los pasos independientes posibles.
+
+## Comando de cierre acordado — 2026-10-11
+
+Cuando el usuario diga «finalicemos la sesión», «cerremos la sesión» o equivalente, ejecutar el cierre completo de docs/PROTOCOL.md: revisar/verificar trabajo, actualizar HANDOFF.md con novedades y pendientes para el próximo agente, DECISIONS.md con decisiones duraderas y enlace de ANTIGRAVITY_HANDOFF.md si cambia protocolo; crear commit del trabajo realizado y hacer push verificado; apagar el servidor local de esta copia y liberar sesión. El usuario autoriza esas operaciones con el comando de cierre, sin confirmación adicional; una excepción explícita suya prevalece. Preservar cambios ajenos y reportar fallos sin ocultar pendientes.
+
+Registro documental solicitado explícitamente, sin ejecutar ahora los comandos de retomar/cerrar ni operaciones Git. Las modificaciones de protocolo quedan locales hasta un push autorizado. El estado de gameplay del último cierre sigue vigente abajo.
+
 # Estado vigente y relevo — cierre 2026-10-11
 
 Agente Codex, rama main. Base de sesión: b3eeba30cb0a464b6534a7015526988a04318200.

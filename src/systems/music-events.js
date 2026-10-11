@@ -26,7 +26,7 @@ export function createMusicEvents() {
         if (musicOutput) return musicOutput;
         musicOutput = context.createGain();
         const dry = context.createGain();
-        dry.gain.value = 0.28;
+        dry.gain.value = 0.4;
         musicOutput.connect(dry);
         dry.connect(context.destination);
         const delay = context.createDelay();
@@ -45,7 +45,7 @@ export function createMusicEvents() {
         softTail.type = 'lowpass';
         softTail.frequency.value = 2400;
         const wet = context.createGain();
-        wet.gain.value = 0.72;
+        wet.gain.value = 0.6;
         musicOutput.connect(delay);
         delay.connect(reverb);
         reverb.connect(softTail);
@@ -145,13 +145,13 @@ export function createMusicEvents() {
         highpass.frequency.value = 100;
         const volume = context.createGain();
         volume.gain.setValueAtTime(0, now);
-        volume.gain.linearRampToValueAtTime(0.061776, now + 4);
+        volume.gain.linearRampToValueAtTime(0.04, now + 4);
         noise.connect(lowpass);
         lowpass.connect(highpass);
         highpass.connect(volume);
         volume.connect(context.destination);
         // Dos ritmos lentos distintos evitan una ráfaga repetitiva de metrónomo.
-        for (const [rate, intensity, tone] of [[0.07,0.0185328,250],[0.113,0.0123552,150]]) {
+        for (const [rate, intensity, tone] of [[0.07,0.012,250],[0.113,0.008,150]]) {
             const gust = context.createOscillator();
             gust.type = 'sine';
             gust.frequency.value = rate;

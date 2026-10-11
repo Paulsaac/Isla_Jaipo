@@ -4,6 +4,7 @@ export function createTerrainSectors(THREE, source, material, segmentsW, segment
     group.name = 'terrain-sectors';
     const verticesW = segmentsW + 1;
     const positions = source.attributes.position.array;
+    const mountainWeights = source.attributes.mountainWeights?.array;
     const sourceIndices = source.index.array;
     for (let startZ = 0; startZ < segmentsH; startZ += sectorSegments) {
         for (let startX = 0; startX < segmentsW; startX += sectorSegments) {
@@ -19,11 +20,14 @@ export function createTerrainSectors(THREE, source, material, segmentsW, segment
             geometry.setIndex(new THREE.BufferAttribute(indices, 1));
             const bounds = new THREE.Box3();
             const point = new THREE.Vector3();
+            let hasMountain = false;
             for (let z = startZ; z <= startZ + height; z++) {
                 for (let x = startX; x <= startX + width; x++) {
                     const index = (z * verticesW + x) * 3;
                     point.fromArray(positions, index);
                     bounds.expandByPoint(point);
+                    const weightIndex = (z * verticesW + x) * 4;
+                    if (point.y > 3 || (mountainWeights && mountainWeights[weightIndex] + mountainWeights[weightIndex + 1] + mountainWeights[weightIndex + 2] > 0)) hasMountain = true;
                 }
             }
             // Los límites pertenecen al sector, aunque los atributos estén compartidos.
@@ -32,6 +36,7 @@ export function createTerrainSectors(THREE, source, material, segmentsW, segment
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = `terrain-sector-${startX}-${startZ}`;
             mesh.frustumCulled = true;
+            mesh.userData.hasMountain = hasMountain;
             group.add(mesh);
         }
     }

@@ -1,5 +1,12 @@
 # Decisiones del proyecto
 
+## 2026-10-11 — Comando persistente para retomar
+- «Retomemos la sesión» activa lectura del relevo y bloqueo, verificación remota con actualización segura por fast-forward cuando corresponda, servidor local verificado y sugerencias priorizadas según el proyecto actual. Autorización del usuario persistente para fetch/pull de inicio; no para commit/push ni sobrescribir trabajo local. No reset/force/stash automático. Procedimiento en docs/PROTOCOL.md y recordatorio en HANDOFF.md.
+
+## 2026-10-11 — Comando persistente para cerrar
+- «Finalicemos la sesión», «cerremos la sesión» o equivalente autorizan actualizar documentos con novedades/verificaciones/pendientes, commit y push del trabajo realizado, apagado del servidor local del proyecto y liberación del bloqueo. Sustituye requisito anterior de pedir autorización Git separada al cierre. Excepciones explícitas del usuario prevalecen; preservar cambios ajenos, verificar remoto y apagado, y comunicar cualquier paso incompleto. Registrar esta instrucción no ejecuta por sí mismo el cierre.
+
+
 ## 2026-10-08 — Cierre y estado final solicitado
 - Sesión de trabajo abarca varios pedidos: documentación y relevo únicamente al cierre explícito. Git requiere autorización; este cierre autoriza subir los cambios de Codex a origin/main.
 - Graham en celda (231,422), posición explícita independiente de antorchas, pies sobre suelo y relleno cálido según iluminación cercana.
@@ -129,3 +136,9 @@
 - Bote sin remos con proporción 1:2. Giro inicial a izquierda y proa controlada por mirada horizontal; barrer giro y movimiento con huella orientada contra costas y río.
 - Asiento 0.70 detrás y ojos 0.70 más bajos que posición original. Flotación visual suave con cámara acompañando altura, conservando centro de navegación y control libre de mirada.
 - El primer commit de cierre incluyó código, documentación y recursos necesarios. El usuario amplió después la autorización para subir todos los archivos modificados: las 13 ediciones pendientes de sprites y texturas se incorporan en un segundo commit sin modificar sus imágenes.
+
+## 2026-10-11 — Visibilidad por niebla y cierre de rendimiento
+- Descartar mundo oculto por FogExp2, conservando límites completos y reaparición; no reducir detalle cercano ni distancia de cielo. Alcance común 300, montaña 600, cámara 1500. Densidad común ≈0.01011618 con resto 0.0001. Sectores estáticos y vegetación combinan frustum/niebla.
+- Montaña usa menor niebla por pesos/altura y fundido de silueta con alphaHash entre 420–600; terreno común funde 210–300. Evita corte contra cielo de color distinto. Física/interacciones preservadas. Medición FPS en hardware afectado pendiente; reducciones de geometría anteriores se midieron con alcance menor y no representan el ajuste final.
+- Reverberación final 60% húmeda/40% seca, cola 8 s; viento base 0.04 con variaciones proporcionales 0.012/0.008. Música 0.8 y triggers vigentes conservados.
+- Usuario confirmó misión y botes funcionales en el estado actualizado de 555f5cd. Cierre autoriza documentación, commit/push del trabajo de esta sesión y apagado del servidor, excluyendo cambios ajenos y auxiliares.

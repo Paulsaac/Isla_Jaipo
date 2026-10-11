@@ -25,7 +25,8 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
     });
     const frustum = new THREE.Frustum(), projection = new THREE.Matrix4();
     const previousProjection = new Float64Array(16).fill(NaN);
-    function update(camera) {
+    let previousFogConstant = NaN;
+    function update(camera, fogPlane = null) {
         camera.updateMatrixWorld(true);
         projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
         let cameraChanged = false;
@@ -33,12 +34,16 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
             if (projection.elements[index] !== previousProjection[index]) cameraChanged = true;
             previousProjection[index] = projection.elements[index];
         }
+        const fogConstant = fogPlane?.constant ?? null;
+        if (fogConstant !== previousFogConstant) cameraChanged = true;
+        previousFogConstant = fogConstant;
         if (!cameraChanged) return;
         frustum.setFromProjectionMatrix(projection);
         for (const { mesh, original, sectors } of entries) {
             let changed = false;
             for (const sector of sectors) {
-                const visible = frustum.intersectsSphere(sector.sphere);
+                const visible = frustum.intersectsSphere(sector.sphere)
+                    && (!fogPlane || fogPlane.distanceToPoint(sector.sphere.center) >= -sector.sphere.radius);
                 if (visible !== sector.visible) changed = true;
                 sector.visible = visible;
             }
