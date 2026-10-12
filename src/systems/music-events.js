@@ -4,6 +4,9 @@ export function createMusicEvents() {
     let windStarted = false;
     let paused = false;
     let musicOutput = null;
+    const forestEnergy = { bass: 0, treble: 0 };
+    let forestAnalyser = null;
+    let forestSpectrum = null;
     const tracks = {
         forest: {url:'./sonidos/musica/forest.mpeg',delay:4},
         morning: {url:'./sonidos/musica/morning.flac',delay:0}
@@ -84,10 +87,25 @@ export function createMusicEvents() {
                 source.loop = false;
                 const volume = context.createGain();
                 volume.gain.value = 0.8;
-                source.connect(volume);
+                if (track === tracks.forest) {
+                    forestAnalyser = context.createAnalyser();
+                    forestAnalyser.fftSize = 1024;
+                    forestAnalyser.smoothingTimeConstant = 0.65;
+                    forestSpectrum = new Uint8Array(forestAnalyser.frequencyBinCount);
+                    source.connect(forestAnalyser);
+                    forestAnalyser.connect(volume);
+                } else source.connect(volume);
                 volume.connect(getMusicOutput());
-                source.onended = () => { source.disconnect(); volume.disconnect(); track.source = null; };
-                source.start();
+                source.onended = () => {
+                    track.ended = true;
+                    source.disconnect(); volume.disconnect(); track.source = null;
+                    if (track === tracks.forest && forestAnalyser) {
+                        forestAnalyser.disconnect(); forestAnalyser = null;
+                    }
+                };
+                track.duration = buffer.duration;
+                track.startedAt = context.currentTime;
+                source.start(track.startedAt);
                 track.played = true;
             }).catch(error => {
                 if (!track.failed) console.warn('Error al reproducir música:',error);
@@ -172,7 +190,34 @@ export function createMusicEvents() {
         // P o un fallo de audio no deben bloquear la misión; respetar igualmente la espera.
         return !!track && !!(track.played || ((track.stopped || track.failed) && track.remaining <= 0.000001));
     }
-    return {unlock,setPaused,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted};
+    function getForestEnergy() {
+        forestEnergy.bass = forestEnergy.treble = 0;
+        if (!forestAnalyser || paused || !tracks.forest.source) return forestEnergy;
+        forestAnalyser.getByteFrequencyData(forestSpectrum);
+        const binHz = context.sampleRate / forestAnalyser.fftSize;
+        function band(low, high) {
+            const start = Math.max(1, Math.ceil(low / binHz));
+            const end = Math.min(forestSpectrum.length, Math.ceil(high / binHz));
+            let total = 0;
+            for (let i = start; i < end; i++) total += forestSpectrum[i] / 255;
+            return total / Math.max(1, end - start);
+        }
+        forestEnergy.bass = band(45, 250);
+        forestEnergy.treble = band(1800, 6000);
+        return forestEnergy;
+    }
+    function isEventActive(name) {
+        const track = tracks[name];
+        return !!track?.triggered && !track.ended && !track.stopped && !track.failed;
+    }
+    function getEventTimeRemaining(name) {
+        if (!isEventActive(name)) return 0;
+        const track = tracks[name];
+        if (!track.played) return Infinity;
+        return Math.max(0, track.duration - (context.currentTime - track.startedAt));
+    }
+    function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
+    return {unlock,setPaused,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration};
 }
 
 export const musicEvents = createMusicEvents();

@@ -1,3 +1,44 @@
+# Estado vigente — cierre 2026-10-12: evento del corazón y dimensiones
+
+Codex, rama main; base de sesión 29ebd8067c21c8bbe8800ce543d6afe3802451b3. Cierre solicitado con excepción expresa: mantener servidor encendido para continuar después. Commit previsto: «Add music-reactive heart event and adjust world proportions». Documento escrito antes del commit; verificar hash y push con git log y origin/main. Este encabezado prevalece sobre valores históricos inferiores.
+
+## Cambios de contenido y escala
+- Cofre del Corazón del Bosque trasladado por el usuario en capa1 de (165,308) a (94,279); mundo (188,558). Nuevo marcador CHEST verificado RGB(255,174,201), anterior ahora GRASS RGB(0,128,0). Configuración actualizada en entities.js y documentación; conserva losa y orientación Math.PI. Se incluye capa1.png sin regenerarlo. Cofre del mapa continúa en (231,425).
+- Puerta (235,423) invierte apertura: north. (228,423) mantiene south. Animación y empuje existentes preservados.
+- HUD notifica «Has recibido…» al obtener antorcha, llave del puente, corazón, mapa o llave de cofre. Cola de avisos de 3.5 s, independiente del mensaje de interacción. Solo se notifica entrega efectiva; no cofre bloqueado ni recompensas repetidas.
+- Dimensiones finales en config.js: WALL_HEIGHT=3, DOOR_HEIGHT=2.2, PLAYER_HEIGHT=1.5, GRAHAM_HEIGHT=1.8. Cámara agachada 0.9. Graham conserva proporciones (ancho 0.8*1.8/1.9) y sus pies se alinean usando la altura actual de geometría. Marcos, dinteles, techo y límites verticales derivan de constantes vigentes.
+- FURNITURE_SCALE=0.9. Se escala geometría de todos los muebles definidos, incluidos troncos/mesón/tocón, recalculando boundingBox y boundingSphere; no Mesh.scale, para conservar colisiones existentes. Posiciones, offsets y orientación preservados. Cofres, botes, restos del naufragio y edificios no forman parte de esa lista de muebles.
+
+## Evento musical y distorsión: valores finales
+- Recoger corazón activa forest.mpeg (espera existente 4 s). Sin nuevos objetivos ni bloqueo de entrega. Los efectos ahora siguen la canción, aunque el corazón ya haya sido entregado a Graham; no terminan por diálogo.
+- music-events.js analiza únicamente forest con AnalyserNode (FFT1024), bandas graves45–250 Hz/agudos1800–6000 Hz, con suavizado. Expone isEventActive, getEventTimeRemaining y getEventDuration. Duración viene del AudioBuffer y avance del reloj AudioContext; pausa conserva tiempo. P/fallo/fin liberan bloqueo de carrera. Ganancias de música/viento del relevo previo conservadas.
+- heart-vision.js compone los shaders existentes, sin postprocesado ni imágenes originales alteradas. Ondulación UV en suelo/vegetación; color del agua conserva shader de corrientes y ondas. Más saturación de tierra/pasto/arena/arena mojada/agua; luz propia del pasto para percibir textura de noche. No brillo plano que borre detalles: color conserva luminosidad y dibujo. Terreno mantiene mezcla más suave que vegetación.
+- ColorTime avanza 1.25x (ciclos cromáticos 25% más rápidos); Time de ondulación conserva velocidad previa. Cielo nocturno cambia hue HSV de la imagen, con saturación y brillo aumentados. Luna normal/glow/azul cambia hue con un desfase variable respecto al azul dominante del cielo; atlas y alfa preservados. Día/atardecer/amanecer sin shader psicodélico.
+- Árboles: ocho ciclos alternados por mod(columna+fila,8), cada uno con velocidad/fase diferentes. Las dos caras del mismo árbol comparten ciclo; cálculo desde posición de instancia conserva asignación al compactar sectores. tree-color-cycle.js comparte fórmula con luces. Arbustos/pasto alto cambian color pero no tienen emisión propia ni luces asignadas.
+- El árbol completo recibe emisión basada en su textura (0.45 + graves*0.20), conservando dibujo/transparencia y ocho ciclos. heart-halos.js ya no crea sprites ni puntos luminosos visibles: solo cuatro PointLights reutilizados, sin sombras. Solo TREE, candidatos hasta14 unidades, revisión cada0.4 s; luces a suelo+4.8, alcance18, intensidad máxima de envolvente*(14+graves*8), HSL saturación1/luminosidad0.4. Su envolvente sigue la distorsión.
+- FINAL: entrada de distorsión/iluminación 8 segundos desde activar evento; salida durante últimos8 segundos de canción, cero al finalizar. HEART_EVENT_END_MARGIN=0. Sustituye pruebas anteriores de terminar 8/2 segundos antes y entrada15 s. Curva quintica con aceleración suave; pausas congelan efectos.
+
+## Levitación y controles
+- heart-event-timing.js: elevación máxima3.75 sobre posición normal; curva quintica sube desde inicio real de música, máximo en mitad de duración, baja gradualmente hasta suelo al finalizar canción junto a distorsión. Mantiene cámara debajo de árboles. Duración no está fijada manualmente.
+- Movimiento horizontal y colisiones existentes conservados. La levitación controla altura sin activar vuelo libre; respeta límites de techo y altura del bote. Sin cabeceo de pasos mientras levita. Sobre agua, levitación >0.15 evita consumo de resistencia y penalización de movimiento; al bajar vuelven reglas normales de agua.
+- Carrera bloqueada desde trigger de forest, incluida espera inicial y pausa, hasta fin/stop/fallo de audio; lectura efectiva de Shift usada también en pisadas/balanceo. Vuelo manual bloqueado durante canción/descenso; saltar bloqueado mientras la elevación es positiva. Recoger corazón desactiva vuelo manual previo.
+- Cancelar música con P: distorsión y descenso se extinguen suavemente durante8 s. No teletransportar al suelo; carrera se libera al detener pista. Fallo antes de reproducir no provoca levitación ni bloqueo permanente.
+
+## Verificación y pendientes
+- Cierre: sintaxis correcta en los63 módulos game.js/src, git diff --check. Durante sesión: lógica de cola de avisos; eventos de audio espera/reproducción/pausa/fin/stop/fallo; bandas de analizador; duración/tiempo restante por reloj de audio; rampas entrada/salida8s y sincronización de iluminación/aterrizaje, cancelación suave. Altura acotada y pico a mitad de canción comprobados con varias duraciones; integración del bloque real de física comprobó gravedad, techos, bote y recuperación del apoyo.
+- GPU real en navegador: sky/moon/tree/water cambian color sin errores de compilación; ocho árboles producen ocho colores y conservan el resultado al reordenar instancias. Carga del juego comprobada sin errores de shaders; traslado del cofre ya no bloquea construcción. Colisión de muebles verificada con geometría Three.js: libera huella antigua al reducir y conserva bloqueo del nuevo cuerpo.
+- Usuario aprobó visualmente las iteraciones de distorsión; faltan pruebas manuales completas del último estado (canción entera con levitación/entrada/salida finales, interior/bote/agua/muerte, puertas altas, muebles0.9 y variaciones de color en hardware afectado). Las pruebas de lógica y fixtures GPU no acreditan ese recorrido integral ni una mejora FPS.
+- Fuentes de color y geometría originales preservadas. .coordination contiene fixtures HTML/Three.js y registros temporales ignorados; no incorporarlos al commit. No dependencias nuevas para el jugador.
+- Estado base de misión/amanecer, navegación de ríos, fog-culling300/600 y audio del relevo anterior siguen vigentes. Documentación de entidades, estructura y regla de colores actualizada para evitar referencias activas obsoletas.
+
+## Cierre y continuación
+- Servidor tools/serve.cjs PID8328 conservado por instrucción explícita, en http://127.0.0.1:8000/. Verificado HTTP200 y game.js servido coincide con esta copia. NO apagar al cerrar esta sesión.
+- Fetch de cierre confirmó que remoto seguía en29ebd80 antes de commit. Push autorizado a origin/main sin force; confirmar recepción. Incluir cambios de esta sesión y capa1 del traslado solicitado; no auxiliares ignorados.
+- Liberar bloqueo Codex token f283cd19-6535-44bd-97f4-58cd8b1f5141 tras push. Para continuar, adquirir nueva sesión o reutilizar propia si vigente según protocolo; servidor puede reutilizarse comprobando HTTP. No abrir automáticamente otra sesión después de este cierre.
+
+---
+## Relevos anteriores (historial)
+
 # Estado vigente — cierre 2026-10-11: descarte por niebla y alcance de montaña
 
 Codex, rama main. Base actualizada al retomar: 555f5cd9678dbfd868b68037a64a427e530535e8. Usuario pidió cierre completo según comando acordado: documentación, commit/push y apagar servidor. Commit previsto: «Cull fog-hidden world sectors and smooth mountain visibility». Documento escrito antes del commit; verificar resultado con git log y remoto. Este encabezado prevalece sobre parámetros de relevos anteriores.

@@ -44,11 +44,11 @@ Esta capa define techos y admite marcadores de antorchas superpuestas. Preferir 
 | **Antorcha exterior** | Gris Azulado | `#50727A` | `80, 114, 122` |
 
 ## Reglas de Lgica:
-* `#3282F6` identifica río y lago; `#00A2E8` identifica el resto del agua. Ambos generan fondo de `imagenes/Texturas/rocas.jpg`, con mezcla suave hacia las texturas vecinas y superficie animada con opacidad 0.66. Conservan profundidad, movimiento, resistencia y navegación; no generan montaña ni obstáculos.
+* `#3282F6` identifica agua con corriente (WATER_ROCK), no navegable para botes; `#00A2E8` identifica agua habitual. El fondo depende de profundidad y costa: rocas en corriente, fondo.png en mar profundo y arena/arena_mojada en litoral. Superficie animada; consultar HANDOFF.md para parámetros vigentes.
 * Donde haya Rojo Oscuro (`#880015`) indicando superficie caminable interna, debe haber Techo (`#006064` en Capa 2) cubriendo esa zona.
 * La relacin de crecimiento en altura entre las montaas y cumbres debe ser paulatina y natural (Caf -> Lavanda -> Blanco).
-* El agua (`#00A2E8` y `#3282F6`) permite vadear el fondo somero y flotar a mayor profundidad, con resistencia y ahogamiento; los botes (`#D2145A`) conservan su navegación sobre ambos tipos.
-* Hay seis cofres (`#FFAEC9`): el configurado en (165,308) entrega el Corazón del Bosque y los otros cinco entregan llaves. Consultar docs/ENTITIES.md para la asignación vigente.
+* El agua permite vadear el fondo somero y flotar a mayor profundidad, con resistencia y ahogamiento. Los botes (`#D2145A`) navegan agua habitual y celdas BOAT; toda su huella debe quedar fuera de la corriente `#3282F6`.
+* Los cofres usan `#FFAEC9`: el configurado en (94,279) entrega el Corazón del Bosque, el configurado en (231,425) entrega el mapa tras recibir la llave del puente de Graham, y los cofres sin configuración entregan llaves. Consultar docs/ENTITIES.md para la asignación vigente.
 * Una vez consumida una llave desaparece del inventario.
 * El jugador siempre comienza desde el punto Azul Oscuro (`#3F48CC`).
 * La altura mnima de los Muros (`#A349A4`) debe ser el doble de la altura del personaje.

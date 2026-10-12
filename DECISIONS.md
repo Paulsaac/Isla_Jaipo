@@ -142,3 +142,11 @@
 - Montaña usa menor niebla por pesos/altura y fundido de silueta con alphaHash entre 420–600; terreno común funde 210–300. Evita corte contra cielo de color distinto. Física/interacciones preservadas. Medición FPS en hardware afectado pendiente; reducciones de geometría anteriores se midieron con alcance menor y no representan el ajuste final.
 - Reverberación final 60% húmeda/40% seca, cola 8 s; viento base 0.04 con variaciones proporcionales 0.012/0.008. Música 0.8 y triggers vigentes conservados.
 - Usuario confirmó misión y botes funcionales en el estado actualizado de 555f5cd. Cierre autoriza documentación, commit/push del trabajo de esta sesión y apagado del servidor, excluyendo cambios ajenos y auxiliares.
+
+## 2026-10-12 — Evento musical del corazón y proporciones finales
+- Recoger corazón produce distorsión ligada a energía real de forest y duración de AudioBuffer/AudioContext. Sin objetivos adicionales; entrega a Graham no cancela experiencia. Carrera bloqueada hasta fin/stop/fallo de música; pausa conserva tiempo.
+- Entrada8s y salida durante últimos8s de canción, iluminación y distorsión con envolvente común. Levitación3.75 máxima a mitad de música y retorno al suelo al terminar; cancelación P baja/extingue en8s. Sustituye márgenes anteriores de8/2s y entrada15s.
+- Árboles emiten por su propio dibujo, con ocho ciclos por celda estables para instancias; cuatro luces locales solo en árboles, sin sprite visible ni sombras. Mantener detalles de texturas, color HSV diferenciado de cielo nocturno y luna, y saturación de terreno/agua. Sin postprocesado ni regenerar imágenes.
+- Cofre del corazón en (94,279), actualizado desde mapa editado por usuario; losa/orientación conservadas. Puerta (235,423) hacia norte. Notificaciones de entrega en cola de3.5s.
+- Dimensiones finales: muros3, puertas2.2, Graham1.8 proporcional, jugador1.5/agachado0.9; muebles0.9 mediante geometría y límites recalculados.
+- Excepción de cierre de esta sesión: conservar servidor local encendido para continuar; documentar/commit/push/liberar sesión normalmente.

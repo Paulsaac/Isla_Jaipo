@@ -1,7 +1,7 @@
 // Valores vigentes del juego. No contiene estado mutable.
 export const UNIT_SIZE = 2;
-export const WALL_HEIGHT = 2.662;
-export const DOOR_HEIGHT = 2.0;
+export const WALL_HEIGHT = 3;
+export const DOOR_HEIGHT = 2.2;
 export const DOOR_SIDE_MARGIN = 0.2;
 export const VEGETATION_HEIGHT = 2.2;
 export const TORCH_MOUNT_HEIGHT = 1.76;
@@ -11,7 +11,9 @@ export const GRAHAM_BRIDGE_KEY_AVAILABLE = true; // Graham entrega la llave desp
 export const WATER_SURFACE_HEIGHT = -0.05;
 export const BOAT_FLOAT_HEIGHT = WATER_SURFACE_HEIGHT + 0.14; // Fondo interior ligeramente sobre el agua.
 export const BOAT_WIDTH = UNIT_SIZE * 0.8;
-export const PLAYER_HEIGHT = 1.6;
+export const PLAYER_HEIGHT = 1.5;
+export const GRAHAM_HEIGHT = 1.8;
+export const FURNITURE_SCALE = 0.9;
 export const MOVEMENT_SPEED = 20.0;
 export const FRICTION = 8.0;
 export const COLLISION_RADIUS = 0.3;

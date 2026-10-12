@@ -1,5 +1,5 @@
 // Balanceo en GPU: las dos caras de cada planta comparten movimiento y base fija.
-export function applyVegetationWind(THREE, materials, time) {
+export function applyVegetationWind(THREE, materials, time, heartVision = null) {
     materials.forEach((material, index) => {
         const amplitude = (index < 6 ? 0.12 : index < 8 ? 0.065 : 0.085) * 1.1;
         const speed = (0.65 + (index % 5) * 0.11) * (index >= 6 ? 1.2 : 1);
@@ -7,7 +7,9 @@ export function applyVegetationWind(THREE, materials, time) {
         material.onBeforeCompile = shader => {
             shader.uniforms.windTime = time;
             shader.uniforms.windParameters = { value: new THREE.Vector3(amplitude, speed, phase) };
+            if (heartVision) Object.assign(shader.uniforms, heartVision.uniforms);
             shader.vertexShader = 'uniform float windTime;\nuniform vec3 windParameters;\n' + shader.vertexShader;
+            if (heartVision) shader.vertexShader = 'uniform float heartStrength;\nuniform float heartBass;\n' + shader.vertexShader;
             const projection = THREE.ShaderChunk.project_vertex.replace(
                 'mvPosition = modelViewMatrix * mvPosition;',
                 `
@@ -18,7 +20,8 @@ export function applyVegetationWind(THREE, materials, time) {
                     float sway = sin(windTime * speed + phase) * 0.8
                                + sin(windTime * speed * 1.63 + phase * 0.7) * 0.2;
                     float heightWeight = smoothstep(0.18, 1.0, uv.y);
-                    mvPosition.xz += vec2(1.0, 0.3) * sway * windParameters.x * heightWeight * heightWeight;
+                    mvPosition.xz += vec2(1.0, 0.3) * sway * windParameters.x * heightWeight * heightWeight
+                        ${heartVision ? '* (1.0 + heartStrength * (0.6 + heartBass * 1.8))' : ''};
                 #endif
                 mvPosition = modelViewMatrix * mvPosition;
                 `

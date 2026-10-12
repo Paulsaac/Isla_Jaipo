@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
+import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartDeliveryDialogs, heartDeliveredDialogs } from './src/content/dialogues.js';
 import { entities, grahamPosition, shipwreckProps, sunkenShip } from './src/content/entities.js';
 import { createSunkenShipGeometry } from './src/world/sunken-ship-geometry.js';
@@ -30,6 +30,9 @@ import { createBoatGeometry } from './src/world/boat-geometry.js';
 import { updateBoatFloating } from './src/world/boat-floating.js';
 import { steerBoat } from './src/world/boat-steering.js';
 import { applyVegetationWind } from './src/world/vegetation-wind.js';
+import { createHeartVision } from './src/world/heart-vision.js';
+import { createHeartHalos } from './src/world/heart-halos.js';
+import { createHeartLevitation } from './src/systems/heart-event-timing.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { createRiverCurrentField } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
@@ -85,6 +88,10 @@ const worldTorches = [];
 let torchLighting = null;
 const torchSprites = [];
 const vegetationWindTime = { value: 0 };
+const heartVision = createHeartVision();
+let heartHalos = null;
+const heartLevitation = createHeartLevitation();
+let heartLevitationHeight = 0;
 const waterWaveTime = { value: 0 };
 let vegetationSectors = null;
 let structureSectors = null;
@@ -232,7 +239,7 @@ const direction = new THREE.Vector3();
 let isFlying = false;
 
 function toggleFlight() {
-    if (isRidingBoat) return;
+    if (isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
     isFlying = !isFlying;
 
     let m = document.getElementById('system-msg');
@@ -272,11 +279,13 @@ function interact() {
                 if (activeDialogs === npcDialogs && !hasTorch) {
                     hasTorch = true;
                     menus.setTorchVisible(true);
+                    hud.showReceivedItem('una antorcha');
                 }
                 if (deliveringHeart) { heartQuest.deliver(); menus.setHeartVisible(false); }
                 if (activeDialogs === bridgeKeyDeliveryDialogs && heartQuest.receiveBridgeKey(GRAHAM_BRIDGE_KEY_AVAILABLE)) {
                     keys++;
                     menus.setKeyCount(keys);
+                    hud.showReceivedItem('la llave del puente');
                 }
                 deliveringHeart = false;
                 isDialogOpen = false;
@@ -303,14 +312,18 @@ function interact() {
                 if (targetInteractable.userData.item === 'map' && !heartQuest.hasBridgeKey) return;
                 if (targetInteractable.userData.item === 'forest-heart') {
                     if (!heartQuest.collect()) return;
+                    isFlying = false;
                     menus.setHeartVisible(true);
+                    hud.showReceivedItem('el Corazón del Bosque');
                     musicEvents.trigger('forest');
                 } else if (targetInteractable.userData.item === 'map') {
                     hasMap = true;
                     menus.setMapVisible(true);
+                    hud.showReceivedItem('un mapa');
                 } else {
                     keys++;
                     menus.setKeyCount(keys);
+                    hud.showReceivedItem('una llave');
                 }
                 chestOpenings.push(createChestOpening(THREE, targetInteractable));
                 targetInteractable.userData.opened = true;
@@ -365,7 +378,7 @@ const keyboardBinding = bindKeyboard({
     interact,
     move(direction, pressed) { moveState[direction] = pressed; },
     jump() {
-        if (!isFlying && !isRidingBoat && canJump) { velocityY = JUMP_FORCE; canJump = false; }
+        if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) { velocityY = JUMP_FORCE; canJump = false; }
     },
     crouch(pressed) { isCrouching = pressed; },
     run(pressed) { isRunning = pressed; },
@@ -489,6 +502,7 @@ const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/C
     mirroredFaces: [false,false,false,false,true,true]
 });
 const nightMaterials = Array.from({length:6}, () => new THREE.MeshBasicMaterial({map:nightAtlas.texture,side:THREE.BackSide,fog:false,transparent:true,opacity:1,depthWrite:false}));
+nightMaterials.forEach(material => heartVision.apply(THREE, material, 'sky'));
 const nightSkyMesh = new THREE.Mesh(nightAtlas.geometry,nightMaterials);
 nightSkyMesh.renderOrder = -1;
 const dayAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Dia.png?v=' + Date.now());
@@ -548,6 +562,7 @@ moonGlowSprite.renderOrder = -0.4; // Ligeramente encima de la luna normal
 
 const moonAzulMat = new THREE.SpriteMaterial({ map: moonAzulTex, transparent: true, opacity: 0.0, fog: false, depthWrite: false });
 const moonAzulSprite = new THREE.Sprite(moonAzulMat);
+[moonMat, moonGlowMat, moonAzulMat].forEach(material => heartVision.apply(THREE, material, 'moon'));
 moonAzulSprite.scale.set(60, 60, 1);
 moonAzulSprite.position.set(400, 250, 0);
 moonAzulSprite.renderOrder = -0.3; // Encima del glow
@@ -636,7 +651,9 @@ function buildWorld(mapData) {
     const weed1Mat = new THREE.MeshPhongMaterial({ map: weed1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
     const weed2Mat = new THREE.MeshPhongMaterial({ map: weed2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
     const weed3Mat = new THREE.MeshPhongMaterial({ map: weed3Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    applyVegetationWind(THREE, [pino1Mat, pino2Mat, alamo1Mat, alamo2Mat, arau1Mat, arau2Mat, arbusto1Mat, arbusto2Mat, weed1Mat, weed2Mat, weed3Mat], vegetationWindTime);
+    const forestMaterials = [pino1Mat, pino2Mat, alamo1Mat, alamo2Mat, arau1Mat, arau2Mat, arbusto1Mat, arbusto2Mat, weed1Mat, weed2Mat, weed3Mat];
+    applyVegetationWind(THREE, forestMaterials, vegetationWindTime, heartVision);
+    forestMaterials.forEach((material, index) => heartVision.apply(THREE, material, index < 6 ? 'tree' : 'vegetation'));
     // Matiz frío para integrar pinos y hierba alta con la iluminación nocturna.
     [pino1Mat, pino2Mat, weed1Mat, weed2Mat, weed3Mat].forEach(material => {
         material.color.setHex(0xb0bed4);
@@ -692,6 +709,7 @@ function buildWorld(mapData) {
     aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xb8d9ff, transparent: true, opacity: 0.4752, shininess: 60 });
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
         createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight), UNIT_SIZE);
+    heartVision.apply(THREE, aguaFloorMat, 'water');
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
     const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, VEGETATION_HEIGHT * 3 * 1.9 - 2);
@@ -1379,6 +1397,7 @@ function buildWorld(mapData) {
         `);
     };
 
+    heartVision.apply(THREE, splatMaterial, true);
     const terrainSectors = createTerrainSectors(THREE, terrainGeo, splatMaterial, segmentsW, segmentsH);
     for (const sector of terrainSectors.children) {
         if (sector.userData.hasMountain) sector.userData.fogDistanceMultiplier = MOUNTAIN_VISIBILITY_DISTANCE / WORLD_VISIBILITY_DISTANCE;
@@ -1474,6 +1493,9 @@ function buildWorld(mapData) {
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: definition.type === 'CRATE_STACK' ? 0x55351f : 0x555555, shininess: 12 })
         ]);
+        model.geometry.scale(FURNITURE_SCALE, FURNITURE_SCALE, FURNITURE_SCALE);
+        model.geometry.computeBoundingBox();
+        model.geometry.computeBoundingSphere();
         model.name = definition.id;
         model.rotation.y = definition.rotationY ?? 0;
         model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
@@ -1496,10 +1518,10 @@ function buildWorld(mapData) {
     
     const grahamX = grahamPosition.x * UNIT_SIZE;
     const grahamZ = grahamPosition.z * UNIT_SIZE;
-    const grahamY = getTerrainHeight(grahamX, grahamZ) + (1.9 / 2);
+    const grahamY = getTerrainHeight(grahamX, grahamZ) + GRAHAM_HEIGHT / 2;
 
     // Generar al NPC Graham como un Billboard 3D iluminable (MeshPhongMaterial)
-    const grahamGeo = new THREE.PlaneGeometry(0.8, 1.9);
+    const grahamGeo = new THREE.PlaneGeometry(0.8 * GRAHAM_HEIGHT / 1.9, GRAHAM_HEIGHT);
     const grahamMat = new THREE.MeshPhongMaterial({ 
         map: npcTex, 
         transparent: true, 
@@ -1526,6 +1548,7 @@ function buildWorld(mapData) {
     scene.add(structureSectors.group);
     fogCulling = createFogCulling(THREE, scene, [skyMesh, sunFlare.object, camera], FOG_RESIDUAL);
     fogCulling.register();
+    heartHalos = createHeartHalos(THREE, scene, floorMap, UNIT_SIZE, getTerrainHeight);
     minimap.initialize(floorCanvas);
 }
 
@@ -1543,7 +1566,7 @@ function alignGrahamToFloor() {
             if (pixels[(row * image.width + col) * 4 + 3] >= 128) { bottom = row; break scan; }
         }
     }
-    grahamSprite.position.y = getTerrainHeight(grahamSprite.position.x, grahamSprite.position.z) + 1.9 * ((bottom + 1) / image.height - 0.5);
+    grahamSprite.position.y = getTerrainHeight(grahamSprite.position.x, grahamSprite.position.z) + grahamSprite.geometry.parameters.height * ((bottom + 1) / image.height - 0.5);
 }
 
 function getTerrainHeight(x, z) {
@@ -1608,6 +1631,12 @@ function animate() {
         boatFloatTime += delta;
         for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
         musicEvents.update(delta);
+        const running = isRunning && !musicEvents.isEventActive('forest');
+        heartVision.update(delta, musicEvents.isEventActive('forest'), musicEvents.getForestEnergy(),
+            musicEvents.getEventTimeRemaining('forest'));
+        heartLevitationHeight = heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
+            musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'));
+        heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
         const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
         updateDoorAnimations(doors, delta, () => {
             const position = controlObj.position;
@@ -1885,10 +1914,10 @@ function animate() {
             if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[currentGZ][currentGX])) inWater = true;
         }
 
-        const waterSpeedMod = isRidingBoat ? 1.5 : (inWater ? 0.4 : 1.0);
+        const waterSpeedMod = isRidingBoat ? 1.5 : (inWater && heartLevitationHeight <= 0.15 ? 0.4 : 1.0);
         const movementMultiplier = isFlying
-            ? (isRunning ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
-            : (isRunning ? SPRINT_MULTIPLIER : 1);
+            ? (running ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
+            : (running ? SPRINT_MULTIPLIER : 1);
 
         if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
         if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
@@ -1920,7 +1949,7 @@ function animate() {
                 if (!isWall(controlObj.position.x, startZ + dz)) controlObj.position.z += dz; else velocity.z = 0;
             }
 
-            if (inWater && !isRidingBoat) {
+            if (inWater && !isRidingBoat && heartLevitationHeight <= 0.15) {
                 hud.showStamina();
                 stamina -= delta;
                 if (stamina <= 0) {
@@ -1956,7 +1985,12 @@ function animate() {
             controlObj.position.y = targetEyesHeight;
         }
 
-        if (!isFlying) {
+        if (!isRidingBoat && heartLevitationHeight > 0) {
+            targetEyesHeight += heartLevitationHeight;
+            controlObj.position.y = targetEyesHeight;
+            velocityY = 0;
+            canJump = false;
+        } else if (!isFlying) {
             // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
             if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.8) {
                 controlObj.position.y = targetEyesHeight;
@@ -1994,7 +2028,7 @@ function animate() {
         if (!isFlying) {
             if (speed > 1.0 && canJump && !isRidingBoat) {
                 const previousBob = bobTimer;
-                bobTimer += delta * (isRunning ? 16.9 : 8.0) * bobCadence;
+                bobTimer += delta * (running ? 16.9 : 8.0) * bobCadence;
                 controlObj.position.y = targetEyesHeight + Math.sin(bobTimer) * 0.04;
                 // Un golpe al cruzar el punto más bajo; sigue la cadencia del balanceo.
                 const trough = Math.PI * 1.5;
@@ -2003,12 +2037,12 @@ function animate() {
                 const moved = Math.hypot(controlObj.position.x-startX,controlObj.position.z-startZ)>0.0001;
                 if (currentStep > previousStep && moved && !inWater) {
                     const accented = footstepIndex % 2 === 0;
-                    const accent = accented ? 1 : (isRunning ? 0.92 : 0.8);
-                    const variation = isRunning ? 0.98 + Math.random() * 0.04 : 0.95 + Math.random() * 0.1;
-                    musicEvents.playFootstep(isRunning, accent * variation);
+                    const accent = accented ? 1 : (running ? 0.92 : 0.8);
+                    const variation = running ? 0.98 + Math.random() * 0.04 : 0.95 + Math.random() * 0.1;
+                    musicEvents.playFootstep(running, accent * variation);
                     footstepIndex++;
                     // Intervalos largos/cortos ligeramente distintos en cada pareja.
-                    bobCadence = isRunning
+                    bobCadence = running
                         ? (accented ? 0.97 : 1.03) * (0.985 + Math.random() * 0.03)
                         : (accented ? 0.9 : 1.08) * (0.96 + Math.random() * 0.08);
                 }

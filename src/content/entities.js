@@ -1,11 +1,11 @@
 // Entidades específicas por celda del mapa. Ver tools/world-map.html.
 // Cada entrada: { id, type: 'CHEST', position: { x, z }, item: 'forest-heart', rotationY opcional }.
-// Cofre 4 del mapa de coordenadas, confirmado por el usuario.
+// Cofre del corazón trasladado en capa1 por el usuario a (94,279).
 export const entities = [
     {
         id: 'forest-heart-chest',
         type: 'CHEST',
-        position: { x: 165, z: 308 },
+        position: { x: 94, z: 279 },
         item: 'forest-heart',
         ground: 'SLAB',
         rotationY: Math.PI
@@ -39,7 +39,7 @@ export const sunkenShip = {
 
 export const doorOverrides = [
     { position: { x: 228, z: 423 }, openDirection: 'south' },
-    { position: { x: 235, z: 423 }, openDirection: 'south' }
+    { position: { x: 235, z: 423 }, openDirection: 'north' }
 ];
 
 export const furniture = [

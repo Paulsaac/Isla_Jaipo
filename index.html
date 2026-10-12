@@ -214,6 +214,24 @@
             display: none;
             pointer-events: none;
         }
+        #item-notification {
+            position: absolute;
+            top: 14%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: max-content;
+            max-width: 90%;
+            padding: 12px 18px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffeb3b;
+            font-size: 18px;
+            line-height: 1.5;
+            text-align: center;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 110;
+            display: none;
+            pointer-events: none;
+        }
         #stamina-container {
             position: absolute;
             bottom: 40px;
@@ -237,6 +255,7 @@
     <!-- <div id="hud">Llaves: <span id="key-count">0</span></div> -->
     <div id="hud"></div>
     <div id="interaction-msg">Presiona E para interactuar</div>
+    <div id="item-notification" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>
     
     <!-- Pantallas de UI -->

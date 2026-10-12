@@ -4,6 +4,25 @@ export function createHud() {
     const staminaContainer = document.getElementById('stamina-container');
     const staminaBar = document.getElementById('stamina-bar');
     const deathScreen = document.getElementById('death-screen');
+    const itemNotification = document.getElementById('item-notification');
+    const pendingItems = [];
+    let itemTimer = null;
+
+    function showNextItem() {
+        if (!pendingItems.length) {
+            itemNotification.style.display = 'none';
+            itemTimer = null;
+            return;
+        }
+        itemNotification.textContent = `Has recibido ${pendingItems.shift()}`;
+        itemNotification.style.display = 'block';
+        itemTimer = setTimeout(showNextItem, 3500);
+    }
+
+    function showReceivedItem(name) {
+        pendingItems.push(name);
+        if (itemTimer === null) showNextItem();
+    }
 
     function showInteraction() { message.style.display = 'block'; }
     function hideInteraction() { message.style.display = 'none'; }
@@ -19,5 +38,5 @@ export function createHud() {
     function showDeath() { deathScreen.style.display = 'flex'; }
     function hideDeath() { deathScreen.style.display = 'none'; }
 
-    return { showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath };
+    return { showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem };
 }

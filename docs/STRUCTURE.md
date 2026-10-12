@@ -18,6 +18,11 @@
 - `src/systems/doors.js`: desbloqueo visual compatible con varios materiales, apertura/cierre y actualización de colisiones, incluidas puertas adyacentes. game.js autoriza y consume la llave.
 - `src/world/coordinates.js` y `entity-registry.js`: conversión mapa/mundo y registro validado por celda. Configuración en src/content/entities.js; ver docs/ENTITIES.md y tools/world-map.html.
 - `src/systems/forest-heart.js`: estado de misión de sesión (buscando, llevando, entregado), conectado a inventario y diálogos.
+- `src/systems/heart-event-timing.js`: entrada/salida del efecto del corazón y levitación sincronizada con la duración real de forest, incluido aterrizaje suave al cancelar.
+- `src/world/heart-vision.js`: distorsión de texturas, color y brillo del evento; compone shaders existentes de terreno, agua, vegetación, cielo nocturno y luna. No añade un paso de postprocesado.
+- `src/world/tree-color-cycle.js`: ocho ciclos por celda, estables al compactar instancias; compartidos por árboles y luces.
+- `src/world/heart-halos.js`: cuatro luces de árbol reutilizadas, sin halo visible ni sombras, con la misma envolvente de entrada/salida del efecto.
+- `src/systems/music-events.js`: audio de sesión, energía espectral de forest, estado y tiempo restante de reproducción según AudioContext; conserva la posición al pausar.
 - `imagenes/`: mapas, texturas y sprites originales. Las rutas de recursos siguen siendo relativas a la página.
 
 Son módulos ES nativos: no hay empaquetador ni dependencia nueva. Servir la carpeta por HTTP como antes; no abrir index.html mediante file://. Al publicar, incluir también `src/`.
