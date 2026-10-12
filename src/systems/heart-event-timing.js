@@ -1,6 +1,7 @@
 export const HEART_EVENT_END_MARGIN = 0;
 export const HEART_LEVITATION_MAX_RISE = 3.75;
 export const HEART_VISION_FADE_IN_SECONDS = 8;
+export const HEART_VEGETATION_FADE_IN_SECONDS = 16;
 export const HEART_VISION_FADE_OUT_SECONDS = 8;
 
 // Derivadas primera y segunda nulas en los extremos y en el punto más alto.

@@ -21,8 +21,8 @@ export function createMenus({ onResume }) {
         inventoryMenu.style.display = 'none';
     }
 
-    function showPause() { pauseMenu.style.display = 'flex'; }
-    function showInventory() { inventoryMenu.style.display = 'flex'; }
+    function showPause() { inventoryMenu.style.display = 'none'; pauseMenu.style.display = 'flex'; }
+    function showInventory() { pauseMenu.style.display = 'none'; inventoryMenu.style.display = 'flex'; }
     function hideInventory() { inventoryMenu.style.display = 'none'; }
     function setDialogText(text) { dialogText.innerText = text; }
     function showDialog(text) {

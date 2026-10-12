@@ -57,17 +57,27 @@ export function createMusicEvents() {
         return musicOutput;
     }
 
-    function trigger(name) {
+    function prepare(name) {
         const track = tracks[name];
-        if (!track || track.triggered) return;
-        track.triggered = true;
-        track.remaining = track.delay;
-        // Preparar el archivo durante la espera para empezar sin una carga adicional.
+        if (!track) return Promise.resolve();
+        if (track.buffer) return track.buffer;
+        if (!context) unlock();
+        // Construir la reverberación durante carga, antes de reproducir por primera vez.
+        getMusicOutput();
         track.buffer = fetch(track.url).then(response => {
             if (!response.ok) throw new Error('No se pudo cargar '+track.url);
             return response.arrayBuffer();
         }).then(data => context.decodeAudioData(data));
         track.buffer.catch(error => { track.failed = true; console.warn('Error de música:',error); });
+        return track.buffer;
+    }
+
+    function trigger(name) {
+        const track = tracks[name];
+        if (!track || track.triggered) return;
+        track.triggered = true;
+        track.remaining = track.delay;
+        prepare(name);
         if (track.delay === 0) update(0);
     }
 
@@ -217,7 +227,7 @@ export function createMusicEvents() {
         return Math.max(0, track.duration - (context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration};
+    return {unlock,setPaused,prepare,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration};
 }
 
 export const musicEvents = createMusicEvents();

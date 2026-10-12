@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
+import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartDeliveryDialogs, heartDeliveredDialogs } from './src/content/dialogues.js';
 import { entities, grahamPosition, shipwreckProps, sunkenShip } from './src/content/entities.js';
 import { createSunkenShipGeometry } from './src/world/sunken-ship-geometry.js';
@@ -16,6 +16,8 @@ import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
 import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
+import { isTouchMode } from './src/input/touch-mode.js';
+import { bindTouchControls } from './src/input/touch-controls.js';
 import { getTerrainVertexY, getTerrainHeight as sampleTerrainHeight } from './src/world/terrain-height.js';
 import { isWall as hasObstacle } from './src/player/collisions.js';
 import { toggleDoor, unlockDoor, updateDoorAnimations } from './src/systems/doors.js';
@@ -32,7 +34,7 @@ import { steerBoat } from './src/world/boat-steering.js';
 import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { createHeartVision } from './src/world/heart-vision.js';
 import { createHeartHalos } from './src/world/heart-halos.js';
-import { createHeartLevitation } from './src/systems/heart-event-timing.js';
+import { createHeartLevitation, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { createRiverCurrentField } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
@@ -137,11 +139,16 @@ const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerH
 scene.add(camera);
 
 // Luz de Antorcha (Faltaba definirla, causaba el crash)
-const torchLight = new THREE.PointLight(0xff8800, 8.0, 45, 1.0);
+const torchLight = new THREE.PointLight(0xff8800, 0, 45, 1.0);
+let handTorchEnabled = false;
 let handTorchFlickerTime = 0;
-torchLight.visible = false;
+torchLight.visible = true; // Apagar por intensidad, manteniendo estable el shader de luces.
 torchLight.position.set(1.0, 0.2, -0.5); // Posicionada más alta y movida en X
 camera.add(torchLight);
+function setHandTorchEnabled(enabled) {
+    handTorchEnabled = enabled;
+    torchLight.intensity = enabled ? 8 : 0;
+}
 
 let targetDayState = true;
 const skyCycle = createSkyCycle(MANUAL_SKY_TRANSITION_SECONDS);
@@ -194,13 +201,29 @@ renderer.setPixelRatio(0.5);
 document.body.appendChild(renderer.domElement);
 
 const controls = new PointerLockControls(camera, document.body);
+if (isTouchMode) controls.disconnect();
+function resumeGame() {
+    if (isDead || !mapLoaded) return;
+    if (isTouchMode) {
+        musicEvents.unlock();
+        controls.isLocked = true;
+        controls.dispatchEvent({ type: 'lock' });
+    } else controls.lock();
+}
+function pauseGame() {
+    if (!controls.isLocked) return;
+    if (isTouchMode) {
+        controls.isLocked = false;
+        controls.dispatchEvent({ type: 'unlock' });
+    } else controls.unlock();
+}
 // Permitimos mirar hacia todas partes
 // controls.minPolarAngle = Math.PI / 2; 
 // controls.maxPolarAngle = Math.PI / 2;
 
 const loadingScreen = document.getElementById('loading-screen');
 const mainMenu = document.getElementById('main-menu');
-const menus = createMenus({ onResume: () => controls.lock() });
+const menus = createMenus({ onResume: resumeGame });
 
 let gameStarted = false;
 let isDead = false;
@@ -213,6 +236,8 @@ controls.addEventListener('lock', () => {
     musicEvents.startWind();
     isInventoryOpen = false; // Siempre cerramos inventario al clickear para volver
     menus.hideForGameplay();
+    touchControls?.show();
+    touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
     musicEvents.setPaused(true);
@@ -221,6 +246,7 @@ controls.addEventListener('unlock', () => {
     isRunning = false;
     isCrouching = false;
     keyboardBinding.resetSequence();
+    touchControls?.sync(false);
     if (gameStarted && !isDead) {
         if (isInventoryOpen) {
             menus.showInventory();
@@ -313,6 +339,7 @@ function interact() {
                 if (targetInteractable.userData.item === 'forest-heart') {
                     if (!heartQuest.collect()) return;
                     isFlying = false;
+                    setHandTorchEnabled(false);
                     menus.setHeartVisible(true);
                     hud.showReceivedItem('el Corazón del Bosque');
                     musicEvents.trigger('forest');
@@ -325,7 +352,7 @@ function interact() {
                     menus.setKeyCount(keys);
                     hud.showReceivedItem('una llave');
                 }
-                chestOpenings.push(createChestOpening(THREE, targetInteractable));
+                chestOpenings.push(targetInteractable.userData.opening);
                 targetInteractable.userData.opened = true;
                 interactables.splice(interactables.indexOf(targetInteractable), 1);
                 targetInteractable = null;
@@ -369,12 +396,12 @@ function interact() {
     }
 }
 
-const keyboardBinding = bindKeyboard({
+const gameActions = {
     isPaused: () => gameStarted && !isDead && !controls.isLocked && !isInventoryOpen,
     toggleFlight,
     toggleDayNight,
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
-    start() { if (mapLoaded && !gameStarted) controls.lock(); },
+    start() { if (mapLoaded && !gameStarted) resumeGame(); },
     interact,
     move(direction, pressed) { moveState[direction] = pressed; },
     jump() {
@@ -383,20 +410,42 @@ const keyboardBinding = bindKeyboard({
     crouch(pressed) { isCrouching = pressed; },
     run(pressed) { isRunning = pressed; },
     map() { if (mapLoaded && hasMap) minimap.toggle(); },
-    torch() { if (gameStarted && !isDead && hasTorch) torchLight.visible = !torchLight.visible; },
+    torch() {
+        if (gameStarted && !isDead && hasTorch && !musicEvents.isEventActive('forest')
+            && heartVision.uniforms.heartStrength.value <= 0.00001 && heartLevitationHeight <= 0.00001)
+            setHandTorchEnabled(!handTorchEnabled);
+    },
     inventory() {
         if (gameStarted && !isDead) {
             isInventoryOpen = !isInventoryOpen;
             if (isInventoryOpen) {
-                controls.unlock();
+                pauseGame();
                 menus.showInventory();
             } else {
                 menus.hideInventory();
-                controls.lock();
+                resumeGame();
             }
         }
+    },
+    pause() {
+        if (!gameStarted || isDead) return;
+        if (controls.isLocked) { isInventoryOpen = false; pauseGame(); }
+        else resumeGame();
     }
-});
+};
+const keyboardBinding = bindKeyboard(gameActions);
+const touchLook = new THREE.Euler(0, 0, 0, 'YXZ');
+const touchControls = isTouchMode ? bindTouchControls({
+    actions: gameActions, canvas: renderer.domElement,
+    isActive: () => gameStarted && controls.isLocked && !isDead,
+    pause: pauseGame,
+    look(dx, dy) {
+        touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
+        touchLook.y -= dx * 0.003;
+        touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * 0.003, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
+        camera.quaternion.setFromEuler(touchLook);
+    }
+}) : null;
 
 // --- LECTURA DE MAPA DESDE IMAGEN PNG ---
 let mapWidth = 0;
@@ -603,7 +652,9 @@ Promise.all([
     buildWorld(readMapLayers(baseImage, roofImage));
     mapLoaded = true;
     loadingScreen.style.display = 'none';
-    if (document.pointerLockElement === document.body) {
+    if (isTouchMode) {
+        resumeGame();
+    } else if (document.pointerLockElement === document.body) {
         controls.isLocked = true;
         controls.dispatchEvent({ type: 'lock' });
     } else {
@@ -1088,6 +1139,8 @@ function buildWorld(mapData) {
                 const definition = registry.at(x, z);
                 chestMesh.rotation.y = definition?.rotationY ?? 0;
                 chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
+                // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
+                chestMesh.userData.opening = createChestOpening(THREE, chestMesh);
                 scene.add(chestMesh);
                 chestMesh.updateMatrixWorld(true);
                 solidInteractables.push(chestMesh);
@@ -1124,7 +1177,7 @@ function buildWorld(mapData) {
                 const doorGroup = new THREE.Group();
                 doorGroup.position.set(posX + (isHorizontal?opening.centerOffset:0), baseH + DOOR_HEIGHT / 2, posZ + (isHorizontal?0:opening.centerOffset));
                 
-                const doorGeo = isHorizontal ? new THREE.BoxGeometry(opening.width, DOOR_HEIGHT, 0.4) : new THREE.BoxGeometry(0.4, DOOR_HEIGHT, opening.width);
+                const doorGeo = isHorizontal ? new THREE.BoxGeometry(opening.width, DOOR_HEIGHT, DOOR_THICKNESS) : new THREE.BoxGeometry(DOOR_THICKNESS, DOOR_HEIGHT, opening.width);
                 // El dintel pertenece al muro y permanece fijo cuando la hoja se abre.
                 dummy.position.set(posX, baseH + DOOR_HEIGHT + lintelHeight / 2, posZ);
                 dummy.updateMatrix();
@@ -1204,7 +1257,7 @@ function buildWorld(mapData) {
         }
     }
     
-    vegetationSectors = createInstanceSectors(THREE, [pino1Mesh, pino2Mesh, alamo1Mesh, alamo2Mesh, arau1Mesh, arau2Mesh, arbusto1Mesh, arbusto2Mesh, weed1Mesh, weed2Mesh, weed3Mesh]);
+    vegetationSectors = createInstanceSectors(THREE, [pino1Mesh, pino2Mesh, alamo1Mesh, alamo2Mesh, arau1Mesh, arau2Mesh, arbusto1Mesh, arbusto2Mesh, weed1Mesh, weed2Mesh, weed3Mesh], 64, 0.75);
     scene.add(vegetationSectors.group);
     scene.add(bldgMesh);
     lintelMesh.count = idxLintel;
@@ -1611,7 +1664,7 @@ window.restartGame = () => {
     controlObj.position.set(playerStartX * UNIT_SIZE, PLAYER_HEIGHT, playerStartZ * UNIT_SIZE);
     hud.hideDeath();
     hud.hideStamina();
-    controls.lock();
+    resumeGame();
 };
 
 function animate() {
@@ -1636,6 +1689,7 @@ function animate() {
             musicEvents.getEventTimeRemaining('forest'));
         heartLevitationHeight = heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
             musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'));
+        heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE));
         heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
         const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
         updateDoorAnimations(doors, delta, () => {
@@ -1954,7 +2008,7 @@ function animate() {
                 stamina -= delta;
                 if (stamina <= 0) {
                     isDead = true;
-                    controls.unlock();
+                    pauseGame();
                     hud.showDeath();
                     return; 
                 }
@@ -2062,8 +2116,8 @@ function animate() {
         
         // Variación suave de la antorcha de mano, conservando intensidad media 8.
         handTorchFlickerTime += delta;
-        torchLight.intensity = 8.0 + Math.sin(handTorchFlickerTime * 2.4) * 0.22
-            + Math.sin(handTorchFlickerTime * 4.1) * 0.1;
+        torchLight.intensity = handTorchEnabled ? 8.0 + Math.sin(handTorchFlickerTime * 2.4) * 0.22
+            + Math.sin(handTorchFlickerTime * 4.1) * 0.1 : 0;
         
         // Animar las antorchas del mundo
         const frameIndex = Math.floor(Date.now() / 150) % 5;

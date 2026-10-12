@@ -1,3 +1,32 @@
+# Estado vigente — cierre 2026-10-12: controles táctiles y ajustes del evento
+
+Codex, rama main. Base de esta sesión: 6288ca6dc5ffbcc95164ea48a5155cd879cc5cbc, cierre anterior ya publicado. Este encabezado prevalece sobre los valores históricos inferiores. Cierre de hoy autoriza documentación, commit/push y apagado de servidores; la excepción de mantener servidor del cierre anterior ya no aplica. Commit previsto: «Add SNES touch controls and refine forest event». Consultar git log y origin/main para hash definitivo.
+
+## Controles móviles y servidor
+- Prototipo SNES funcional: cruceta con diagonales/multitáctil, SELECT inventario, START pausa/reanudación, X mapa, Y antorcha, B interacción/diálogos y A salto. Arrastrar sobre escena controla mirada simultáneamente con movimiento. Usa las acciones compartidas con teclado, conservando requisitos de objetos y restricciones del evento.
+- Activación automática por pointer: coarse; ?touch=1 fuerza controles para pruebas. Inicio al tocar pantalla, sin exigir PointerLock en móvil. Pérdida de foco/visibilidad pausa y libera entradas; pointercancel evita movimiento retenido. Menús/diálogos adaptados a área de controles, orientación vertical/horizontal y safe areas. Teclado/ratón conservan su ruta.
+- Archivos nuevos: src/input/touch-mode.js, touch-controls.js y src/ui/touch-controls.css; integración en index.html, startup.js, game.js, menus.js y hud.js. Sin nuevas dependencias.
+- tools/serve.cjs mantiene localhost:8000 por defecto. Prueba desde otro dispositivo: node tools/serve.cjs --lan --port=8001, URL http://IP-DEL-PC:8001/?touch=1 en mismo Wi-Fi. IP observada hoy 192.168.1.31, puede cambiar. HTTP, sin TLS. Modo LAN solo expone index/game/favicon y src/imagenes/sonidos, rechaza rutas ocultas y fuera del proyecto.
+- Usuario confirmó que todo funciona correctamente desde celular después de ERR_CONNECTION_ABORTED. No se identificó un bloqueo aplicable del firewall Windows: reglas Node permitían TCP en perfil público; regla aislada de Codex afectaba a otra cuenta. No se modificó firewall. No adjudicar una causa definitiva al error transitorio.
+
+## Geometría y evento forest
+- Graham ahora 1.90, con proporciones/pies preservados. Muros3, puertas2.20, jugador1.50 y muebles0.9 sin cambios. Hojas de puertas reducidas a grosor0.20 (mitad); márgenes laterales0.24 (20% más).
+- Cuatro movimientos de árboles (lateral, órbita de copa, onda por tronco, torsión/respiración), repartidos por mod(columna+2*fila,4), independientes de ocho ciclos cromáticos; ambas caras comparten variante y raíces fijas. Intensidad sigue altura de levitación normalizada, aumentando hasta mitad de canción y disminuyendo con descenso. Margen conservador de sectores0.75.
+- Entrada de alteración de vegetación16s para comenzar más lentamente; distorsión general mantiene8s y salida8s al final de canción. Levitación máxima3.75, aterrizaje al fin conservados. Cancelación conserva transición gradual.
+- Recoger corazón apaga antorcha de mano y bloquea encenderla durante forest, incluida espera y remanente visual/descenso; se permite otra vez al acabar.
+- Para reducir trabajo en primeras interacciones: luz de mano y cuatro luces de árboles permanecen presentes con intensidad0 cuando apagadas, estabilizando cantidad de luces de shaders. Cofres preparan geometría/bisagra/buffers al construir mundo (DynamicDrawUsage). forest precarga/decodifica y prepara reverberación durante carga inicial; trigger conserva espera4s.
+- No afirmar eliminación de tirones ni mejora FPS medida: fixtures comprobaron reutilización de geometría/audio y programas estables; pendiente medición en dispositivos afectados.
+
+## Verificación, pendientes y cierre
+- Cierre: sintaxis de66 módulos game.js/src y tools/serve.cjs; git diff --check. Fetch confirmó HEAD y origin/main iguales a base antes del nuevo commit.
+- Durante sesión: pruebas de binder táctil (acciones, diagonal, mirada/movimiento simultáneo, cancelación, pausa/blur); navegador real con inicio táctil, pausa, inventario y mirada; layouts390x844/844x390. Usuario confirmó funcionamiento desde su teléfono. LAN HTTP200 y ruta .git/config404.
+- Fixtures de movimientos/entrada gradual, bloqueo de antorcha, precarga reutilizada y cofres; fixture GPU conservó cantidad de luces/programas al alternar intensidad. No sustituye recorrido integral de misión, muerte, botes e interiores; comprobar canción completa y rendimiento real en móvil al retomar.
+- Servidores de esta copia PID8328 (localhost8000) y PID18128 (LAN8001) detenidos; puertos8000/8001 sin listeners al cierre. Al retomar seguir docs/PROTOCOL.md; LAN es opcional para pruebas móviles.
+- Selección explícita de código/documentos de esta sesión; no hay cambios pendientes de assets en git status. .coordination conserva fixtures, captura táctil y logs ignorados; metadata LAN contiene PID antiguo, no prueba servidor activo. Excluir auxiliares del commit.
+- Push autorizado a origin/main sin force; verificar recepción después de commit. Liberar token Codex 6821f8b3-0247-41df-bb75-9442d49d2fda al terminar. No afirmar despliegue Pages sin comprobarlo.
+
+---
+## Relevo anterior (historial)
 # Estado vigente — cierre 2026-10-12: evento del corazón y dimensiones
 
 Codex, rama main; base de sesión 29ebd8067c21c8bbe8800ce543d6afe3802451b3. Cierre solicitado con excepción expresa: mantener servidor encendido para continuar después. Commit previsto: «Add music-reactive heart event and adjust world proportions». Documento escrito antes del commit; verificar hash y push con git log y origin/main. Este encabezado prevalece sobre valores históricos inferiores.

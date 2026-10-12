@@ -47,3 +47,8 @@ La lectura devuelve width, height, basePixels y roofPixels. prepareMap los trans
 Extraer controles/UI cuando se pueda verificar su comportamiento en navegador. No mover todas las herramientas ni reescribir las físicas junto con una extracción de datos.
 
 Los datos exportados conservan los valores anteriores; cualquier cambio de balance, paleta o narrativa debe tratarse como una tarea distinta y quedar registrado en el relevo.
+
+## Prototipo móvil (2026-10-12)
+- src/input/touch-mode.js detecta dispositivo táctil o ?touch=1; touch-controls.js enlaza cruceta/botones y mirada con acciones comunes. src/ui/touch-controls.css adapta control SNES y menús.
+- Prueba en red local: node tools/serve.cjs --lan --port=8001 y http://IP-DEL-PC:8001/?touch=1 desde mismo Wi-Fi. Sin opciones, conserva localhost:8000. Modo LAN restringe recursos expuestos al juego.
+- src/world/tree-motion.js define cuatro variantes de movimiento individual, adicionales a ocho ciclos cromáticos. Precarga de forest y preparación de cofres/luces evitan trabajo diferido en primeras interacciones.

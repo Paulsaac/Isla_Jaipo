@@ -26,7 +26,9 @@ export function createHud() {
 
     function showInteraction() { message.style.display = 'block'; }
     function hideInteraction() { message.style.display = 'none'; }
-    function setInteractionText(text) { message.innerText = text; }
+    function setInteractionText(text) {
+        message.innerText = document.body.classList.contains('touch-mode') ? text.replaceAll('Presiona E', 'Pulsa B') : text;
+    }
     function setInteractionColor(color) { message.style.color = color; }
     function showStamina() { staminaContainer.style.display = 'block'; }
     function hideStamina() { staminaContainer.style.display = 'none'; }

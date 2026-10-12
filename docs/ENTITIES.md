@@ -22,7 +22,7 @@ No hay guardado persistente. Recargar reinicia la misión. Reiniciar después de
 ## Graham y antorcha del jugador
 Graham está configurado en (235,421). Al completar su diálogo inicial entrega una única antorcha apagada. Antes de esa entrega no aparece en el inventario y T no la activa. El icono ocupa el primer casillero, mide 72x72 píxeles y gira 45 grados a la derecha; el corazón ocupa el segundo y mide 64 píxeles de alto. La posesión se conserva al morir dentro de la sesión y se reinicia al recargar.
 
-Dimensiones finales: muros 3, puertas 2.2, jugador/cámara 1.5 (agachado 0.9), Graham 1.8 con ancho proporcional y pies alineados al suelo. Todos los muebles de la configuración usan escala 0.9 sobre su geometría, con límites de colisión recalculados. La puerta (235,423) abre hacia norte; (228,423) conserva sur.
+Dimensiones finales: muros 3, puertas 2.2 de altura y 0.2 de grosor (márgenes laterales 0.24), jugador/cámara 1.5 (agachado 0.9), Graham 1.9 con ancho proporcional y pies alineados al suelo. Todos los muebles de la configuración usan escala 0.9 sobre su geometría, con límites de colisión recalculados. La puerta (235,423) abre hacia norte; (228,423) conserva sur.
 
 Al recibir antorcha, llave del puente, corazón, mapa o llave de cofre aparece «Has recibido…» durante 3.5 segundos; avisos consecutivos se encolan. Recoger el corazón activa forest y la transformación visual/levitación; consultar HANDOFF.md para parámetros finales y límites verificados.
 

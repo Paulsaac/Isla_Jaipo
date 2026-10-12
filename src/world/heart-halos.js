@@ -3,7 +3,8 @@ import { getTreeColorCycle, getTreeColorAngle } from './tree-color-cycle.js';
 export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight) {
     const slots = Array.from({length: 4}, () => {
         const light = new THREE.PointLight(0xffffff, 0, 18, 2);
-        light.visible = false;
+        // Mantener el número de luces evita compilar shaders al comenzar el evento.
+        light.visible = true;
         scene.add(light);
         return { light, target: null, strength: 0 };
     });
@@ -40,9 +41,8 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
             const target = slot.target;
             slot.strength += ((target ? 1 : 0) - slot.strength) * (1 - Math.exp(-delta * 4));
             const lightAmount = slot.strength * amount;
-            slot.light.visible = lightAmount > 0.001;
             slot.light.intensity = lightAmount * (14 + bass * 8);
-            if (!slot.light.visible || !target) continue;
+            if (lightAmount <= 0.001 || !target) continue;
             const y = sampleHeight(target.x, target.z);
             slot.light.position.set(target.x, y + 4.8, target.z);
             const cycle = getTreeColorCycle(target.x, target.z, unitSize);

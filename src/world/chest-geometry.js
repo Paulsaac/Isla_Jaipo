@@ -108,6 +108,8 @@ export function createChestOpening(THREE, chest) {
     chest.geometry = geometry;
     const positions = geometry.attributes.position;
     const normals = geometry.attributes.normal;
+    positions.setUsage(THREE.DynamicDrawUsage);
+    normals.setUsage(THREE.DynamicDrawUsage);
     const originalPositions = positions.array.slice();
     const originalNormals = normals.array.slice();
     let elapsed = 0;

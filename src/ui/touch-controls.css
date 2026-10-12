@@ -1,0 +1,58 @@
+.touch-mode { overscroll-behavior: none; }
+#touch-controls[hidden] { display: none; }
+#touch-controls {
+    position: fixed; bottom: max(12px, env(safe-area-inset-bottom));
+    left: max(14px, env(safe-area-inset-left)); right: max(14px, env(safe-area-inset-right));
+    display: flex; justify-content: space-between; align-items: flex-end;
+    height: 156px; z-index: 600; pointer-events: none; user-select: none;
+    -webkit-user-select: none; -webkit-touch-callout: none;
+}
+#touch-controls button {
+    pointer-events: auto; touch-action: none; color: #fff; font: bold 20px Arial, sans-serif;
+    border: 2px solid #777182; box-shadow: 0 4px 0 #2d2934; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#touch-controls button.pressed { filter: brightness(1.4); box-shadow: 0 1px 0 #2d2934; transform: translateY(3px); }
+.snes-dpad { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); pointer-events: auto; touch-action: none; }
+.snes-dpad button { background: #36323e; border-radius: 5px; }
+.snes-dpad [data-direction="forward"] { grid-area: 1 / 2; }
+.snes-dpad [data-direction="left"] { grid-area: 2 / 1; }
+.snes-dpad [data-direction="right"] { grid-area: 2 / 3; }
+.snes-dpad [data-direction="backward"] { grid-area: 3 / 2; }
+.snes-dpad-center { grid-area: 2 / 2; background: #36323e; }
+.snes-menu { display: flex; gap: 12px; align-self: flex-end; padding-bottom: 12px; }
+#touch-controls .snes-menu button { background: #57515f; border-radius: 18px; font-size: 11px; width: 62px; height: 36px; }
+.snes-buttons { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); }
+.snes-buttons button { border-radius: 50%; }
+.snes-x { grid-area: 1 / 2; background: #325ba7; }
+.snes-y { grid-area: 2 / 1; background: #23794d; }
+.snes-a { grid-area: 2 / 3; background: #b23b4a; }
+.snes-b { grid-area: 3 / 2; background: #b08b21; }
+.touch-paused .snes-dpad, .touch-paused .snes-buttons { opacity: 0.35; }
+.touch-mode #interaction-msg { top: 45%; font-size: 16px; }
+.touch-mode #dialog-box { bottom: 175px !important; left: 5% !important; width: 90% !important; box-sizing: border-box; padding: 12px !important; border-width: 3px !important; }
+.touch-mode #dialog-text { font-size: 14px !important; line-height: 1.5; margin-bottom: 10px !important; }
+.touch-mode #dialog-name { font-size: 18px !important; margin-bottom: 8px; }
+.touch-mode #stamina-container { bottom: 180px; }
+.touch-mode #pause-menu, .touch-mode #inventory-menu { align-items: center; justify-content: flex-start; padding-top: max(16px, env(safe-area-inset-top)); box-sizing: border-box; }
+.touch-mode .game-menu-box { max-width: 90vw; max-height: min(68vh, calc(100dvh - 180px)); overflow: auto; touch-action: pan-y; box-sizing: border-box; padding: 16px !important; }
+.touch-mode .inventory-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 480px) {
+    #touch-controls { left: 8px; right: 8px; }
+    .snes-dpad, .snes-buttons { grid-template: repeat(3, 40px) / repeat(3, 40px); }
+    .snes-menu { gap: 6px; }
+    #touch-controls .snes-menu button { width: 52px; }
+    .touch-mode #dialog-box { bottom: 160px !important; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+    .touch-mode #dialog-box { bottom: 155px !important; max-height: 40vh; overflow: auto; }
+    .touch-mode #start-text { font-size: 22px; }
+}
+@media (max-width: 380px) {
+    .snes-menu { gap: 4px; }
+    #touch-controls .snes-menu button { width: 48px; }
+}
+@media (max-width: 340px) {
+    .snes-dpad, .snes-buttons { grid-template: repeat(3, 36px) / repeat(3, 36px); }
+    #touch-controls .snes-menu button { width: 42px; }
+}

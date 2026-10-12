@@ -150,3 +150,10 @@
 - Cofre del corazón en (94,279), actualizado desde mapa editado por usuario; losa/orientación conservadas. Puerta (235,423) hacia norte. Notificaciones de entrega en cola de3.5s.
 - Dimensiones finales: muros3, puertas2.2, Graham1.8 proporcional, jugador1.5/agachado0.9; muebles0.9 mediante geometría y límites recalculados.
 - Excepción de cierre de esta sesión: conservar servidor local encendido para continuar; documentar/commit/push/liberar sesión normalmente.
+## 2026-10-12 — Controles móviles y refinamiento de forest
+- Prototipo táctil inspirado en SNES: cruceta, SELECT inventario, START pausa, X mapa, Y antorcha, B interactuar, A saltar; mirada arrastrando escena. Comparte acciones/restricciones con teclado. Detección pointer: coarse o ?touch=1, sin PointerLock móvil ni dependencias nuevas.
+- Servidor LAN opcional --lan --port=8001, solo recursos de juego; mantener localhost por defecto. Usuario confirmó prueba móvil funcional. No cambiar firewall por defecto ni asumir causa del fallo transitorio.
+- Cuatro movimientos de árboles independientes de ocho ciclos de color; intensidad sigue levitación. Entrada cromática/UV de vegetación16s, general8s/salida8s. Raíces fijas y margen de culling conservador.
+- Antorcha se apaga al recoger corazón y permanece bloqueada durante evento/transición. Luces se apagan por intensidad0 para conservar shaders estables; geometría de cofres y audio/reverberación se preparan antes de primeras interacciones.
+- Graham1.90; puertas2.20 de alto/grosor0.20 y márgenes laterales0.24; muros3, jugador1.50 y muebles0.9 conservados.
+- Cierre actual vuelve a apagar servidores locales, documentar, commit/push y liberar sesión; sustituye excepción de cierre anterior de servidor encendido.
