@@ -1,5 +1,25 @@
 # Decisiones del proyecto
 
+## 2026-10-13 — Ampliación del chat de pruebas a rendimiento y optimización
+- El usuario amplió el rol de este chat para incluir pruebas de rendimiento e implementación de optimizaciones en función de los resultados. Procedimiento y responsabilidades en docs/TESTING_PERFORMANCE.md; relevo en HANDOFF.md.
+- Comparar antes/después en condiciones equivalentes y verificar regresiones. Preservar reglas y presentación acordadas; no inferir autorización para cambiar diseño, balance o reducir calidad visual. No afirmar ganancias o comportamiento en hardware no probado. Esta ampliación no ejecuta pruebas, cierre ni commit/push por sí sola.
+
+## 2026-10-13 — Servidor persistente para escritorio y móvil
+- Este chat gestiona solo el servidor de desarrollo. Levantar la copia en LAN (`node tools/serve.cjs --lan --port=8001`) para acceder desde escritorio o móvil en la misma red y mantenerlo activo hasta una orden explícita de apagado.
+- La sesión o chat puede cerrarse sin detener el servidor. Al apagar, identificar el proceso de esta copia y comprobar que dejó de responder. No modificar firewall; LAN usa HTTP y expone las rutas de la demo que permite `tools/serve.cjs`.
+
+## 2026-10-13 — Chat dedicado a quests y eventos musicales
+- El usuario dedica este chat a crear y gestionar quests y eventos asociados a canciones. Catálogo, responsabilidades y procedimiento en docs/QUESTS.md; coordinar NPC, organización y pruebas mediante documentos, con bloqueo local único.
+- Desarrollo previsto de ocho canciones: forest, morning, moon y underwater disponibles; forest/morning/underwater conectadas, moon pendiente y cuatro canciones aún por definir. No asumir correspondencia de una misión independiente por canción ni inventar contenido restante. Este acuerdo documental no implementa gameplay ni ejecuta cierre o commit/push.
+
+## 2026-10-13 — Chat dedicado a gestión de NPC
+- Por petición del usuario, el chat de este acuerdo gestiona NPC, conversaciones e interacciones. Procedimiento, ficha de personaje, referencia de Graham y verificaciones en docs/NPCS.md, conectado a la arquitectura actual sin introducir sistemas o dependencias nuevas.
+- El relevo ocurre mediante documentos y conserva un único bloqueo para esta copia, también entre chats de Codex. Mantener independiente el chat de pruebas complejas y preparar su relevo cuando corresponda. La petición documental autoriza estas ediciones durante la sesión, sin cerrar ni autorizar commit/push por sí sola.
+
+## 2026-10-13 — Chat dedicado a pruebas complejas
+- El usuario asignó a este chat la función dedicada de testear el proyecto cuando las actualizaciones sean muy complejas. El relevo entre implementación y pruebas se conserva en HANDOFF.md, con versión, alcance, reproducción, verificaciones y pendientes; procedimiento en docs/PROTOCOL.md.
+- Distinguir resultados comprobados, errores confirmados y pruebas no ejecutadas. Respetar el bloqueo de la copia y los comandos de inicio/cierre existentes. Registrar este acuerdo no inicia pruebas del juego ni autoriza por sí mismo commit/push o cambios de diseño.
+
 ## 2026-10-11 — Comando persistente para retomar
 - «Retomemos la sesión» activa lectura del relevo y bloqueo, verificación remota con actualización segura por fast-forward cuando corresponda, servidor local verificado y sugerencias priorizadas según el proyecto actual. Autorización del usuario persistente para fetch/pull de inicio; no para commit/push ni sobrescribir trabajo local. No reset/force/stash automático. Procedimiento en docs/PROTOCOL.md y recordatorio en HANDOFF.md.
 
@@ -174,3 +194,33 @@
 - Pisadas mono, dos acentos y variación correlacionada volumen±90%/intervalo±8%caminar±3%correr; exterior ruido filtrado207ms, interior seno126→53.2Hz195ms/reverb40%cola0.45s. Conservar referencia Python como inspiración, no dependencia.
 - Forest volumen1/reverb60%cola8s; Morning MP3volumen0.8/misma reverb; Underwater MP3volumen1/reverb80%cola5s, filtros2000/4000Hz y modulación0.09Hz±100Hz. Underwater se dispara una vez al recoger primera pieza; pausa/P compartidas. Viento0.04. Mantener efectos musicales separados.
 - No afirmar mejora FPS/térmica medida; revalidar ruta final con velocidad1.25/2.5 y aire10/30. Simulación exitosa a2u/s fue provisional. Documentación/commit/push/apagado solamente al cierre explícito, como protocolo vigente.
+# Acuerdo de interfaz del jugador y HUD — 2026-10-13
+- El usuario dedica este chat a gestionar interfaz del jugador, HUD y parámetros de interacción con el entorno. Alcance, responsabilidades, fuentes y procedimiento en docs/PLAYER_UI.md.
+- Coordinar presentación y controles con NPC, quests, organización y pruebas mediante documentos. Mantener reglas y estado fuera del DOM, sin duplicar progreso ni redefinir balance por el solo acuerdo de rol.
+- Un solo bloqueo y relevo para esta copia; el acuerdo no autoriza edición simultánea ni mensajes automáticos entre chats. No cambia gameplay ni resuelve por inferencia el progreso al morir.
+
+# Catálogo y colaboración por evento — ajuste 2026-10-13
+- Aclaración posterior de Clawshoot: diálogos de Graham completamente modificables en Bosque por AxByZ, junto con distorsiones y filtros de audio. Sustituye la restricción anterior sobre diálogos cerrados. Ciclos de luz y triggers son la frontera estable y requieren coordinación previa; edición narrativa no altera incidentalmente efectos o recompensas. Referencias vigentes actualizadas en AGENTS.md, docs/QUESTS.md, docs/NPCS.md y docs/PROTOCOL.md.
+- Clawshoot gestiona directamente el repositorio, revisión y comprobación de entregas e integración. AxByZ es colaborador. Sustituye la falta de responsable de integración en el primer reparto.
+- Una rama por evento, catálogo definitivo: 1Bosque(AxByZ),2Submarino(Clawshoot),3Mañana(Clawshoot),4Pueblo(AxByZ),5Lago(Clawshoot),6Pescador(Clawshoot),7Montaña(AxByZ),8Secreto(AxByZ). Nombres de rama asignados en docs/QUESTS.md; creación/publicación pendiente de base común.
+- Renombrar forest.mpeg→bosque.mpeg,underwater.mp3→submarino.mp3,morning.mp3→mañana.mp3,moon.flac→montaña.flac sin alterar contenido. IDs técnicos forest/underwater/morning y rutas de módulos existentes se conservan; documentar equivalencias. Moon corresponde a Montaña, sin evento conectado todavía.
+- Bosque prácticamente terminado: AxByZ ajusta solo distorsiones visuales del trayecto y filtros de audio. Tareas, diálogos, recompensas y ejecución con Graham no se modifican como parte de ese trabajo; frontera12s de noche/amanecer detenido/puente/Mañana conservada.
+- El acuerdo asigna ramas y responsabilidades, no configura permisos de GitHub ni publica cambios por sí mismo. Protocolo y enlace Antigravity actualizados; bloqueo de esta copia conservado.
+
+# Frontera Forest/Morning en el puente — 2026-10-13
+- Ajuste posterior: tramo de noche tras entregar corazón reducido de25 a **12s**. No cambia noche habitual44s, duración de amanecer ni espera de apertura del puente.
+- Sustituye liberación automática del ciclo y Morning al primer amanecer: entregar el corazón a Graham lleva a los últimos25s de noche y a un amanecer detenido (mitad de fase, skybox amanecer puro). Sin apertura del puente no continúa hacia día y el sol permanece oculto.
+- Abrir cualquiera de las hojas del puente con su llave libera la salida del sol y Morning, una sola vez por partida. Apertura anticipada queda registrada y espera al amanecer; cerrar/reabrir no reinicia el evento. Las duraciones habituales, pausa y bloqueo de N antes de liberar el ciclo se conservan.
+- Forest sigue a cargo de AxByZ; Morning de Clawshoot, desde el puente en adelante. Coordinar condiciones de entrega/apertura con NPC y progreso; no modificar por este cambio música Forest, recompensas, aire o persistencia.
+
+# Reparto de eventos entre Clawshoot y AxByZ — 2026-10-13
+- Identificar al usuario como Clawshoot y a su compañero como AxByZ en la documentación del proyecto.
+- AxByZ gestiona Forest, Moon y dos eventos nuevos por definir; Clawshoot gestiona Underwater, Morning y los otros dos eventos nuevos. Cuatro eventos por persona, sustituyendo la propuesta previa de tres para el compañero.
+- Combinar adaptación de trabajo existente y libertad de creación de eventos nuevos. Moon dispone de recurso, pero su evento aún necesita diseño e implementación. No definir por inferencia los cuatro eventos restantes.
+- Coordinar dependencias Forest/Morning, Graham y ciclo del cielo; las responsabilidades humanas por evento complementan los roles de chats. Reparto detallado en docs/QUESTS.md.
+- No asignar integración ni habilitar trabajo simultáneo por este acuerdo. Bloqueo y protocolo vigentes conservados; ramas y pull requests pendientes de configurar.
+
+# Acuerdo de organización — 2026-10-13
+- El usuario dedica este chat a gestión y organización de archivos y coherencia de arquitectura. Funciones, inventario inicial, límites y procedimiento en docs/ORGANIZATION.md, enlazado desde las reglas y el protocolo.
+- Mantener responsabilidades de NPC y pruebas en sus chats; un solo bloqueo y relevo para esta copia. Mismo nombre de agente no permite reutilizar el token de otro chat.
+- Reorganizar gradualmente tras revisar lectores/escritores y referencias. Los destinos de auxiliares son propuestas; este acuerdo no movió archivos de ejecución, recursos ni scripts históricos.

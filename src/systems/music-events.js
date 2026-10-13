@@ -11,10 +11,11 @@ export function createMusicEvents() {
     const forestEnergy = { bass: 0, treble: 0 };
     let forestAnalyser = null;
     let forestSpectrum = null;
+    // Nombres de producto: Bosque, Mañana y Submarino. IDs técnicos conservados.
     const tracks = {
-        forest: {url:'./sonidos/musica/forest.mpeg',delay:4,volume:1},
-        morning: {url:'./sonidos/musica/morning.mp3',delay:0,volume:0.8},
-        underwater: {url:'./sonidos/musica/underwater.mp3',delay:0,volume:1}
+        forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:1},
+        morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:0.8},
+        underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
     };
 
     function unlock() {

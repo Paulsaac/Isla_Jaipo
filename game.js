@@ -467,6 +467,11 @@ function toggleFlight() {
 
 function toggleDoorWithPlayer(door) {
     toggleDoor(door, interactables, collisionMap);
+    const bridgeDoors = keyBindings.find(binding => binding.id === 'bridge-key').doors;
+    if (door.userData.isOpen && !door.userData.locked && heartQuest.stage === 'delivered'
+        && bridgeDoors.some(cell => cell.x === door.userData.gx && cell.z === door.userData.gz)) {
+        questSkyCycle.openBridge();
+    }
 }
 
 function interact() {
@@ -2274,7 +2279,7 @@ function animate(timestamp = performance.now()) {
         }
 
         // La misión controla las pausas iniciales; luego el reloj funciona normalmente.
-        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage, musicEvents.hasEventStarted('forest'), heartQuest.hasBridgeKey);
+        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage, musicEvents.hasEventStarted('forest'));
         if (!skyCycle.transitioning) targetDayState = dayNightTimer < SKY_CYCLE_TIMING.nightStart;
         dayTransition=skyCycle.update(delta,true,dayNightTimer);
         const moonOpacity=1-0.6*dayTransition;
@@ -2282,11 +2287,11 @@ function animate(timestamp = performance.now()) {
         moonGlowMat.opacity=moonGlowOpacity*moonOpacity;
         moonAzulMat.opacity=moonAzulOpacity*moonOpacity;
         const weights=skyCycle.weights;
-        if (weights.dawn>0) musicEvents.trigger('morning');
+        if (questSkyCycle.morningEnabled && weights.dawn>0) musicEvents.trigger('morning');
         const sunAngle=Math.PI*skyCycle.sunProgress;
         sunSprite.position.set(0,controlObj.position.y-200+Math.sin(sunAngle)*580,-Math.cos(sunAngle)*580);
         sunMat.opacity=weights.day+weights.dawn+weights.dusk;
-        sunSprite.visible=sunMat.opacity>0.001;
+        sunSprite.visible=sunMat.opacity>0.001 && !questSkyCycle.waitingForSunrise;
         // Alfa acumulada: el resultado contiene exactamente la mezcla de los cuatro estados.
         nightMaterials.forEach(m=>{m.opacity=1;});
         let accumulated=weights.night;

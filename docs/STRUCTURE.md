@@ -1,5 +1,13 @@
 # Estructura del proyecto
 
+Las pruebas complejas, medición de rendimiento e implementación de optimizaciones corresponden al chat especializado según docs/TESTING_PERFORMANCE.md. Registrar comparación antes/después y regresiones en HANDOFF.md, coordinando los módulos afectados con sus responsables.
+
+La gestión de interfaz del jugador, HUD, controles y parámetros de interacción con el entorno está en docs/PLAYER_UI.md; coordinar cambios con NPC, quests, organización y pruebas según el protocolo compartido.
+
+La gestión de quests y eventos asociados a canciones, su catálogo y responsabilidades actuales están en docs/QUESTS.md. Coordinar ese ámbito con NPC, organización y pruebas usando el protocolo compartido.
+
+La gestión de organización, criterios de rutas, coordinación entre chats y prioridades de clasificación están en docs/ORGANIZATION.md. Esta estructura describe ubicaciones vigentes; los destinos propuestos no implican traslados realizados.
+
 ## Ejecución en navegador
 - `index.html`: entrada, import map de Three.js, menús y estilos.
 - `game.js`: inicialización, generación de escena, controles, interacciones y actualización. Sigue siendo el punto de entrada; no se cambió su ruta.
@@ -8,7 +16,7 @@
 - `src/world/map-loader.js`: carga de imágenes, validación de dimensiones y lectura RGBA de las capas, sin Three.js.
 - `src/world/map-decoder.js`: interpretación de un color como tipo de celda; conserva la aproximación anterior y el tratamiento de transparencia.
 - `src/world/map-data.js`: prepara matrices de suelo/techo/colisiones, conteos, punto de inicio y canvas del minimapa. No depende de Three.js.
-- `src/content/dialogues.js`: diálogo introductorio de Graham.
+- `src/content/dialogues.js`: secuencias de Graham (introducción, entrega y recordatorios). Selección y efectos coordinados en game.js; procedimiento y referencia vigente en docs/NPCS.md.
 - `src/ui/minimap.js`: crea el minimapa y administra visibilidad e indicador. Expone initialize, toggle y updatePosition; recibe posición y dimensiones del mundo sin depender de Three.js.
 - `src/ui/menus.js`: presentación de pausa, inventario y diálogo, contador de llaves y clic para reanudar mediante callback. Las condiciones, el índice de diálogo y PointerLockControls siguen en game.js.
 - `src/ui/hud.js`: presentación de mensajes de interacción, resistencia y pantalla de muerte. game.js conserva cálculo de resistencia, elección de mensajes, ahogamiento y reinicio.
