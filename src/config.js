@@ -24,3 +24,6 @@ export const FLIGHT_SPRINT_MULTIPLIER = 9.0;
 export const GRAVITY = 50.0;
 export const JUMP_FORCE = 9.0;
 export const STAMINA_MAX = 3.0;
+export const DIVING_AIR_SECONDS = 10;
+export const SEA_FLOOR_HEIGHT = -8;
+export const DIVING_WATER_SPEED_MOD = 0.5; // Mitad de la velocidad y cadencia en superficie.

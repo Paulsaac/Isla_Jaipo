@@ -22,6 +22,13 @@ export const entities = [
 
 export const grahamPosition = { x: 235, z: 421 };
 
+export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
+
+export const keyBindings = [{
+    id: 'bridge-key', name: 'Llave del puente',
+    doors: [{ x: 264, z: 276 }, { x: 265, z: 276 }]
+}];
+
 // Marcadores amarillos del naufragio; el suelo es playa, no un muelle.
 export const shipwreckProps = [
     { id: 'wreck-plank', type: 'WOOD', position: { x: 239, z: 484 }, model: 'BROKEN_PLANK', ground: 'WET_SAND', rotationY: -0.35 },
@@ -35,6 +42,16 @@ export const sunkenShip = {
     bounds: { minX: 240, maxX: 245, minZ: 498, maxZ: 508 },
     rotationY: Math.PI / 2,
     burial: 0.08
+};
+
+export const divingHelmet = {
+    id: 'sunken-diving-helmet',
+    position: { x: 240, z: 490 },
+    rotationX: Math.PI / 2,
+    rotationY: Math.PI / 2,
+    rotationZ: 0,
+    rotationOrder: 'YXZ',
+    burialFraction: 0.65
 };
 
 export const doorOverrides = [

@@ -9,7 +9,7 @@ export function createFogCulling(THREE, scene, excludedRoots, residual = 0.0001)
         function visit(object) {
             if (excludedRoots.includes(object)) return;
             const materials = object.material ? (Array.isArray(object.material) ? object.material : [object.material]) : [];
-            if ((object.isMesh || object.isSprite) && !object.isInstancedMesh && object.visible
+            if ((object.isMesh || object.isSprite) && !object.isInstancedMesh && (object.visible || object.userData.visibilityEnabled === false)
                 && materials.every(material => material.fog !== false)) {
                 if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
                 objects.push(object);
@@ -32,9 +32,13 @@ export function createFogCulling(THREE, scene, excludedRoots, residual = 0.0001)
             if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
             sphere.copy(object.geometry.boundingSphere).applyMatrix4(object.matrixWorld);
             const multiplier = Math.max(1, object.userData.fogDistanceMultiplier ?? 1);
-            object.visible = plane.distanceToPoint(sphere.center) + distance * (multiplier - 1) >= -sphere.radius;
+            object.visible = object.userData.visibilityEnabled !== false && plane.distanceToPoint(sphere.center) + distance * (multiplier - 1) >= -sphere.radius;
         }
         return plane;
     }
-    return { register, update };
+    function unregister(object) {
+        const index = objects.indexOf(object);
+        if (index !== -1) objects.splice(index, 1);
+    }
+    return { register, update, unregister };
 }

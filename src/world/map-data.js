@@ -30,6 +30,8 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
     }
     const imgData = mapData.basePixels;
     const roofImgData = mapData.roofPixels;
+    const seaHeartFragments = [];
+    const underwaterPlants = [];
 
     const floorCanvas = document.createElement('canvas');
     floorCanvas.width = mapWidth;
@@ -49,6 +51,19 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
         for (let x = 0; x < mapWidth; x++) {
             const idx = (z * mapWidth + x) * 4;
             let type = getClosestType(imgData[idx], imgData[idx+1], imgData[idx+2], imgData[idx+3]);
+            if (['SEA_HEART_FRAGMENT','SEA_ALGA','SEA_CORAL','SEA_GRASS'].includes(type)) {
+                if(type==='SEA_HEART_FRAGMENT') seaHeartFragments.push({ id: `sea-heart:${x},${z}`, x, z });
+                else underwaterPlants.push({type,x,z});
+                const neighbors = new Map();
+                for (const [dx,dz] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+                    if (x+dx < 0 || x+dx >= mapWidth || z+dz < 0 || z+dz >= mapHeight) continue;
+                    const pixel = ((z+dz)*mapWidth+x+dx)*4;
+                    const ground = getClosestType(...imgData.slice(pixel,pixel+4));
+                    if (!['WATER','WATER_ROCK','SAND','WET_SAND','GRASS','DIRT'].includes(ground)) continue;
+                    neighbors.set(ground,(neighbors.get(ground) || 0)+1);
+                }
+                type = [...neighbors].sort((a,b)=>b[1]-a[1])[0]?.[0] || 'WATER';
+            }
 
             type = relocations.get(x + ',' + z) ?? type;
 
@@ -119,5 +134,5 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
             }
         }
     }
-    return { mapWidth, mapHeight, collisionMap, floorMap, roofMap, externalTorchMap, counts, playerStartX, playerStartZ, floorCanvas };
+    return { mapWidth, mapHeight, collisionMap, floorMap, roofMap, externalTorchMap, counts, playerStartX, playerStartZ, floorCanvas, seaHeartFragments, underwaterPlants };
 }

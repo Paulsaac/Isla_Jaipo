@@ -17,7 +17,7 @@ export function createMinimap() {
         minimapContainer.style.height = '256px';
         minimapContainer.style.border = '4px solid rgba(255, 255, 255, 0.7)';
         minimapContainer.style.display = 'none';
-        minimapContainer.style.zIndex = '100';
+        minimapContainer.style.zIndex = '90';
         minimapContainer.style.backgroundColor = FLOOR_COLORS.WATER;
         document.body.appendChild(minimapContainer);
 
@@ -56,5 +56,5 @@ export function createMinimap() {
         playerDot.style.transform = `translate(-50%, -50%) rotate(${heading}rad)`;
     }
 
-    return { initialize, toggle, updatePosition };
+    return { initialize, toggle, updatePosition, get enabled() { return mapVisible; } };
 }

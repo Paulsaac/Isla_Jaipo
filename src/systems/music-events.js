@@ -1,19 +1,30 @@
 // Audio de la partida: música única, pisadas y ambiente sintetizado.
 export function createMusicEvents() {
     let context = null;
+    let footstepNoise = null;
+    let indoorFootstepOutput = null;
     let windStarted = false;
     let paused = false;
     let musicOutput = null;
+    let underwaterOutput = null;
+    let underwaterFilter = null;
     const forestEnergy = { bass: 0, treble: 0 };
     let forestAnalyser = null;
     let forestSpectrum = null;
     const tracks = {
-        forest: {url:'./sonidos/musica/forest.mpeg',delay:4},
-        morning: {url:'./sonidos/musica/morning.flac',delay:0}
+        forest: {url:'./sonidos/musica/forest.mpeg',delay:4,volume:1},
+        morning: {url:'./sonidos/musica/morning.mp3',delay:0,volume:0.8},
+        underwater: {url:'./sonidos/musica/underwater.mp3',delay:0,volume:1}
     };
 
     function unlock() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
+        if (!footstepNoise) {
+            footstepNoise = context.createBuffer(1, Math.ceil(context.sampleRate * 0.3), context.sampleRate);
+            const samples = footstepNoise.getChannelData(0);
+            for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+        }
+        getIndoorFootstepOutput();
         if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
     }
 
@@ -57,13 +68,52 @@ export function createMusicEvents() {
         return musicOutput;
     }
 
+    function getUnderwaterOutput() {
+        if (underwaterOutput) return underwaterOutput;
+        // Atenuación suave de agudos: conserva algo de detalle sobre el corte.
+        underwaterOutput = context.createBiquadFilter();
+        underwaterOutput.type = 'lowpass';
+        underwaterOutput.frequency.value = 2000;
+        underwaterOutput.Q.value = 0.707;
+        underwaterFilter = context.createBiquadFilter();
+        underwaterFilter.type = 'lowpass';
+        underwaterFilter.frequency.value = 4000;
+        underwaterFilter.Q.value = 0.707;
+        underwaterOutput.connect(underwaterFilter);
+        const dry = context.createGain();
+        dry.gain.value = 0.2;
+        underwaterFilter.connect(dry);
+        dry.connect(context.destination);
+        const delay = context.createDelay();
+        delay.delayTime.value = 0.02;
+        const reverb = context.createConvolver();
+        const impulse = context.createBuffer(2, Math.ceil(context.sampleRate * 5), context.sampleRate);
+        for (let channel=0;channel<2;channel++) {
+            const data=impulse.getChannelData(channel);
+            for(let i=0;i<data.length;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,2.8);
+        }
+        reverb.buffer = impulse;
+        const damp = context.createBiquadFilter();
+        damp.type = 'lowpass';
+        damp.frequency.value = 2000;
+        const wet = context.createGain();
+        wet.gain.value = 0.8;
+        underwaterFilter.connect(delay);
+        delay.connect(reverb);
+        reverb.connect(damp);
+        damp.connect(wet);
+        wet.connect(context.destination);
+        return underwaterOutput;
+    }
+
     function prepare(name) {
         const track = tracks[name];
         if (!track) return Promise.resolve();
         if (track.buffer) return track.buffer;
         if (!context) unlock();
         // Construir la reverberación durante carga, antes de reproducir por primera vez.
-        getMusicOutput();
+        if (name === 'underwater') getUnderwaterOutput();
+        else getMusicOutput();
         track.buffer = fetch(track.url).then(response => {
             if (!response.ok) throw new Error('No se pudo cargar '+track.url);
             return response.arrayBuffer();
@@ -96,7 +146,7 @@ export function createMusicEvents() {
                 source.buffer = buffer;
                 source.loop = false;
                 const volume = context.createGain();
-                volume.gain.value = 0.8;
+                volume.gain.value = track.volume;
                 if (track === tracks.forest) {
                     forestAnalyser = context.createAnalyser();
                     forestAnalyser.fftSize = 1024;
@@ -105,10 +155,28 @@ export function createMusicEvents() {
                     source.connect(forestAnalyser);
                     forestAnalyser.connect(volume);
                 } else source.connect(volume);
-                volume.connect(getMusicOutput());
+                let underwaterMotion = null;
+                let underwaterMotionDepth = null;
+                if (track === tracks.underwater) {
+                    volume.connect(getUnderwaterOutput());
+                    // Vaivén lento del timbre, sin cambiar afinación ni velocidad de la canción.
+                    underwaterMotion = context.createOscillator();
+                    underwaterMotion.type = 'sine';
+                    underwaterMotion.frequency.value = 0.09;
+                    underwaterMotionDepth = context.createGain();
+                    underwaterMotionDepth.gain.value = 100;
+                    underwaterMotion.connect(underwaterMotionDepth);
+                    underwaterMotionDepth.connect(underwaterFilter.frequency);
+                    underwaterMotion.start();
+                } else volume.connect(getMusicOutput());
                 source.onended = () => {
                     track.ended = true;
                     source.disconnect(); volume.disconnect(); track.source = null;
+                    if (underwaterMotion) {
+                        underwaterMotion.stop();
+                        underwaterMotion.disconnect();
+                        underwaterMotionDepth.disconnect();
+                    }
                     if (track === tracks.forest && forestAnalyser) {
                         forestAnalyser.disconnect(); forestAnalyser = null;
                     }
@@ -133,23 +201,72 @@ export function createMusicEvents() {
         }
     }
 
-    function playFootstep(running = false, accent = 1) {
+    function getIndoorFootstepOutput() {
+        if (indoorFootstepOutput) return indoorFootstepOutput;
+        indoorFootstepOutput = context.createGain();
+        const dry = context.createGain();
+        dry.gain.value = 0.6;
+        indoorFootstepOutput.connect(dry);
+        dry.connect(context.destination);
+        const reverb = context.createConvolver();
+        const impulse = context.createBuffer(1, Math.ceil(context.sampleRate * 0.45), context.sampleRate);
+        for (let channel = 0; channel < 1; channel++) {
+            const samples = impulse.getChannelData(channel);
+            for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / samples.length, 3);
+        }
+        reverb.buffer = impulse;
+        const softTail = context.createBiquadFilter();
+        softTail.type = 'lowpass';
+        softTail.frequency.value = 1800;
+        const wet = context.createGain();
+        wet.gain.value = 0.4;
+        indoorFootstepOutput.connect(reverb);
+        reverb.connect(softTail);
+        softTail.connect(wet);
+        wet.connect(context.destination);
+        return indoorFootstepOutput;
+    }
+
+    function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true) {
         if (!context || paused || context.state !== 'running') return;
         const now = context.currentTime;
+        if (outdoor) {
+            const noise = context.createBufferSource();
+            noise.buffer = footstepNoise;
+            noise.playbackRate.value = 0.7;
+            const highpass = context.createBiquadFilter();
+            highpass.type = 'highpass';
+            highpass.frequency.value = 1050;
+            const lowpass = context.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            lowpass.frequency.value = 5950;
+            const gain = context.createGain();
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.linearRampToValueAtTime((running ? 0.1122 : 0.0816) * 0.6 * accent, now + 0.002);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1794);
+            noise.connect(highpass);
+            highpass.connect(lowpass);
+            lowpass.connect(gain);
+            gain.connect(context.destination);
+            noise.onended = () => { noise.disconnect(); highpass.disconnect(); lowpass.disconnect(); gain.disconnect(); };
+            noise.start(now, Math.random() * 0.06);
+            noise.stop(now + 0.207);
+            return;
+        }
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        const pitch = 0.94 + Math.random() * 0.12;
+        const pitch = (isLeft ? 0.98 : 1.02) * (0.98 + Math.random() * 0.04);
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(90 * pitch, now);
-        oscillator.frequency.exponentialRampToValueAtTime(38 * pitch, now + 0.12);
+        oscillator.frequency.setValueAtTime(126 * pitch, now);
+        oscillator.frequency.exponentialRampToValueAtTime(53.2 * pitch, now + 0.12);
         gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime((running ? 0.1122 : 0.0816) * accent, now + 0.003);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.182);
         oscillator.connect(gain);
-        gain.connect(context.destination);
+        gain.connect(getIndoorFootstepOutput());
         oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
         oscillator.start(now);
-        oscillator.stop(now + 0.15);
+        oscillator.stop(now + 0.195);
     }
 
     function startWind() {

@@ -1,5 +1,9 @@
 // Datos del mapa: conservar los colores usados por los assets existentes.
 export const PALETTE = {
+    SEA_ALGA: {r:22,g:125,b:141}, // #167D8D: algas altas.
+    SEA_CORAL: {r:200,g:95,b:173}, // #C85FAD: corales.
+    SEA_GRASS: {r:54,g:201,b:182}, // #36C9B6: hierba marina.
+    SEA_HEART_FRAGMENT: {r:117, g:250, b:141}, // #75FA8D: marcador de fragmento, conserva el suelo vecino.
     WATER: {r:0, g:162, b:232},
     WATER_ROCK: {r:50, g:130, b:246}, // #3282F6: río y lago con fondo rocoso
     GRASS: {r:0, g:128, b:0},

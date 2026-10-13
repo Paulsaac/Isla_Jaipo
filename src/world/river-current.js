@@ -51,6 +51,8 @@ export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
             for (let step = 0; step < 4 && next >= 0 && river[next] && downstream[next] >= 0; step++) next = downstream[next];
             if (next >= 0) { dx = next % width - i % width; dz = Math.floor(next / width) - Math.floor(i / width); }
             else dz = 1;
+            // Corriente visual de oeste a este (+X), también bajo los puentes.
+            dx = 1; dz = 0;
             const length = Math.hypot(dx, dz);
             if (length > 0) { dx /= length; dz /= length; }
         }

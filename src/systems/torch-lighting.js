@@ -20,8 +20,9 @@ export function createTorchLighting(THREE, scene, torches, maximum = 12) {
             candidates.length = 0;
             for (const entry of entries) {
                 const torch = entry.torch;
+                if (torch.enabled === false) continue;
                 const distance = (torch.x - position.x) ** 2 + (torch.y - position.y) ** 2 + (torch.z - position.z) ** 2;
-                if (distance >= 44 ** 2 || (!torch.isIndoor && nightStrength === 0)) continue;
+                if (distance >= 44 ** 2 || (!torch.isIndoor && !torch.alwaysLit && nightStrength === 0)) continue;
                 entry.score = distance * (assigned.has(torch) ? 0.9 : 1);
                 candidates.push(entry);
             }
@@ -37,8 +38,8 @@ export function createTorchLighting(THREE, scene, torches, maximum = 12) {
             if (free) {
                 free.torch = torch;
                 free.light.position.set(torch.x, torch.y, torch.z);
-                free.light.color.setHex(torch.isBlue ? 0x00a2e8 : 0xffa500);
-                free.light.distance = torch.isIndoor ? 24 : 19.2;
+                free.light.color.setHex(torch.color ?? (torch.isBlue ? 0x00a2e8 : 0xffa500));
+                free.light.distance = torch.distance ?? (torch.isIndoor ? 24 : 19.2);
             }
         }
         slots.forEach(slot => {
@@ -54,7 +55,8 @@ export function createTorchLighting(THREE, scene, torches, maximum = 12) {
                 light.intensity = 0;
                 return;
             }
-            light.intensity = (12 + Math.sin(time * 17 + torch.x + torch.z) * 1.2) * 1.2 * (torch.isIndoor ? 3 : nightStrength) * slot.strength;
+            light.intensity = (12 + Math.sin(time * (torch.flickerRate ?? 17) + torch.x + torch.z) * (torch.flickerDepth ?? 1.2))
+                * 1.2 * (torch.intensityScale ?? 1) * (torch.isIndoor ? 3 : torch.alwaysLit ? 1 : nightStrength) * slot.strength;
         });
     }
     function illuminationAt(position) {

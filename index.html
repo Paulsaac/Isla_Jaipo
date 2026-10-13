@@ -166,6 +166,36 @@
             max-height: 70%;
             object-fit: contain;
         }
+        .inventory-item {
+            display: none; width: 100%; height: 100%; padding: 0;
+            border: 0; background: transparent; cursor: pointer; position: relative;
+        }
+        #diving-helmet-item svg { width: 100%; height: 100%; }
+        #diving-helmet-item { padding: 6px; }
+        .inventory-item img { margin: auto; }
+        .inventory-item[aria-pressed="true"]::after {
+            content: '✓'; position: absolute; right: 3px; top: 0;
+            color: #fff; font: bold 18px sans-serif; text-shadow: 1px 1px #000;
+        }
+        .inventory-item:focus-visible { outline: 2px solid #fff; }
+        #inventory-item-description { max-width: 320px; min-height: 32px; margin: 16px auto 0; font-size: 10px; line-height: 1.7; color: #fff; }
+        #diving-helmet-view {
+            display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none;
+            background: radial-gradient(ellipse 60% 120% at 50% 50%,
+                transparent 65%, rgba(33,25,9,0.9) 78%, #211909 86%);
+        }
+        #underwater-tint {
+            position: fixed; inset: 0; z-index: 3; pointer-events: none;
+            background: rgba(20, 105, 205, 0.22); opacity: 0;
+        }
+        #diving-air-container {
+            display: none; position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            width: min(300px, 80vw); z-index: 50; pointer-events: none;
+            color: #fff; font-size: 12px; text-align: center;
+        }
+        #diving-air-track { height: 12px; margin-top: 8px; border: 2px solid #fff; background: rgba(0,0,0,0.5); }
+        #diving-air-bar { height: 100%; width: 100%; background: #81cedf; }
+        .touch-mode #diving-air-container { bottom: 218px; }
         #forest-heart-icon {
             width: auto;
             height: 64px;
@@ -191,6 +221,21 @@
         }
         
         /* HUD IN-GAME */
+        #position-coordinates {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            left: max(12px, env(safe-area-inset-left));
+            color: #fff;
+            font: 12px monospace;
+            line-height: 1.6;
+            white-space: pre-line;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.45);
+            text-shadow: 1px 1px 0 #000;
+            z-index: 50;
+            display: none;
+            pointer-events: none;
+        }
         #hud {
             position: absolute;
             bottom: 20px;
@@ -255,9 +300,14 @@
 <body>
     <!-- <div id="hud">Llaves: <span id="key-count">0</span></div> -->
     <div id="hud"></div>
+    <div id="position-coordinates"></div>
     <div id="interaction-msg">Presiona E para interactuar</div>
     <div id="item-notification" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>
+    <div id="diving-air-container">
+        <span id="diving-air-text">Aire: 10 s</span>
+        <div id="diving-air-track" role="progressbar" aria-label="Aire de la escafandra" aria-valuemin="0" aria-valuemax="10" aria-valuenow="10"><div id="diving-air-bar"></div></div>
+    </div>
     <div id="touch-controls" hidden aria-label="Control táctil SNES">
         <div class="snes-dpad" aria-label="Cruceta de movimiento">
             <button type="button" data-direction="forward" aria-label="Avanzar">▲</button>
@@ -279,6 +329,8 @@
     </div>
     
     <!-- Pantallas de UI -->
+    <div id="diving-helmet-view" aria-hidden="true"></div>
+    <div id="underwater-tint" aria-hidden="true"></div>
     <div id="loading-screen">CARGANDO MUNDO...</div>
 
     <div id="main-menu">
@@ -309,21 +361,47 @@
             <h2 style="margin-top:0; color:#fff; font-size:24px;">INVENTARIO</h2>
             <div class="inventory-slots">
                 <div class="inv-slot" id="forest-heart-slot">
-                    <img id="forest-heart-icon" src="./imagenes/Sprites/corazon.png" alt="Corazón del Bosque" title="Corazón del Bosque" style="display:none;">
-                </div>
-                <div class="inv-slot"></div>
-                <div class="inv-slot"></div>
-                <div class="inv-slot">
-                    <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — T para encender o apagar" style="display:none; image-rendering:pixelated;">
+                    <button id="forest-heart-item" class="inventory-item" type="button" data-item="heart" aria-pressed="false" aria-label="Seleccionar Corazón del Bosque">
+                        <img id="forest-heart-icon" src="./imagenes/Sprites/corazon.png" alt="Corazón del Bosque" title="Corazón del Bosque" style="display:none;">
+                    </button>
                 </div>
                 <div class="inv-slot">
-                    <img id="map-icon" src="./imagenes/Sprites/mapa.svg" alt="Mapa de la isla" title="Mapa — M para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
+                    <button id="diving-helmet-item" class="inventory-item" data-item="helmet" type="button" aria-label="Casco de escafandra" aria-pressed="false" title="Casco de escafandra">
+                        <svg viewBox="0 0 64 64" aria-hidden="true">
+                            <path d="M12 49L7 57L57 57L52 49Z" fill="#9f7542" stroke="#322820" stroke-width="2"/>
+                            <path d="M22 44L20 51L44 51L42 44Z" fill="#c39b58"/>
+                            <path d="M12 29C12 3 52 3 52 29L50 42L43 48H21L14 42Z" fill="#9f7542" stroke="#322820" stroke-width="2"/>
+                            <path d="M14 20L21 10L32 6L44 11L51 21" fill="none" stroke="#c39b58" stroke-width="2"/>
+                            <circle cx="32" cy="31" r="15" fill="#153139" stroke="#c39b58" stroke-width="5"/>
+                            <path d="M26 19V44M38 19V44M19 26H45M19 36H45" stroke="#c39b58" stroke-width="2.5"/>
+                            <path d="M14 52V55M24 52V55M40 52V55M50 52V55" stroke="#e1bd74" stroke-width="3"/>
+                        </svg>
+                    </button>
                 </div>
                 <div class="inv-slot">
-                    <img id="key-icon" src="./imagenes/Sprites/llave.png" alt="Llave" style="display:none;">
-                    <span id="key-count" style="display:none;">0</span>
+                    <button id="sea-heart-item" class="inventory-item" data-item="sea-heart" type="button" aria-label="Fragmentos del Corazón del Mar" aria-pressed="false">
+                        <img id="sea-heart-icon" src="./imagenes/Sprites/fragmento-mar.svg" alt="Fragmentos del Corazón del Mar" style="width:64px;height:64px;image-rendering:pixelated;">
+                        <span id="sea-heart-count" style="position:absolute;bottom:4px;right:4px;font-size:12px;color:#fff;text-shadow:1px 1px #000;"></span>
+                    </button>
+                </div>
+                <div class="inv-slot">
+                    <button id="torch-item" class="inventory-item" type="button" data-item="torch" aria-pressed="false" aria-label="Encender o apagar antorcha">
+                        <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — T para encender o apagar" style="display:none; image-rendering:pixelated;">
+                    </button>
+                </div>
+                <div class="inv-slot">
+                    <button id="map-item" class="inventory-item" type="button" data-item="map" aria-pressed="false" aria-label="Abrir o cerrar mapa">
+                        <img id="map-icon" src="./imagenes/Sprites/mapa.svg" alt="Mapa de la isla" title="Mapa — M para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
+                    </button>
+                </div>
+                <div class="inv-slot">
+                    <button id="key-item" class="inventory-item" type="button" data-item="key" aria-pressed="false" aria-label="Seleccionar llave">
+                        <img id="key-icon" src="./imagenes/Sprites/llave.png" alt="Llave" style="display:none;">
+                        <span id="key-count" style="display:none;">0</span>
+                    </button>
                 </div>
             </div>
+            <p id="inventory-item-description" aria-live="polite">Pulsa un objeto para usarlo.</p>
         </div>
     </div>
     
