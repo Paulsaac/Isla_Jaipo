@@ -2,10 +2,13 @@
 export function createForestHeartQuest() {
     let stage = 'searching';
     let bridgeKeyReceived = false;
+    let mapChestUnlocked = false;
     return {
         get stage() { return stage; },
         get hasHeart() { return stage === 'carrying'; },
         get hasBridgeKey() { return bridgeKeyReceived; },
+        get canOpenMapChest() { return mapChestUnlocked; },
+        unlockMapChest() { mapChestUnlocked = true; },
         receiveBridgeKey(available) {
             if (!available || stage !== 'delivered' || bridgeKeyReceived) return false;
             bridgeKeyReceived = true;

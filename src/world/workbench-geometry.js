@@ -21,14 +21,31 @@ export function createWorkbenchGeometry(THREE) {
     add(handle,0,g=>{g.rotateX(Math.PI/2);g.applyMatrix4(axe);});
     add(new THREE.BoxGeometry(0.16,0.075,0.13),1,g=>{g.translate(0,0,0.36);g.applyMatrix4(axe);});
     const blade = new THREE.Shape();
-    blade.moveTo(0.06,0.3); blade.lineTo(0.3,0.22); blade.lineTo(0.34,0.52);
-    blade.lineTo(0.06,0.43); blade.closePath();
-    add(new THREE.ExtrudeGeometry(blade,{depth:0.045,bevelEnabled:false}),1,g=>{
-        g.rotateX(Math.PI/2); g.translate(0,0.0225,0); g.applyMatrix4(axe);
+    blade.moveTo(0.06,0.30); blade.lineTo(0.20,0.265); blade.lineTo(0.26,0.20);
+    blade.lineTo(0.285,0.365); blade.lineTo(0.26,0.53);
+    blade.lineTo(0.20,0.465); blade.lineTo(0.06,0.43); blade.closePath();
+    add(new THREE.ExtrudeGeometry(blade,{depth:0.055,bevelEnabled:false}),1,g=>{
+        g.rotateX(Math.PI/2); g.translate(0,0.0275,0); g.applyMatrix4(axe);
     });
-    add(new THREE.BoxGeometry(0.035,0.05,0.31),2,g=>{
-        g.rotateY(-0.13);g.translate(0.32,0,0.37);g.applyMatrix4(axe);
-    });
+    // Bisel ancho de acero: se estrecha desde la cabeza hasta un filo de 4 mm.
+    // Tres puntos dibujan una curva facetada, visible incluso mirando desde arriba.
+    const inner = [[0.26,0.20],[0.285,0.365],[0.26,0.53]];
+    const edge = [[0.35,0.17],[0.38,0.365],[0.35,0.56]];
+    const vertices = [];
+    const point = (p,y) => [p[0],y,p[1]];
+    const quad = (a,b,c,d) => vertices.push(...a,...b,...c,...a,...c,...d);
+    for (let i=0;i<2;i++) {
+        quad(point(inner[i],0.0275),point(inner[i+1],0.0275),point(edge[i+1],0.002),point(edge[i],0.002));
+        quad(point(inner[i],-0.0275),point(edge[i],-0.002),point(edge[i+1],-0.002),point(inner[i+1],-0.0275));
+        quad(point(edge[i],0.002),point(edge[i+1],0.002),point(edge[i+1],-0.002),point(edge[i],-0.002));
+    }
+    quad(point(inner[0],0.0275),point(edge[0],0.002),point(edge[0],-0.002),point(inner[0],-0.0275));
+    quad(point(inner[2],0.0275),point(inner[2],-0.0275),point(edge[2],-0.002),point(edge[2],0.002));
+    const bevel = new THREE.BufferGeometry();
+    bevel.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+    bevel.setAttribute('uv',new THREE.Float32BufferAttribute(new Float32Array(vertices.length/3*2),2));
+    bevel.computeVertexNormals();
+    add(bevel,2,g=>g.applyMatrix4(axe));
     const result = new THREE.BufferGeometry();
     for (const name of ['position','normal','uv']) {
         const values = new Float32Array(parts.reduce((sum,p)=>sum+p.geometry.attributes[name].array.length,0));

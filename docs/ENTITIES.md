@@ -10,12 +10,12 @@ Abrir `http://127.0.0.1:8000/tools/world-map.html` para seleccionar una celda o 
 `src/content/entities.js` define objetos específicos sobre celdas que ya existen en la imagen. No genera nuevos cofres ni cambia los mapas. Configuración del corazón confirmada por el usuario:
 
 ```js
-{ id: 'forest-heart-chest', type: 'CHEST', position: { x: 94, z: 279 }, item: 'forest-heart', ground: 'SLAB', rotationY: Math.PI }
+{ id: 'forest-heart-chest', type: 'CHEST', kind: 'DRY_VINE', position: { x: 94, z: 279 }, item: 'forest-heart', ground: 'DIRT_STONE', rotationY: Math.PI }
 ```
 
 El registro valida límites, identificadores y coincidencia con el tipo de celda. Solo los cofres consultan actualmente este registro; soportar otro objeto o una zona funcional requiere conectar su comportamiento de forma explícita.
 
-Los cofres sin configuración continúan dando una llave. Un cofre configurado con forest-heart entrega el corazón, no una llave. La misión permite recoger y entregar una sola vez por sesión. Al completar los diálogos de entrega, el corazón desaparece del inventario y Graham entrega la llave del puente; recibirla habilita el cofre del mapa y el tramo final de noche previo al amanecer.
+Los cofres sin configuración continúan dando una llave. El santuario forest-heart entrega el corazón al completar el forcejeo, una sola vez por sesión. La segunda conversación manual con Graham habilita el cofre del mapa, después de completar la introducción y recibir la antorcha. Al completar los diálogos de entrega del corazón, este desaparece del inventario y Graham entrega la llave del puente; la entrega conserva el tramo final de noche previo al amanecer.
 
 No hay guardado persistente. Recargar reinicia la misión. Reiniciar después de morir conserva el progreso de sesión y los cofres retirados, igual que el comportamiento previo del inventario.
 
@@ -31,4 +31,6 @@ Al recibir antorcha, llave del puente, corazón, mapa o llave de cofre aparece �
 La casa de montaña ocupa actualmente X=148..157, Z=124..132, con puerta en (148,128). Su techo de capa2 se trasladó a X=147..158, Z=123..133; al mover la construcción, revisar también esa capa y sus antorchas.
 
 ## Ubicación del corazón
-El usuario trasladó el cofre del corazón en capa1 a X=94, Z=279 el 2026-10-12; mundo X=188, Z=558. La celda anterior (165,308) ahora es pasto. El cofre conserva su orientación y apoyo sobre losa. El cofre del mapa está configurado en (231,425); los cofres restantes sin configuración entregan llaves. La numeración de la herramienta depende del orden de lectura del mapa; el identificador persistente de contenido es forest-heart-chest y su celda configurada.
+El santuario del corazón en capa1 se ubica en X=94, Z=279; mundo X=188, Z=558. El Corazón del Bosque usa el sprite del inventario con relieve fino e inclinación, dentro de una enredadera seca (DRY_VINE). El suelo DIRT_STONE mezcla tierra y piedra a ras del terreno, sin plataformas y con franjas hacia los cuatro lados. El cofre del mapa está configurado en (231,425); los cofres restantes sin configuración entregan llaves. El identificador configurado conserva forest-heart-chest para compatibilidad con la misión.
+
+Para extraerlo hay que estar a 1.65 unidades horizontales o menos: E muestra «Está firmemente agarrada...» sin nombre, otro E inicia el forcejeo. Mantener S o flecha abajo durante tres segundos continuos completa la extracción; avanzar o soltar reinicia el esfuerzo, y moverse lateralmente no lo interrumpe. La mirada y desplazamiento están limitados durante la resistencia. Al romperse hay partículas, retroceso amortiguado y un resto de raíces/tronco en el suelo. No aparecen instrucciones durante el tirón. K es un atajo de prueba hacia el claro y queda bloqueado durante diálogos o secuencias.
