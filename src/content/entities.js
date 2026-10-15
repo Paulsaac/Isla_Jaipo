@@ -5,9 +5,10 @@ export const entities = [
     {
         id: 'forest-heart-chest',
         type: 'CHEST',
+        kind: 'DRY_VINE',
         position: { x: 94, z: 279 },
         item: 'forest-heart',
-        ground: 'SLAB',
+        ground: 'DIRT_STONE',
         rotationY: Math.PI
     },
     {
@@ -20,7 +21,12 @@ export const entities = [
     }
 ];
 
-export const grahamPosition = { x: 235, z: 421 };
+// Celda de referencia y ajuste fino en unidades del mundo.
+export const grahamPosition = { x: 230, z: 421, offset: { x: 1.3, z: 1.0 } };
+
+export const spawnRoomExit = { x: 235, z: 423 };
+
+export const kitchenGardenPosition = { x: 237, z: 433 };
 
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
 
@@ -60,6 +66,8 @@ export const doorOverrides = [
 ];
 
 export const furniture = [
+    { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },
+    { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.28 }, rotationY: Math.PI },
     { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 419 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },
     { id: 'graham-workbench', type: 'WORKBENCH', position: { x: 237, z: 420 }, size: { x: 1, z: 2 }, rotationY: 0 },
     { id: 'graham-log-stack', type: 'LOG_STACK', position: { x: 238, z: 422 }, size: { x: 2, z: 1 }, rotationY: Math.PI / 2 },

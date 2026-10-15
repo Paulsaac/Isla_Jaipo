@@ -5,6 +5,7 @@ export function createMenus({ onResume, onUseItem }) {
     const inventoryMenu = document.getElementById('inventory-menu');
     const dialogBox = document.getElementById('dialog-box');
     const dialogText = document.getElementById('dialog-text');
+    const dialogHint = document.getElementById('dialog-hint');
     const keyCountDisplay = document.getElementById('key-count');
     const keyIcon = document.getElementById('key-icon');
     const heartIcon = document.getElementById('forest-heart-icon');
@@ -34,9 +35,31 @@ export function createMenus({ onResume, onUseItem }) {
     function showPause() { inventoryMenu.style.display = 'none'; pauseMenu.style.display = 'flex'; }
     function showInventory() { pauseMenu.style.display = 'none'; inventoryMenu.style.display = 'flex'; }
     function hideInventory() { inventoryMenu.style.display = 'none'; }
-    function setDialogText(text) { dialogText.innerText = text; }
-    function showDialog(text) {
+    function setDialogText(entry) {
+        const text = typeof entry === 'string' ? entry : entry.text;
+        const highlight = typeof entry === 'string' ? null : entry.highlight;
+        if (!highlight || !text.includes(highlight)) {
+            dialogText.textContent = text;
+            return;
+        }
+        dialogText.replaceChildren();
+        text.split(highlight).forEach((part, index) => {
+            if (index) {
+                const emphasis = document.createElement('strong');
+                emphasis.textContent = highlight;
+                emphasis.style.color = '#87ceeb';
+                emphasis.style.fontWeight = '700';
+                dialogText.append(emphasis);
+            }
+            dialogText.append(document.createTextNode(part));
+        });
+    }
+    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false } = {}) {
         setDialogText(text);
+        document.getElementById('dialog-name').hidden = anonymous;
+        dialogBox.style.textAlign = anonymous ? 'center' : '';
+        dialogHint.hidden = automatic;
+        dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
         dialogBox.style.display = 'block';
     }
     function hideDialog() { dialogBox.style.display = 'none'; }

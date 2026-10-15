@@ -68,27 +68,49 @@ function createOpenChestGeometry(THREE, angle = Math.PI * 0.58) {
         box(0.055, 0.505, 0.012, x, -0.1523, -0.326, 1);
         box(0.055, 0.505, 0.012, x, -0.1523, 0.326, 1);
     }
-    const lidProfile = new THREE.Shape();
     const lidStart = pieces.reduce((total, geometry) => total + geometry.attributes.position.count, 0);
-    lidProfile.moveTo(-0.32, 0.1);
-    lidProfile.lineTo(0.32, 0.1);
-    for (let step = 1; step <= 8; step++) {
-        const angle = step / 8 * Math.PI;
-        lidProfile.lineTo(Math.cos(angle) * 0.32, 0.1 + Math.sin(angle) * 0.3);
-    }
-    lidProfile.closePath();
+    // Sección en arco: la cara interior sigue la curva, sin un plano que cierre la tapa.
+    const archProfile = (outerRadius, outerHeight, innerRadius, innerHeight) => {
+        const profile = new THREE.Shape();
+        for (let step = 0; step <= 8; step++) {
+            const theta = step / 8 * Math.PI;
+            const x = Math.cos(theta) * outerRadius, y = 0.1 + Math.sin(theta) * outerHeight;
+            if (step === 0) profile.moveTo(x, y); else profile.lineTo(x, y);
+        }
+        for (let step = 8; step >= 0; step--) {
+            const theta = step / 8 * Math.PI;
+            profile.lineTo(Math.cos(theta) * innerRadius, 0.1 + Math.sin(theta) * innerHeight);
+        }
+        profile.closePath();
+        return profile;
+    };
+    const lidProfile = archProfile(0.32, 0.3, 0.285, 0.265);
+    const bandProfile = archProfile(0.324, 0.304, 0.32, 0.3);
     const raiseLid = geometry => {
         geometry.translate(0, -0.1, -0.32);
         geometry.rotateX(angle);
         geometry.translate(0, 0.1, 0.32);
     };
     for (const [width, x, material] of [[0.8, 0, 0], [0.055, -0.26, 1], [0.055, 0.26, 1]]) {
-        const lid = new THREE.ExtrudeGeometry(lidProfile, { depth: width, bevelEnabled: false, steps: 1 });
+        const lid = new THREE.ExtrudeGeometry(material ? bandProfile : lidProfile, { depth: width, bevelEnabled: false, steps: 1 });
         lid.rotateY(Math.PI / 2);
-        if (material) lid.scale(1, 1.012, 1.012);
         lid.translate(x - width / 2, 0, 0);
         raiseLid(lid);
         add(lid, material);
+    }
+    // Los dos costados conservan madera maciza, enmarcando la cavidad de la tapa.
+    const endProfile = new THREE.Shape();
+    endProfile.moveTo(-0.285, 0.1);
+    endProfile.lineTo(0.285, 0.1);
+    for (let step=1; step<=8; step++) {
+        const theta=step/8*Math.PI;
+        endProfile.lineTo(Math.cos(theta)*0.285,0.1+Math.sin(theta)*0.265);
+    }
+    endProfile.closePath();
+    for (const x of [-0.375,0.375]) {
+        const end = new THREE.ExtrudeGeometry(endProfile,{depth:0.05,bevelEnabled:false,steps:1});
+        end.rotateY(Math.PI/2); end.translate(x-0.025,0,0);
+        raiseLid(end); add(end,0);
     }
     const latchBox = new THREE.BoxGeometry(0.1, 0.16, 0.035);
     const latch = latchBox.toNonIndexed();

@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
-import { npcDialogs, heartDeliveryDialogs, heartDeliveredDialogs } from './src/content/dialogues.js';
-import { entities, grahamPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings } from './src/content/dialogues.js';
+import { entities, grahamPosition, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
+import { createHeartPull } from './src/systems/heart-pull.js';
+import { DOOR_SIDE_MARGIN } from './src/config.js';
 import { createSunkenShipGeometry } from './src/world/sunken-ship-geometry.js';
 import { createShipwreckGeometry } from './src/world/shipwreck-geometry.js';
 import { createLogStackGeometry } from './src/world/log-stack-geometry.js';
@@ -42,6 +45,7 @@ import { createVegetationVisibility } from './src/world/vegetation-visibility.js
 import { createSeaFloorHeights } from './src/world/sea-depth.js';
 import { createRiverCurrentField } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
+import { createDryVineShrine } from './src/world/dry-vine-geometry.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
 import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
@@ -55,6 +59,10 @@ import { createSideTableGeometry } from './src/world/side-table-geometry.js';
 import { createBarrelGeometry } from './src/world/barrel-geometry.js';
 import { createBookshelfGeometry } from './src/world/bookshelf-geometry.js';
 import { createTableGeometry, createChairGeometry } from './src/world/table-chair-geometry.js';
+import { createMateSet } from './src/world/mate-set.js';
+import { createAntiqueStoveGeometry } from './src/world/antique-stove-geometry.js';
+import { createSpiceShelfGeometry } from './src/world/spice-shelf-geometry.js';
+import { createKitchenGarden } from './src/world/kitchen-garden.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
 import { createCrateStackGeometry } from './src/world/crate-stack-geometry.js';
@@ -161,6 +169,7 @@ const divingAir = createDivingAir(DIVING_AIR_SECONDS);
 const heartQuest = createForestHeartQuest();
 const interactables = [];
 const chestOpenings = [];
+let forestHeartShrine = null;
 const slabTops = new Map();
 const SLAB_HEIGHT = 0.4;
 const WATER_DECK_THICKNESS = 0.25;
@@ -345,6 +354,59 @@ function pauseGame() {
 const loadingScreen = document.getElementById('loading-screen');
 const mainMenu = document.getElementById('main-menu');
 const menus = createMenus({ onResume: resumeGame, onUseItem: useInventoryItem });
+const spawnGreeting = createSpawnGreeting({
+    door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN
+});
+const greetingStartRotation = new THREE.Quaternion();
+const greetingTargetRotation = new THREE.Quaternion();
+const greetingTarget = new THREE.Vector3();
+const greetingLookMatrix = new THREE.Matrix4();
+const previousPlayerPosition = new THREE.Vector3();
+let greetingPointerSpeed = 1;
+
+function clearGreetingInput() {
+    for (const key of Object.keys(moveState)) moveState[key] = false;
+    velocity.set(0, 0, 0);
+    velocityY = 0;
+    isRunning = false;
+    isCrouching = false;
+    keyboardBinding.resetSequence();
+    touchControls?.reset();
+}
+
+function showGreetingPhase() {
+    if (spawnGreeting.showingDialog) menus.showDialog(grahamWakeGreetings[spawnGreeting.dialogIndex], { automatic: spawnGreeting.phase !== 'invitation', blurBackdrop: false });
+    else menus.hideDialog();
+}
+
+function updateSpawnGreeting(delta) {
+    if (!spawnGreeting.active) {
+        if (spawnGreeting.played || isDead || isFlying || isRidingBoat || isDialogOpen || !grahamSprite) return;
+        const door = solidInteractables.find(object => object.userData.type === 'DOOR'
+            && object.userData.gx === spawnRoomExit.x && object.userData.gz === spawnRoomExit.z);
+        if (!spawnGreeting.tryStart(previousPlayerPosition, camera.position, door?.userData.isOpen)) return;
+        clearGreetingInput();
+        greetingPointerSpeed = controls.pointerSpeed;
+        controls.pointerSpeed = 0;
+        greetingStartRotation.copy(camera.quaternion);
+        greetingTarget.copy(grahamSprite.position);
+        greetingTarget.y += GRAHAM_HEIGHT * 0.25;
+        greetingLookMatrix.lookAt(camera.position, greetingTarget, camera.up);
+        greetingTargetRotation.setFromRotationMatrix(greetingLookMatrix);
+        targetInteractable = null;
+        hud.hideInteraction();
+        showGreetingPhase();
+    }
+    const previousPhase = spawnGreeting.phase;
+    spawnGreeting.update(delta);
+    const t = spawnGreeting.turnProgress;
+    if (previousPhase !== 'invitation') {
+        camera.quaternion.slerpQuaternions(greetingStartRotation, greetingTargetRotation, t * t * (3 - 2 * t));
+    }
+    if (previousPhase !== spawnGreeting.phase) {
+        showGreetingPhase();
+    }
+}
 
 function toggleDivingHelmet() {
     if (!hasDivingHelmet || helmetBroken || !isInventoryOpen || isDead) return;
@@ -412,10 +474,14 @@ controls.addEventListener('lock', () => {
     musicEvents.startWind();
     isInventoryOpen = false; // Siempre cerramos inventario al clickear para volver
     menus.hideForGameplay();
+    if (spawnGreeting.active) showGreetingPhase();
+    heartPull.show();
     touchControls?.show();
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    if (spawnGreeting.active) menus.hideDialog();
+    if (heartPull.active) menus.hideDialog();
     musicEvents.setPaused(true);
     for (const direction of Object.keys(moveState)) moveState[direction] = false;
     velocity.set(0, 0, 0);
@@ -474,8 +540,21 @@ function toggleDoorWithPlayer(door) {
     }
 }
 
+function canReachForestHeart() {
+    return forestHeartShrine && Math.hypot(camera.position.x-forestHeartShrine.position.x,
+        camera.position.z-forestHeartShrine.position.z) <= 1.65;
+}
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    if (heartPull.active) { heartPull.interact(); return true; }
+    if (spawnGreeting.active) {
+        if (spawnGreeting.dismiss()) {
+            menus.hideDialog();
+            controls.pointerSpeed = greetingPointerSpeed;
+            clearGreetingInput();
+        }
+        return true;
+    }
     if (gameStarted) {
         if (isDialogOpen) {
             // Avanzar al siguiente diálogo
@@ -520,14 +599,12 @@ function interact() {
         } else if (targetInteractable) {
             if (targetInteractable.userData.type === 'CHEST') {
                 if (targetInteractable.userData.opened) return;
-                if (targetInteractable.userData.item === 'map' && !heartQuest.hasBridgeKey) return;
+                if (targetInteractable.userData.item === 'map' && !heartQuest.canOpenMapChest) return;
                 if (targetInteractable.userData.item === 'forest-heart') {
-                    if (!heartQuest.collect()) return;
+                    if (!canReachForestHeart()) return true;
                     isFlying = false;
-                    setHandTorchEnabled(false);
-                    menus.setHeartVisible(true);
-                    hud.showReceivedItem('el Corazón del Bosque');
-                    musicEvents.trigger('forest');
+                    heartPull.begin(forestHeartShrine);
+                    return true;
                 } else if (targetInteractable.userData.item === 'map') {
                     hasMap = true;
                     menus.setMapVisible(true);
@@ -537,9 +614,22 @@ function interact() {
                     updateKeyInventory();
                     hud.showReceivedItem('una llave');
                 }
-                chestOpenings.push(targetInteractable.userData.opening);
+                if (targetInteractable.userData.opening) {
+                    chestOpenings.push(targetInteractable.userData.opening);
+                }
                 targetInteractable.userData.opened = true;
-                interactables.splice(interactables.indexOf(targetInteractable), 1);
+                if (targetInteractable.userData.vineMesh) {
+                    targetInteractable.userData.vineMesh.userData.opened = true;
+                    const vineIdx = interactables.indexOf(targetInteractable.userData.vineMesh);
+                    if (vineIdx !== -1) interactables.splice(vineIdx, 1);
+                }
+                if (targetInteractable.userData.heartMesh) {
+                    targetInteractable.userData.heartMesh.userData.opened = true;
+                    const heartIdx = interactables.indexOf(targetInteractable.userData.heartMesh);
+                    if (heartIdx !== -1) interactables.splice(heartIdx, 1);
+                }
+                const targetIdx = interactables.indexOf(targetInteractable);
+                if (targetIdx !== -1) interactables.splice(targetIdx, 1);
                 targetInteractable = null;
             } else if (targetInteractable.userData.type === 'SEA_HEART_FRAGMENT') {
                 return; // Se recoge caminando sobre él; no exige pulsar E.
@@ -575,8 +665,10 @@ function interact() {
                 canJump = true;
             } else if (targetInteractable.userData.type === 'NPC') {
                 isDialogOpen = true;
+                // La antorcha acredita la primera charla completa; esta ya es la segunda.
+                if (hasTorch) heartQuest.unlockMapChest();
                 deliveringHeart = hasTorch && heartQuest.hasHeart;
-                activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : npcDialogs;
+                activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : heartSearchDialogs;
                 if (hasTorch && GRAHAM_BRIDGE_KEY_AVAILABLE && (deliveringHeart || heartQuest.stage === 'delivered')) {
                     activeDialogs = heartQuest.hasBridgeKey ? bridgeKeyReceivedDialogs : bridgeKeyDeliveryDialogs;
                 }
@@ -604,6 +696,23 @@ const gameActions = {
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
     start() { if (mapLoaded && !gameStarted) resumeGame(); },
     interact,
+    teleportToForestHeart() {
+        if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isRidingBoat || !forestHeartShrine) return;
+        const shrine=forestHeartShrine;
+        for (const radius of [3.5,4.5,5.5,6.5]) for (let step=0;step<12;step++) {
+            const angle=shrine.rotation.y+step*Math.PI/6;
+            const x=shrine.position.x+Math.sin(angle)*radius, z=shrine.position.z+Math.cos(angle)*radius;
+            const ground=floorMap[Math.round(z/UNIT_SIZE)]?.[Math.round(x/UNIT_SIZE)];
+            if (!['GRASS','TALL_GRASS','BUSH','TREE','DIRT','SLAB','WOOD','SAND'].includes(ground) || isWall(x,z)) continue;
+            clearGreetingInput();
+            isFlying=false; canJump=true; bobTimer=0;
+            camera.position.set(x,getTerrainHeight(x,z)+PLAYER_HEIGHT,z);
+            previousPlayerPosition.copy(camera.position);
+            camera.lookAt(shrine.position.x,shrine.position.y+0.52,shrine.position.z);
+            targetInteractable=null;
+            return;
+        }
+    },
     move(direction, pressed) { moveState[direction] = pressed; },
     jump() {
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) { velocityY = JUMP_FORCE; canJump = false; }
@@ -639,6 +748,36 @@ const gameActions = {
         else resumeGame();
     }
 };
+const heartPull = createHeartPull(THREE, {
+    scene, camera, input: moveState, isWall,
+    groundHeight: (x,z) => getTerrainHeight(x,z) + PLAYER_HEIGHT,
+    showMessage: text => menus.showDialog(text, {blurBackdrop:false, anonymous:true}),
+    hideMessage: () => menus.hideDialog(),
+    clearInput: clearGreetingInput,
+    release(vine) {
+        if (!heartQuest.collect()) return;
+        vine.userData.collectHeart();
+        vine.userData.opened=true;
+        vine.userData.visibilityEnabled=false;
+        vine.visible=false;
+        const brokenBase = vine.userData.brokenBase;
+        brokenBase.position.copy(vine.position);
+        brokenBase.quaternion.copy(vine.quaternion);
+        scene.add(brokenBase);
+        scene.remove(vine);
+        for (const list of [interactables,solidInteractables]) {
+            for(let i=list.length-1;i>=0;i--) if(list[i]===vine||list[i]===vine.userData.heartMesh) list.splice(i,1);
+        }
+        targetInteractable=null;hud.hideInteraction();
+        setHandTorchEnabled(false);menus.setHeartVisible(true);
+        hud.showReceivedItem('el Corazón del Bosque');musicEvents.trigger('forest');
+    }
+});
+// Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
+for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'move', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
+    const action = gameActions[name];
+    gameActions[name] = (...args) => { if (!spawnGreeting.active && (!heartPull.active || name === 'move')) return action(...args); };
+}
 const keyboardBinding = bindKeyboard(gameActions);
 const touchLook = new THREE.Euler(0, 0, 0, 'YXZ');
 const touchControls = isTouchMode ? bindTouchControls({
@@ -646,6 +785,7 @@ const touchControls = isTouchMode ? bindTouchControls({
     isActive: () => gameStarted && controls.isLocked && !isDead,
     pause: pauseGame,
     look(dx, dy) {
+        if (spawnGreeting.active) return;
         touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
         touchLook.y -= dx * 0.003;
         touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * 0.003, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
@@ -678,8 +818,10 @@ let aguaFloorMat = null;
 
 // Cargar texturas de Sprites
 const texLoader = new THREE.TextureLoader();
+let resolveHeartTexture, rejectHeartTexture;
+const heartTextureReady = new Promise((resolve,reject)=>{resolveHeartTexture=resolve;rejectHeartTexture=reject;});
 heldItemTextures = {
-    heart: texLoader.load('./imagenes/Sprites/corazon.png', () => updateHeldItemLayout()),
+    heart: texLoader.load('./imagenes/Sprites/corazon.png', () => {updateHeldItemLayout();resolveHeartTexture();}, undefined, rejectHeartTexture),
     key: texLoader.load('./imagenes/Sprites/llave.png', () => updateHeldItemLayout()),
     'sea-heart': texLoader.load('./imagenes/Sprites/corazon-mar.svg', () => updateHeldItemLayout())
 };
@@ -888,9 +1030,13 @@ scene.add(skyMesh);
 
 Promise.all([
     loadMapImage('./imagenes/Mapa/capa1.png?v=' + Date.now()),
-    loadMapImage('./imagenes/Mapa/capa2.png?v=' + Date.now())
-]).then(([baseImage, roofImage]) => {
+    loadMapImage('./imagenes/Mapa/capa2.png?v=' + Date.now()),
+    heartTextureReady
+]).then(async ([baseImage, roofImage]) => {
     buildWorld(readMapLayers(baseImage, roofImage));
+    // Preparar también los materiales fuera de cámara durante la pantalla de carga.
+    // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
+    await renderer.compileAsync(scene, camera);
     mapLoaded = true;
     loadingScreen.style.display = 'none';
     if (isTouchMode) {
@@ -1406,20 +1552,37 @@ function buildWorld(mapData) {
                 else if (weedVariant === 1) weed2Mesh.setMatrixAt(idxWeed2++, dummy.matrix);
                 else weed3Mesh.setMatrixAt(idxWeed3++, dummy.matrix);
             } else if (type === 'CHEST') {
-                const chestGeo = createChestGeometry(THREE);
-                const chestMat = new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8B4513, shininess: 0 }); 
-                const chestMetalMat = new THREE.MeshPhongMaterial({ color: 0x42464b, shininess: 18 });
-                const chestMesh = new THREE.Mesh(chestGeo, [chestMat, chestMetalMat]);
-                chestMesh.position.set(posX, getTerrainHeight(posX, posZ) - chestGeo.boundingBox.min.y, posZ);
                 const definition = registry.at(x, z);
-                chestMesh.rotation.y = definition?.rotationY ?? 0;
-                chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
-                // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
-                chestMesh.userData.opening = createChestOpening(THREE, chestMesh);
-                scene.add(chestMesh);
-                chestMesh.updateMatrixWorld(true);
-                solidInteractables.push(chestMesh);
-                interactables.push(chestMesh);
+                if (definition?.item === 'forest-heart') {
+                    const vineShrine = createDryVineShrine(THREE, maderaTex, heldItemTextures.heart.image);
+                    vineShrine.position.set(posX, getTerrainHeight(posX, posZ) - vineShrine.geometry.boundingBox.min.y, posZ);
+                    vineShrine.rotation.y = definition?.rotationY ?? 0;
+                    vineShrine.userData.gx = x;
+                    vineShrine.userData.gz = z;
+                    vineShrine.userData.id = definition?.id || `vine:${x},${z}`;
+                    scene.add(vineShrine);
+                    vineShrine.updateMatrixWorld(true);
+                    // La luz no debe desaparecer cuando la niebla oculta el santuario:
+                    // cambiar el número de luces recompila todos los materiales iluminados.
+                    scene.attach(vineShrine.userData.heartLight);
+                    solidInteractables.push(vineShrine);
+                    interactables.push(vineShrine);
+                    forestHeartShrine = vineShrine;
+                } else {
+                    const chestGeo = createChestGeometry(THREE);
+                    const chestMat = new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8B4513, shininess: 0 });
+                    const chestMetalMat = new THREE.MeshPhongMaterial({ color: 0x42464b, shininess: 18 });
+                    const chestMesh = new THREE.Mesh(chestGeo, [chestMat, chestMetalMat]);
+                    chestMesh.position.set(posX, getTerrainHeight(posX, posZ) - chestGeo.boundingBox.min.y, posZ);
+                    chestMesh.rotation.y = definition?.rotationY ?? 0;
+                    chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
+                    // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
+                    chestMesh.userData.opening = createChestOpening(THREE, chestMesh);
+                    scene.add(chestMesh);
+                    chestMesh.updateMatrixWorld(true);
+                    solidInteractables.push(chestMesh);
+                    interactables.push(chestMesh);
+                }
             } else if (type === 'BOAT') {
                 // Un marcador de dos celdas representa un único bote, centrado entre ambas.
                 if (floorMap[z]?.[x - 1] === 'BOAT' || floorMap[z - 1]?.[x] === 'BOAT') continue;
@@ -1570,8 +1733,41 @@ function buildWorld(mapData) {
     const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
     const wetSandShoreMap = createWetSandShoreMap(terrainFloorMap, mapWidth, mapHeight);
     const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
+    const naturalShrineGround = new Uint8Array(mapWidth * mapHeight);
     for (const definition of entities) {
         if (definition.ground === 'SLAB') slabGroundCells[definition.position.z * mapWidth + definition.position.x] = 1;
+        if (definition.ground === 'DIRT_STONE') {
+            const {x, z} = definition.position;
+            for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+                if (x+dx >= 0 && x+dx < mapWidth && z+dz >= 0 && z+dz < mapHeight)
+                    naturalShrineGround[(z+dz)*mapWidth+x+dx] = 1;
+            }
+            // Incluir las losas del acceso conectadas al claro del corazón.
+            const pending = [[x,z]], visited = new Set();
+            while (pending.length) {
+                const [cx,cz] = pending.pop();
+                const key = cz*mapWidth+cx;
+                if (visited.has(key) || cx < 0 || cx >= mapWidth || cz < 0 || cz >= mapHeight) continue;
+                visited.add(key);
+                if (Math.abs(cx-x) > 6 || Math.abs(cz-z) > 6) continue;
+                if ((cx !== x || cz !== z) && floorMap[cz][cx] !== 'OTHER') continue;
+                naturalShrineGround[key] = 1;
+                pending.push([cx-1,cz],[cx+1,cz],[cx,cz-1],[cx,cz+1]);
+            }
+            // Repetir el acceso original a 90°, 180° y 270° alrededor del claro.
+            const groundOffsets = [];
+            for (let dz=-6; dz<=6; dz++) for (let dx=-6; dx<=6; dx++) {
+                if (x+dx>=0 && x+dx<mapWidth && z+dz>=0 && z+dz<mapHeight
+                    && naturalShrineGround[(z+dz)*mapWidth+x+dx]) groundOffsets.push([dx,dz]);
+            }
+            for (const [dx,dz] of groundOffsets) {
+                for (const [rx,rz] of [[-dz,dx],[-dx,-dz],[dz,-dx]]) {
+                    const cx=x+rx, cz=z+rz;
+                    if (cx>=0 && cx<mapWidth && cz>=0 && cz<mapHeight)
+                        naturalShrineGround[cz*mapWidth+cx]=1;
+                }
+            }
+        }
     }
     // El marcador de bote conserva el fondo del agua que lo rodea.
     const boatBottomChannels = new Map();
@@ -1608,6 +1804,13 @@ function buildWorld(mapData) {
         // Interpolación compartida para pasto, tierra, arena, piedra, roca y nieve.
         const tx = colF - c0, tz = rowF - r0;
         for (const [x,z,weight] of [[c0,r0,(1-tx)*(1-tz)], [c1,r0,tx*(1-tz)], [c0,r1,(1-tx)*tz], [c1,r1,tx*tz]]) {
+            if (naturalShrineGround[z * mapWidth + x]) {
+                // Tierra con piedra integrada al terreno, sin bloques ni escalones.
+                const stone = 0.2 + 0.15 * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7));
+                splatWeights[i*4+1] += weight * (1-stone);
+                splatWeights[i*4+3] += weight * stone;
+                continue;
+            }
             let channel = slabGroundCells[z * mapWidth + x] ? 3
                 : floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
                 : boatBottomChannels.get(z * mapWidth + x) ?? terrainChannels[terrainFloorMap[z][x]] ?? 0;
@@ -1737,7 +1940,7 @@ function buildWorld(mapData) {
     scene.add(terrainSectors);
     const slabCells = [];
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
-        if (floorMap[z][x] === 'OTHER' || slabGroundCells[z * mapWidth + x]) slabCells.push([x,z]);
+        if (!naturalShrineGround[z * mapWidth + x] && (floorMap[z][x] === 'OTHER' || slabGroundCells[z * mapWidth + x])) slabCells.push([x,z]);
     }
     const slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, SLAB_HEIGHT, UNIT_SIZE),
         new THREE.MeshPhongMaterial({ map: losaTex, shininess: 0 }), slabCells.length);
@@ -1893,7 +2096,7 @@ function buildWorld(mapData) {
     revealNextSeaHeartFragment();
 
     for (const definition of furniture) {
-        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP'].includes(definition.type)) continue;
+        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP', 'ANTIQUE_STOVE', 'SPICE_SHELF'].includes(definition.type)) continue;
         const { position, size } = definition;
         const allowedGround = ['LOG_STACK', 'WORKBENCH', 'STUMP'].includes(definition.type)
             ? ['INDOOR_FLOOR', 'WOOD', 'GRASS', 'DIRT', 'SAND', 'WET_SAND'] : ['INDOOR_FLOOR', 'WOOD'];
@@ -1903,10 +2106,23 @@ function buildWorld(mapData) {
         const x = (position.x + (size.x - 1) / 2) * UNIT_SIZE + (definition.offset?.x ?? 0);
         const z = (position.z + (size.z - 1) / 2) * UNIT_SIZE + (definition.offset?.z ?? 0);
         const isBed = definition.type === 'BED';
-        const model = new THREE.Mesh(definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
+        const model = new THREE.Mesh(definition.type === 'SPICE_SHELF' ? createSpiceShelfGeometry(THREE) : definition.type === 'ANTIQUE_STOVE' ? createAntiqueStoveGeometry(THREE) : definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd8ceb3, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x40566b, shininess: 0 })
+        ] : definition.type === 'SPICE_SHELF' ? [
+            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x987448, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ color: 0x4e7135, shininess: 0, side: THREE.DoubleSide }),
+            new THREE.MeshPhongMaterial({ color: 0x68754c, shininess: 36, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x95602e, shininess: 36, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x896341, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ color: 0xd4c79c, shininess: 0 }),
+            new THREE.MeshPhongMaterial({ color: 0x785030, shininess: 0, side: THREE.DoubleSide })
+        ] : definition.type === 'ANTIQUE_STOVE' ? [
+            new THREE.MeshPhongMaterial({ color: 0xd5ca78, shininess: 28, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x262a29, shininess: 16, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x92958c, shininess: 40, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x55564b, shininess: 8, flatShading: true })
         ] : definition.type === 'STUMP' ? [
             new THREE.MeshPhongMaterial({ color: 0xc3a372, shininess: 0 }),
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x594333, shininess: 0 }),
@@ -1914,13 +2130,13 @@ function buildWorld(mapData) {
         ] : definition.type === 'WORKBENCH' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x987448, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x45433e, shininess: 12 }),
-            new THREE.MeshPhongMaterial({ color: 0xa4a4a0, shininess: 22 })
+            new THREE.MeshPhongMaterial({ color: 0xd7dce0, specular: 0xb8c2cc, shininess: 48 })
         ] : definition.type === 'LOG_STACK' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xc6a46e, shininess: 0 }),
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x594333, shininess: 0 })
         ] : definition.type === 'BOOKSHELF' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
-            ...[0x783d32, 0x354e65, 0x486044, 0xc5b78c].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
+            ...[0x783d32, 0x354e65, 0x486044, 0x716044].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
         ] : [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: definition.type === 'CRATE_STACK' ? 0x55351f : 0x555555, shininess: 12 })
@@ -1932,6 +2148,20 @@ function buildWorld(mapData) {
         model.rotation.y = definition.rotationY ?? 0;
         model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
         model.userData = { type: definition.type, id: definition.id, gx: position.x, gz: position.z };
+        if (definition.id === 'graham-table') {
+            const mateSet = createMateSet(THREE);
+            mateSet.scale.setScalar(FURNITURE_SCALE);
+            model.add(mateSet);
+        }
+        scene.add(model);
+        model.updateMatrixWorld(true);
+        solidInteractables.push(model);
+    }
+
+    const garden = createKitchenGarden(THREE, {
+        x: kitchenGardenPosition.x * UNIT_SIZE, z: kitchenGardenPosition.z * UNIT_SIZE
+    }, getTerrainHeight);
+    for (const model of garden) {
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
@@ -1948,8 +2178,8 @@ function buildWorld(mapData) {
     
     camera.position.set(playerStartX * UNIT_SIZE, PLAYER_HEIGHT, playerStartZ * UNIT_SIZE);
     
-    const grahamX = grahamPosition.x * UNIT_SIZE;
-    const grahamZ = grahamPosition.z * UNIT_SIZE;
+    const grahamX = grahamPosition.x * UNIT_SIZE + (grahamPosition.offset?.x ?? 0);
+    const grahamZ = grahamPosition.z * UNIT_SIZE + (grahamPosition.offset?.z ?? 0);
     const grahamY = getTerrainHeight(grahamX, grahamZ) + GRAHAM_HEIGHT / 2;
 
     // Generar al NPC Graham como un Billboard 3D iluminable (MeshPhongMaterial)
@@ -2056,11 +2286,16 @@ window.restartGame = () => {
 
 const FRAME_INTERVAL = 1000 / 30;
 let nextFrame = 0;
+let previousRenderedTimestamp;
 function animate(timestamp = performance.now()) {
     requestAnimationFrame(animate);
     if (timestamp + 0.1 < nextFrame) return;
     nextFrame += FRAME_INTERVAL;
     if (nextFrame <= timestamp) nextFrame = timestamp + FRAME_INTERVAL;
+    // Tiempo propio de la cámara: el reloj del agua y el límite de física no lo alteran.
+    // Se actualiza también en pausa, para no incorporar ese intervalo al reanudar.
+    const cameraDelta = previousRenderedTimestamp === undefined ? 0 : Math.max(0, (timestamp - previousRenderedTimestamp) / 1000);
+    previousRenderedTimestamp = timestamp;
 
     const controlObj = controls.getObject();
     let vegetationDelta = 0;
@@ -2073,6 +2308,7 @@ function animate(timestamp = performance.now()) {
     nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y; // Horizonte del atlas a la altura de los ojos.
 
     if (controls.isLocked && mapLoaded) {
+        previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const rawDelta = clock.getDelta();
         const delta = Math.min(rawDelta, 0.1);
@@ -2118,6 +2354,9 @@ function animate(timestamp = performance.now()) {
         });
         for (let i = chestOpenings.length - 1; i >= 0; i--) {
             if (chestOpenings[i].update(delta)) chestOpenings.splice(i, 1);
+        }
+        if (forestHeartShrine && forestHeartShrine.userData.updatePulse) {
+            forestHeartShrine.userData.updatePulse(timestamp / 1000);
         }
         vegetationWindTime.value += delta;
         // Girar ambos cubos a la misma velocidad; la luna conserva su orientación.
@@ -2312,17 +2551,29 @@ function animate(timestamp = performance.now()) {
         dirLight.intensity = 0.3 + (0.7 * dayTransition); // De 0.3 a 1.0
 
         // Raycaster para Interacciones
-        raycaster.setFromCamera(centerVec, camera);
         interactionHits.length = 0;
-        const intersects = raycaster.intersectObjects(interactables, true, interactionHits);
+        if (!spawnGreeting.active && !heartPull.active) {
+            raycaster.setFromCamera(centerVec, camera);
+            raycaster.intersectObjects(interactables, true, interactionHits);
+        }
+        const intersects = interactionHits;
         
-        if (intersects.length > 0 && intersects[0].distance < 3.5) {
+        if (spawnGreeting.active || heartPull.active) {
+            targetInteractable = null;
+            hud.hideInteraction();
+        } else if (intersects.length > 0 && intersects[0].distance < 3.5
+            && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
             if (targetInteractable.userData.type === 'CHEST') {
-                const mapLocked = targetInteractable.userData.item === 'map' && !heartQuest.hasBridgeKey;
-                hud.setInteractionText(mapLocked ? "Cofre bloqueado: habla con Graham" : "Presiona E para abrir Cofre");
-                hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
+                if (targetInteractable.userData.item === 'forest-heart') {
+                    hud.setInteractionText("Presiona E para tomar el Corazón del Bosque");
+                    hud.setInteractionColor("#75d7ff");
+                } else {
+                    const mapLocked = targetInteractable.userData.item === 'map' && !heartQuest.canOpenMapChest;
+                    hud.setInteractionText(mapLocked ? "Cofre bloqueado: habla con Graham" : "Presiona E para abrir Cofre");
+                    hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
+                }
             } else if (targetInteractable.userData.type === 'SEA_HEART_FRAGMENT') {
                 hud.setInteractionText(helmetEquipped && !helmetBroken ? `Camina sobre el fragmento ${targetInteractable.userData.number}/10 del Corazón del Mar` : `Fragmento ${targetInteractable.userData.number}/10 — equipa la escafandra`);
                 hud.setInteractionColor('#75d7ff');
@@ -2358,179 +2609,184 @@ function animate(timestamp = performance.now()) {
             }
         }
 
-        velocity.x -= velocity.x * FRICTION * delta;
-        velocity.z -= velocity.z * FRICTION * delta;
+        const pullingHeart = heartPull.active;
+        heartPull.update(delta);
+        if (!spawnGreeting.active && !pullingHeart) {
+            velocity.x -= velocity.x * FRICTION * delta;
+            velocity.z -= velocity.z * FRICTION * delta;
 
-        direction.z = Number(moveState.forward) - Number(moveState.backward);
-        direction.x = Number(moveState.right) - Number(moveState.left);
-        direction.normalize(); 
+            direction.z = Number(moveState.forward) - Number(moveState.backward);
+            direction.x = Number(moveState.right) - Number(moveState.left);
+            direction.normalize();
 
 
-        if (isRidingBoat && boatReference) {
-            frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
-            steerBoat(boatReference, controlObj.position, boatSeatOffset, BOAT_SEAT_BACK_OFFSET,
-                frameCameraHeading.y, delta, (x, z) =>
-                    hasObstacle(x, z, mapWidth, mapHeight, collisionMap, floorMap, true, solidInteractables, boatReference));
-        }
-
-        const startX = controlObj.position.x;
-        const startZ = controlObj.position.z;
-        
-        const currentGX = Math.floor((startX + UNIT_SIZE/2) / UNIT_SIZE);
-        const currentGZ = Math.floor((startZ + UNIT_SIZE/2) / UNIT_SIZE);
-        let inWater = false;
-        if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
-            if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[currentGZ][currentGX])
-                && !slabTops.has(currentGZ*mapWidth+currentGX)) inWater = true;
-        }
-
-        const waterSpeedMod = isRidingBoat ? 1.5 : (inWater && heartLevitationHeight <= 0.15
-            ? helmetEquipped || isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 0.4 : 1.0);
-        const movementMultiplier = isFlying
-            ? (running ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
-            : (running ? SPRINT_MULTIPLIER : 1);
-
-        if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
-        if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
-
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
-
-        const dx = controlObj.position.x - startX;
-        const dz = controlObj.position.z - startZ;
-
-        controlObj.position.x = startX;
-        controlObj.position.z = startZ;
-
-        if (isFlying) {
-            controlObj.position.x += dx;
-            controlObj.position.z += dz;
-            if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * movementMultiplier * delta;
-            if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * movementMultiplier * delta;
-            
-            velocityY = 0;
-            stamina = STAMINA_MAX;
-            hud.hideStamina();
-        } else {
-            if (isRidingBoat) {
-                if(!moveBoatAxis(controlObj.position,'x',dx)) velocity.x=0;
-                if(!moveBoatAxis(controlObj.position,'z',dz)) velocity.z=0;
-            } else {
-                if (!isWall(startX + dx, startZ)) controlObj.position.x += dx; else velocity.x = 0;
-                if (!isWall(controlObj.position.x, startZ + dz)) controlObj.position.z += dz; else velocity.z = 0;
+            if (isRidingBoat && boatReference) {
+                frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
+                steerBoat(boatReference, controlObj.position, boatSeatOffset, BOAT_SEAT_BACK_OFFSET,
+                    frameCameraHeading.y, delta, (x, z) =>
+                        hasObstacle(x, z, mapWidth, mapHeight, collisionMap, floorMap, true, solidInteractables, boatReference));
             }
 
-            if (inWater && !helmetEquipped && !isRidingBoat && heartLevitationHeight <= 0.15) {
-                hud.showStamina();
-                stamina -= delta;
-                if (stamina <= 0) {
-                    isDead = true;
-                    pauseGame();
-                    hud.showDeath();
-                    return; 
-                }
+            const startX = controlObj.position.x;
+            const startZ = controlObj.position.z;
+        
+            const currentGX = Math.floor((startX + UNIT_SIZE/2) / UNIT_SIZE);
+            const currentGZ = Math.floor((startZ + UNIT_SIZE/2) / UNIT_SIZE);
+            let inWater = false;
+            if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
+                if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[currentGZ][currentGX])
+                    && !slabTops.has(currentGZ*mapWidth+currentGX)) inWater = true;
+            }
+
+            const waterSpeedMod = isRidingBoat ? 1.5 : (inWater && heartLevitationHeight <= 0.15
+                ? helmetEquipped || isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 0.4 : 1.0);
+            const movementMultiplier = isFlying
+                ? (running ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
+                : (running ? SPRINT_MULTIPLIER : 1);
+
+            if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+            if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+
+            controls.moveRight(-velocity.x * delta);
+            controls.moveForward(-velocity.z * delta);
+
+            const dx = controlObj.position.x - startX;
+            const dz = controlObj.position.z - startZ;
+
+            controlObj.position.x = startX;
+            controlObj.position.z = startZ;
+
+            if (isFlying) {
+                controlObj.position.x += dx;
+                controlObj.position.z += dz;
+                if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * movementMultiplier * delta;
+                if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * movementMultiplier * delta;
+            
+                velocityY = 0;
+                stamina = STAMINA_MAX;
+                hud.hideStamina();
             } else {
-                if (stamina < STAMINA_MAX) {
-                    stamina += delta;
-                    if (stamina >= STAMINA_MAX) {
-                        stamina = STAMINA_MAX;
-                        hud.hideStamina();
+                if (isRidingBoat) {
+                    if(!moveBoatAxis(controlObj.position,'x',dx)) velocity.x=0;
+                    if(!moveBoatAxis(controlObj.position,'z',dz)) velocity.z=0;
+                } else {
+                    if (!isWall(startX + dx, startZ)) controlObj.position.x += dx; else velocity.x = 0;
+                    if (!isWall(controlObj.position.x, startZ + dz)) controlObj.position.z += dz; else velocity.z = 0;
+                }
+
+                if (inWater && !helmetEquipped && !isRidingBoat && heartLevitationHeight <= 0.15) {
+                    hud.showStamina();
+                    stamina -= delta;
+                    if (stamina <= 0) {
+                        isDead = true;
+                        pauseGame();
+                        hud.showDeath();
+                        return;
+                    }
+                } else {
+                    if (stamina < STAMINA_MAX) {
+                        stamina += delta;
+                        if (stamina >= STAMINA_MAX) {
+                            stamina = STAMINA_MAX;
+                            hud.hideStamina();
+                        }
+                    }
+                }
+            
+                hud.updateStamina(stamina, STAMINA_MAX);
+            }
+
+            const currentTerrainHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z);
+            let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
+        
+            if (isRidingBoat && boatReference) {
+                targetEyesHeight = getBoatEyesHeight(boatReference);
+            } else if (inWater && !helmetEquipped) {
+                // Caminar por el fondo somero; flotar solo al alcanzar suficiente profundidad.
+                targetEyesHeight = Math.max(targetEyesHeight, getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z) + 0.2);
+            }
+
+            if (isFlying && controlObj.position.y < targetEyesHeight) {
+                controlObj.position.y = targetEyesHeight;
+            }
+
+            if (!isRidingBoat && heartLevitationHeight > 0) {
+                targetEyesHeight += heartLevitationHeight;
+                controlObj.position.y = targetEyesHeight;
+                velocityY = 0;
+                canJump = false;
+            } else if (!isFlying) {
+                // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
+                if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.8) {
+                    controlObj.position.y = targetEyesHeight;
+                }
+                velocityY -= GRAVITY * delta;
+                controlObj.position.y += velocityY * delta;
+
+                if (controlObj.position.y < targetEyesHeight) {
+                    if (!inWater && controlObj.position.y < targetEyesHeight - 0.2) {
+                        controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 15 * delta;
+                        velocityY = 0;
+                        canJump = false;
+                    } else {
+                        controlObj.position.y = targetEyesHeight;
+                        velocityY = 0;
+                        canJump = true;
                     }
                 }
             }
-            
-            hud.updateStamina(stamina, STAMINA_MAX);
-        }
-
-        const currentTerrainHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z);
-        let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
-        if (isRidingBoat && boatReference) {
-            targetEyesHeight = getBoatEyesHeight(boatReference);
-        } else if (inWater && !helmetEquipped) {
-            // Caminar por el fondo somero; flotar solo al alcanzar suficiente profundidad.
-            targetEyesHeight = Math.max(targetEyesHeight, getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z) + 0.2);
-        }
-
-        if (isFlying && controlObj.position.y < targetEyesHeight) {
-            controlObj.position.y = targetEyesHeight;
-        }
-
-        if (!isRidingBoat && heartLevitationHeight > 0) {
-            targetEyesHeight += heartLevitationHeight;
-            controlObj.position.y = targetEyesHeight;
-            velocityY = 0;
-            canJump = false;
-        } else if (!isFlying) {
-            // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
-            if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.8) {
-                controlObj.position.y = targetEyesHeight;
-            }
-            velocityY -= GRAVITY * delta; 
-            controlObj.position.y += velocityY * delta; 
-
-            if (controlObj.position.y < targetEyesHeight) {
-                if (!inWater && controlObj.position.y < targetEyesHeight - 0.2) {
-                    controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 15 * delta;
-                    velocityY = 0;
-                    canJump = false;
-                } else {
-                    controlObj.position.y = targetEyesHeight;
-                    velocityY = 0;
-                    canJump = true;
+            // Colisión de techos (tanto normal como vuelo)
+            if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
+                const currentFloor = floorMap[currentGZ][currentGX];
+                if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED') {
+                    const passageHeight = ['DOOR_UNLOCKED','DOOR_LOCKED'].includes(currentFloor) ? DOOR_HEIGHT : WALL_HEIGHT;
+                    const ceilingMaxHeight = currentTerrainHeight + passageHeight - 0.3; // Margen para la cámara
+                    if (controlObj.position.y > ceilingMaxHeight) {
+                        controlObj.position.y = ceilingMaxHeight;
+                        if (velocityY > 0) velocityY = 0;
+                    }
                 }
             }
-        }
-        
-        // Colisión de techos (tanto normal como vuelo)
-        if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
-            const currentFloor = floorMap[currentGZ][currentGX];
-            if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED') {
-                const passageHeight = ['DOOR_UNLOCKED','DOOR_LOCKED'].includes(currentFloor) ? DOOR_HEIGHT : WALL_HEIGHT;
-                const ceilingMaxHeight = currentTerrainHeight + passageHeight - 0.3; // Margen para la cámara
-                if (controlObj.position.y > ceilingMaxHeight) {
-                    controlObj.position.y = ceilingMaxHeight;
-                    if (velocityY > 0) velocityY = 0;
+
+            const speed = Math.sqrt(velocity.x**2 + velocity.z**2);
+            if (!isFlying) {
+                if (speed > 1.0 && canJump && !isRidingBoat) {
+                    const previousBob = bobTimer;
+                    const underwaterCadence = isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 1;
+                    bobTimer += delta * (running ? 16.9 : 8.0) * bobCadence * underwaterCadence;
+                    controlObj.position.y = targetEyesHeight + Math.sin(bobTimer) * 0.04;
+                    // Un golpe al cruzar el punto más bajo; sigue la cadencia del balanceo.
+                    const trough = Math.PI * 1.5;
+                    const previousStep = Math.floor((previousBob - trough) / (Math.PI * 2));
+                    const currentStep = Math.floor((bobTimer - trough) / (Math.PI * 2));
+                    const moved = Math.hypot(controlObj.position.x-startX,controlObj.position.z-startZ)>0.0001;
+                    if (currentStep > previousStep && moved && !inWater) {
+                        const accented = footstepIndex % 2 === 0;
+                        const stepX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
+                        const stepZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
+                        const outdoorStep = OUTDOOR_STEP_FLOORS.has(floorMap[stepZ]?.[stepX])
+                            && !woodFloorMap[stepZ]?.[stepX] && !slabTops.has(stepZ * mapWidth + stepX);
+                        const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
+                        const accent = running ? (accented ? 1 : outdoorStep ? 0.72 : 0.92) : walkingAccent;
+                        const rhythm = walkingRhythm.next(running);
+                        musicEvents.playFootstep(running, accent * rhythm.variation, outdoorStep, accented);
+                        footstepIndex++;
+                        bobCadence = rhythm.cadence;
+                    }
+                } else if (canJump) {
+                    bobTimer = 0;
+                    bobCadence = 1;
+                    controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 10 * delta;
                 }
             }
-        }
 
-        const speed = Math.sqrt(velocity.x**2 + velocity.z**2);
-        if (!isFlying) {
-            if (speed > 1.0 && canJump && !isRidingBoat) {
-                const previousBob = bobTimer;
-                const underwaterCadence = isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 1;
-                bobTimer += delta * (running ? 16.9 : 8.0) * bobCadence * underwaterCadence;
-                controlObj.position.y = targetEyesHeight + Math.sin(bobTimer) * 0.04;
-                // Un golpe al cruzar el punto más bajo; sigue la cadencia del balanceo.
-                const trough = Math.PI * 1.5;
-                const previousStep = Math.floor((previousBob - trough) / (Math.PI * 2));
-                const currentStep = Math.floor((bobTimer - trough) / (Math.PI * 2));
-                const moved = Math.hypot(controlObj.position.x-startX,controlObj.position.z-startZ)>0.0001;
-                if (currentStep > previousStep && moved && !inWater) {
-                    const accented = footstepIndex % 2 === 0;
-                    const stepX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
-                    const stepZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-                    const outdoorStep = OUTDOOR_STEP_FLOORS.has(floorMap[stepZ]?.[stepX])
-                        && !woodFloorMap[stepZ]?.[stepX] && !slabTops.has(stepZ * mapWidth + stepX);
-                    const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
-                    const accent = running ? (accented ? 1 : outdoorStep ? 0.72 : 0.92) : walkingAccent;
-                    const rhythm = walkingRhythm.next(running);
-                    musicEvents.playFootstep(running, accent * rhythm.variation, outdoorStep, accented);
-                    footstepIndex++;
-                    bobCadence = rhythm.cadence;
-                }
-            } else if (canJump) {
-                bobTimer = 0;
-                bobCadence = 1;
-                controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 10 * delta;
+            if (isRidingBoat && boatReference) {
+                boatReference.position.x = controlObj.position.x - boatSeatOffset.x;
+                boatReference.position.z = controlObj.position.z - boatSeatOffset.z;
             }
         }
-
-        if (isRidingBoat && boatReference) {
-            boatReference.position.x = controlObj.position.x - boatSeatOffset.x;
-            boatReference.position.z = controlObj.position.z - boatSeatOffset.z;
-        }
+        updateSpawnGreeting(cameraDelta);
         // Aire independiente de la resistencia de natación, calculado con tiempo real activo.
         const nextFragment = seaHeart?.next && seaHeartSprites.get(seaHeart.next.id);
         if (nextFragment && !isRidingBoat && !isFlying && !isDialogOpen

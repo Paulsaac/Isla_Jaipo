@@ -2,11 +2,12 @@
 export function bindKeyboard(actions, target = document) {
     const sequence = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyD', 'KeyA', 'KeyD'];
     let sequenceIndex = 0;
-    const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right' };
+    const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right', ArrowUp:'forward', ArrowDown:'backward', ArrowLeft:'left', ArrowRight:'right' };
 
     function onKeyDown(event) {
         if (actions.isPaused?.()) { sequenceIndex = 0; return; }
         const code = event.code;
+        if(code.startsWith('Arrow')) event.preventDefault();
         if (code === sequence[sequenceIndex]) {
             sequenceIndex++;
             if (sequenceIndex === sequence.length) {
@@ -16,7 +17,9 @@ export function bindKeyboard(actions, target = document) {
         } else { sequenceIndex = 0; }
 
         if (code === 'Enter') actions.start();
-        if (code === 'KeyE' && actions.interact()) return;
+        if (code === 'KeyE') {
+            if (event.repeat || actions.interact()) return;
+        }
         if (directions[code]) actions.move(directions[code], true);
         switch (code) {
             case 'Space': actions.jump(); actions.move('up', true); break;
@@ -26,6 +29,7 @@ export function bindKeyboard(actions, target = document) {
             case 'KeyT': actions.torch(); break;
             case 'KeyN': if (!event.repeat) actions.toggleDayNight(); break;
             case 'KeyP': if (!event.repeat) actions.stopMusic?.(); break;
+            case 'KeyK': if (!event.repeat) actions.teleportToForestHeart?.(); break;
             case 'KeyQ': actions.inventory(); break;
         }
     }
