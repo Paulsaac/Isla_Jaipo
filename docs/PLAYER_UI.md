@@ -33,18 +33,26 @@ Referencia obtenida por lectura de código el 2026-10-13, base local 6ea1555; no
 
 ## Contratos que deben preservarse
 - UI presenta estado; sistemas y game.js autorizan acciones y efectos. Mantener callbacks y evitar dependencias de Three.js en módulos DOM existentes.
-- Teclado y táctil comparten restricciones. El prototipo móvil usa SELECT inventario, START pausa, X mapa, Y antorcha, B interacción, A salto y arrastre de mirada; mensajes de E se adaptan a B.
+- Teclado y táctil comparten restricciones. Mapa y antorcha se accionan desde inventario: atajos M/T y botones táctiles X/Y retirados por pedido del usuario el 2026-10-14. Móvil conserva SELECT inventario, START pausa, B interacción, A salto y arrastre de mirada; mensajes de E se adaptan a B. Pausa omite indicaciones de C/N/P, sin retirar esas acciones del teclado.
 - Inventario permite accionar objetos; mapa requiere su adquisición, llave del puente debe seleccionarse para usarla en las puertas asignadas. Menús bloquean interacción con el mundo detrás de ellos.
 - HUD de coordenadas muestra cuadrante X/Z y altura Y del objeto de control; no tratar esa Y automáticamente como cota del suelo. UNIT_SIZE actual es 2.
 - Referencia de parámetros: jugador 1.5, agachado 0.9; carrera multiplicador 2; resistencia máxima 3; aire inicial 10 s, fragmentos recargan 30 s no acumulables y movimiento sumergido con escafandra al 50%. Revisar fuentes y usos antes de ajustar; conservar tiempo real de aire y pausa aunque el render tenga límite de FPS.
+- Vuelo horizontal15× normal y con Shift; ascenso/descenso8× independientes. Multiplican MOVEMENT_SPEED; el desplazamiento horizontal conserva fricción/integración propias.
 - Antorcha respeta posesión y bloqueos del evento forest/inmersión; no se reenciende automáticamente al salir del agua. Botes no navegan por el río de corriente.
 - No introducir persistencia de progreso. El comportamiento deseado del progreso al morir sigue pendiente de definición; mostrar muerte o reinicio no autoriza decidirlo.
 
 ## Procedimiento y ficha de relevo
+### Presentación acordada — 2026-10-14
+Inventario en dos ventanas: arriba1×3 Bosque/Mar/reserva futura; abajo2×3 escafandra/dos huecos y antorcha/mapa/llave. Título blanco único encima y descripción fuera debajo. Ventanas/casillas redondeadas sin bordes, contorno negro en textos de pausa/inventario; textura original menu.png repetida a128×256, doble de64×128. Pausa e inventario entran desde abajo y salen hacia abajo en420ms; menus.js mantiene el panel visible hasta fin de salida, bloquea interacción con inert/pointer-events y cancela salidas al reabrir. Respeta movimiento reducido.
+
+Carga: puntos con onda secuencial1.2s; mapa_menu hereda tamaño y encuadre del inicio. src/ui/loading-screen.js enfoca coordenadas preparadas de spawn hacia escala4, aproximación lenta20s hasta85% y tramo final900ms cuando el mundo ya está listo, antes de ocultar la carga. No representa porcentaje real de recursos. game.js prepara datos una sola vez antes de buildWorld y cede dos RAF para presentar la carga. Revalidar cámara/spawn seguro y móviles al cambiar esas rutas.
+
+Minimapa: mapa_menu superpuesto a canvas lógico en la misma extensión completa, indicador y rumbo encima. Orientación y principales accidentes geográficos compatibles por inspección de originales, sin promesa de coincidencia exacta de detalles. Canvas de respaldo si falla carga del dibujo. Dimensiones originales1254×1254/512×512; conservar conversión normalizada del mundo.
+
 1. Revisar estado y cambios ajenos; identificar pantalla, acción o parámetro solicitado, fuente de verdad y sistemas afectados.
 2. Antes de editar comprobar el propio token. Registrar valores anteriores/nuevos, unidades, condiciones y archivos; hacer cambios pequeños.
 3. Verificar según el cambio: carga/consola, legibilidad y superposición, teclado/táctil, apertura/cierre de menús, selección/uso de objetos, diálogo, mapa, agua/aire, movimiento y muerte. Comprobar que una acción no se ejecuta dos veces ni atraviesa un menú. No añadir tests que solo repitan implementación.
 4. Para cambios complejos dejar en HANDOFF.md versión y cambios locales, dispositivo/navegador, pasos, resultado esperado/observado, efectos sobre NPC/quests/entorno, verificaciones ejecutadas y pendientes. Distinguir lectura de código, comprobación aislada y recorrido integral.
-5. Mantener sesión entre pedidos. Documentación explícita puede actualizarse durante la sesión; cierre, commit/push y liberación siguen el comando de cierre del protocolo.
+5. Mantener sesión entre pedidos. Documentación explícita puede actualizarse durante la sesión; al cierre actualizar solo documentos pertinentes al rol y su entrada en HANDOFF.md y liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente.
 
 Pendientes heredados: revalidar recorrido marino con velocidad final y aire 10/30, controles/inventario durante menús y eventos, y definir progreso al morir. Son pendientes de verificación/diseño, no fallos confirmados ni autorización para nuevas funciones.

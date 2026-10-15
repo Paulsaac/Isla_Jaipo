@@ -1,5 +1,22 @@
 # Decisiones del proyecto
 
+## 2026-10-14 — Preparación submarina y protección de rotación
+- Anticipar vegetación submarina al pisar mar, conservar recursos en memoria y limitar dibujo al alcance de niebla vigente80/1.3≈61.54u; vegetación terrestre retorna desde altura de cámara−2.5 y se oculta al descender. Construcción con presupuesto3ms por tanda y preparación del render a textura antes de la primera inmersión. Sectores actualizan matrices incrementalmente sin alterar reglas físicas ni población.
+- Solicitar entrada de mouse sin aceleración cuando se admita, con respaldo compatible, y confirmar deltas grandes aislados mediante otra muestra coherente en50ms. Umbral base100px/adaptación12×muestra previa reciente120ms; conservar sensibilidad normal, barridos rápidos y ruta táctil. Puede descartar movimientos intencionales grandes de una sola muestra: revalidar con hardware del usuario. Video confirma salto visual, no causa del dispositivo; resultados aislados no acreditan FPS real ni solución definitiva en mouse físico. Detalles y evidencias en el cierre propio de HANDOFF.md.
+
+## 2026-10-14 — Audio de Mañana y sprites de Submarino
+- Por pedido de Clawshoot, Mañana queda con volumen100% y mezcla50% reverberada/50% directa; conservar cola8s, pre-delay65ms y filtro2400Hz. El bus por mezcla conserva Bosque60/40 y el bus separado de Submarino; no cambiar disparadores por este ajuste.
+- Submarino usa los PNG originales nuevos del usuario corazon-mar.png y fragmento-mar.png para mundo, objeto en mano e inventario. Conservar SVG anteriores, escala y reglas; comprobación visual pendiente. Separar estas sustituciones de las ediciones ajenas al integrar por evento.
+
+## 2026-10-14 — Cierre documental por rol y publicación manual
+- Por instrucción de Clawshoot, todos los chats y agentes al recibir «cerremos/finalicemos la sesión» completan solo la documentación pertinente a su rol y su entrada en HANDOFF.md, y liberan su bloqueo. DECISIONS.md se actualiza con decisiones duraderas del ámbito; reglas compartidas y enlace histórico solo cuando cambie un acuerdo explícito.
+- El cierre deja de autorizar staging, commit y push automáticos. Clawshoot realiza manualmente la publicación en GitHub. Sustituye la decisión de cierre del 2026-10-11; no borrar los acuerdos históricos ni modificar trabajo ajeno. El servidor LAN continúa hasta orden expresa de apagado. Procedimiento vigente en docs/PROTOCOL.md.
+
+## 2026-10-14 — Diseño estético, pasto y ancho de árboles
+- Este chat gestiona la presentación visual conforme a docs/VISUAL_DESIGN.md; los efectos de sonido se modifican por petición explícita. Preservar mapas y assets originales y coordinar cambios que afecten física o reglas.
+- Pasto usa sonidos/fx/pasto.mpeg completo, estéreo, a velocidad original y sin filtros, recortes ni envolvente heredados. Mantener alternancia y variación de intensidad. Ganancias base finales: correr0.14 y caminar0.14×(0.0816/0.1122)≈0.101818; acentos exteriores correr1/0.72, caminar1/0.65, más variación correlacionada. Ritmo ligado al movimiento e interiores conservados.
+- Árboles: ancho visual de ambos planos cruzados3.8→4.4unidades, extensión0.3 por lado; altura, colisiones y originales conservados. Verificaciones y límites en HANDOFF.md.
+
 ## 2026-10-13 — Ampliación del chat de pruebas a rendimiento y optimización
 - El usuario amplió el rol de este chat para incluir pruebas de rendimiento e implementación de optimizaciones en función de los resultados. Procedimiento y responsabilidades en docs/TESTING_PERFORMANCE.md; relevo en HANDOFF.md.
 - Comparar antes/después en condiciones equivalentes y verificar regresiones. Preservar reglas y presentación acordadas; no inferir autorización para cambiar diseño, balance o reducir calidad visual. No afirmar ganancias o comportamiento en hardware no probado. Esta ampliación no ejecuta pruebas, cierre ni commit/push por sí sola.
@@ -200,6 +217,8 @@
 - Un solo bloqueo y relevo para esta copia; el acuerdo no autoriza edición simultánea ni mensajes automáticos entre chats. No cambia gameplay ni resuelve por inferencia el progreso al morir.
 
 # Catálogo y colaboración por evento — ajuste 2026-10-13
+- Identidad permanente solicitada: asumir que el usuario titular de este entorno es Clawshoot en todas sus conversaciones del proyecto, sin volver a preguntar. AxByZ es compañero/colaborador; distinguir sus responsabilidades. Regla compartida registrada en AGENTS.md; no equivale a verificación de identidad o permisos GitHub.
+- Ejecución posterior autorizada: las ocho ramas de docs/QUESTS.md creadas/publicadas desde base5e4dc44 y verificadas en origin; cada rama de evento contiene la misma base inicial. No cambia revisión/integración a cargo de Clawshoot ni confirma permisos de AxByZ.
 - Aclaración posterior de Clawshoot: diálogos de Graham completamente modificables en Bosque por AxByZ, junto con distorsiones y filtros de audio. Sustituye la restricción anterior sobre diálogos cerrados. Ciclos de luz y triggers son la frontera estable y requieren coordinación previa; edición narrativa no altera incidentalmente efectos o recompensas. Referencias vigentes actualizadas en AGENTS.md, docs/QUESTS.md, docs/NPCS.md y docs/PROTOCOL.md.
 - Clawshoot gestiona directamente el repositorio, revisión y comprobación de entregas e integración. AxByZ es colaborador. Sustituye la falta de responsable de integración en el primer reparto.
 - Una rama por evento, catálogo definitivo: 1Bosque(AxByZ),2Submarino(Clawshoot),3Mañana(Clawshoot),4Pueblo(AxByZ),5Lago(Clawshoot),6Pescador(Clawshoot),7Montaña(AxByZ),8Secreto(AxByZ). Nombres de rama asignados en docs/QUESTS.md; creación/publicación pendiente de base común.
@@ -219,6 +238,11 @@
 - Combinar adaptación de trabajo existente y libertad de creación de eventos nuevos. Moon dispone de recurso, pero su evento aún necesita diseño e implementación. No definir por inferencia los cuatro eventos restantes.
 - Coordinar dependencias Forest/Morning, Graham y ciclo del cielo; las responsabilidades humanas por evento complementan los roles de chats. Reparto detallado en docs/QUESTS.md.
 - No asignar integración ni habilitar trabajo simultáneo por este acuerdo. Bloqueo y protocolo vigentes conservados; ramas y pull requests pendientes de configurar.
+
+# Interfaz y parámetros finales — 2026-10-14
+- Inventario dividido1×3 de corazones y2×3 de objetos; título único blanco, descripción exterior, ventanas/casillas sin borde y redondeadas. Textura menu.png al doble y contorno negro de textos en pausa/inventario.
+- Mapa/antorcha desde inventario, sin atajos M/T ni botones X/Y; ocultar C/N/P en guía de pausa sin deshabilitarlos. Vuelo horizontal15×, vertical8×, independientes de Shift.
+- Entrada/salida inversas420ms para pausa/inventario, con cancelación al reabrir y respeto de movimiento reducido. Carga con puntos en onda y mapa heredado del inicio; zoom final se completa cuando el mundo está listo, con tramo visual900ms. Minimapa ilustrado sobre mapa lógico, conservando coordenadas normalizadas y respaldo.
 
 # Acuerdo de organización — 2026-10-13
 - El usuario dedica este chat a gestión y organización de archivos y coherencia de arquitectura. Funciones, inventario inicial, límites y procedimiento en docs/ORGANIZATION.md, enlazado desde las reglas y el protocolo.

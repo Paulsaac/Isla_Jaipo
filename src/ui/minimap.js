@@ -28,6 +28,20 @@ export function createMinimap() {
         minimapImg.style.imageRendering = 'pixelated';
         minimapContainer.appendChild(minimapImg);
 
+        // Ambos mapas cubren la misma extensión X/Z: escalar sin recortar
+        // conserva las coordenadas normalizadas del indicador sobre el dibujo.
+        const illustratedMap = document.createElement('img');
+        illustratedMap.src = './imagenes/Mapa/mapa_menu.png?v=6';
+        illustratedMap.alt = '';
+        illustratedMap.style.position = 'absolute';
+        illustratedMap.style.inset = '0';
+        illustratedMap.style.width = '100%';
+        illustratedMap.style.height = '100%';
+        illustratedMap.style.objectFit = 'fill';
+        illustratedMap.style.pointerEvents = 'none';
+        illustratedMap.addEventListener('error', () => { illustratedMap.style.display = 'none'; });
+        minimapContainer.appendChild(illustratedMap);
+
         playerDot = document.createElement('div');
         playerDot.style.position = 'absolute';
         playerDot.style.width = '20px';

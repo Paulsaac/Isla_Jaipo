@@ -21,7 +21,7 @@ Bosque y Mañana comparten el recorrido de introducción, con una frontera acord
 Los nombres humanos no sustituyen los roles de chats ni los agentes Codex/Antigravity del bloqueo. El reparto por evento no habilita edición simultánea de esta copia o de distintas copias bajo el protocolo actual; la adopción de ramas, pull requests y trabajo simultáneo queda pendiente de configurar y documentar. Cada ficha de evento debe identificar a su responsable humano.
 
 ## Catálogo y ramas por evento
-Una rama por evento, según pedido del usuario. Nombres asignados en esta tabla; creación/publicación pendiente de preparar la base común. No se crearon ni se publicaron ramas en este pedido.
+Una rama por evento, según pedido del usuario. Las ocho ramas de esta tabla fueron creadas localmente y publicadas en origin el2026-10-13; verificación con git ls-remote confirma que todas parten de5e4dc4410ec71a39b8a2da040d5dba8a534ee8fb, la base compartida. No se cambió el checkout local de main. Acceso de AxByZ y configuración de revisión todavía pendientes de verificar.
 
 | Nº | Evento | Responsable | Rama asignada | Audio | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -39,6 +39,7 @@ Nombres anteriores: Forest→Bosque, Underwater→Submarino, Morning→Mañana y
 Disparadores: Bosque espera4s desde recogida del corazón, con distorsión/luces/levitación y oscurecimiento; Submarino comienza una vez al primer fragmento; Mañana exige permiso de apertura del puente y amanecer. Abrir antes registra permiso, esperando amanecer. Reproducción única por partida. Estos tres eventos no equivalen necesariamente a tres misiones independientes.
 
 ## Reglas vigentes y límites
+- Ajustes de presentación acordados 2026-10-14: Mañana volumen100%, mezcla50% reverberada/50% directa, cola8s, pre-delay65ms y filtro2400Hz; Bosque conserva60/40. Submarino usa imagenes/Sprites/corazon-mar.png y fragmento-mar.png en mundo/mano/inventario, conservando escala y reglas. Audición y revisión visual pendientes; ver cierre propio en HANDOFF.md para separar cambios compartidos antes de publicación manual.
 - Bosque: estado searching → carrying → delivered en forest-heart.js. Graham entrega bridge-key una sola vez después de la entrega; recibir esa recompensa habilita el cofre del mapa. Entregar el corazón lleva al amanecer, no directamente al día. Consumir la llave física en el puente no revoca la recompensa de misión. Ver docs/NPCS.md para prioridades de conversación.
 - Frontera Bosque/Mañana: quest-sky conserva 12 s finales de noche y avanza hasta dawnStart+dawn/2, punto de skybox amanecer puro, sin continuar ni mostrar el sol hasta abrir el puente. La apertura válida de cualquiera de las hojas (264,276)/(265,276) queda registrada una sola vez; cerrar/reabrir no vuelve a bloquear el ciclo ni repite música. N no salta esa espera. Apertura temprana queda registrada y Mañana espera al amanecer; pausa congela tiempos. Tras liberación siguen las duraciones habituales.
 - Bosque: el efecto sigue duración y energía reales del audio; entregar el corazón no cancela la experiencia. Pausa conserva tiempos y P detiene música con salida suave del efecto. Fallos de audio no deben bloquear el recorrido de misión; conservar las reglas existentes al ampliar eventos.
@@ -67,10 +68,10 @@ Para cada pedido registrar identidad/nombre, canción y recurso, estado (propues
 2. Delimitar el pedido y contrastar triggers y transiciones existentes. Coordinar las dependencias de NPC y organización mediante los documentos correspondientes.
 3. Implementar cambios pequeños y verificar el comportamiento afectado: activación y repetición, orden/requisitos, recompensas únicas, pausa/P/fallo de audio y controles pertinentes.
 4. Para cambios complejos preparar HANDOFF.md con versión, archivos y cambios locales, pasos de reproducción, resultados esperados, riesgos y pruebas ejecutadas/pendientes para el chat dedicado a pruebas. Registrar allí resultados, sin confundir lectura de código con validación en navegador.
-5. Mantener la sesión entre pedidos; el cierre explícito sigue docs/PROTOCOL.md. Decisiones duraderas en DECISIONS.md; estado vigente en HANDOFF.md. Una petición documental permite actualizar estos archivos durante la sesión sin ejecutar cierre ni commit/push.
+5. Mantener la sesión entre pedidos; al cierre actualizar solo documentos pertinentes a quests y su entrada en HANDOFF.md, con decisiones duraderas del ámbito cuando corresponda, y liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente. Una petición documental permite actualizar estos archivos durante la sesión sin ejecutar el cierre.
 
 ## Pendientes iniciales
 - Definir quests de Montaña, Pueblo, Lago, Pescador y Secreto; recursos de los últimos cuatro pendientes.
-- Preparar base compartida, crear/publicar las ocho ramas asignadas y verificar acceso colaborador de AxByZ. Revisión/integración a cargo de Clawshoot.
+- Base compartida y ocho ramas publicadas; verificar acceso colaborador de AxByZ y preparar su copia de trabajo. Revisión/integración a cargo de Clawshoot.
 - Definir uso posterior del Corazón del Mar y comportamiento deseado al morir.
 - Conservar el relevo de pruebas del mar: ruta integral con velocidad final 1.25/2.5 u/s y aire 10/30 s, salida tras rotura del casco, legibilidad nocturna y rendimiento en móvil real.

@@ -15,10 +15,13 @@ import { createEntityRegistry } from './src/world/entity-registry.js';
 import { createForestHeartQuest } from './src/systems/forest-heart.js';
 import { loadMapImage, readMapLayers } from './src/world/map-loader.js';
 import { prepareMap } from './src/world/map-data.js';
+import { getBedSupport } from './src/player/bed-support.js';
+import { focusLoadingSpawn, finishLoadingZoom } from './src/ui/loading-screen.js';
 import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
 import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
+import { requestGamePointerLock, guardPointerLockMouse } from './src/input/pointer-lock.js';
 import { isTouchMode } from './src/input/touch-mode.js';
 import { bindTouchControls } from './src/input/touch-controls.js';
 import { getTerrainVertexY, getTerrainHeight as sampleTerrainHeight } from './src/world/terrain-height.js';
@@ -47,7 +50,7 @@ import { createRiverCurrentField } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
 import { createDryVineShrine } from './src/world/dry-vine-geometry.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
-import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER } from './src/config.js';
+import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER, FLIGHT_VERTICAL_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
 import { pushPlayerFromMovingDoors } from './src/player/door-push.js';
 import { createTerrainSectors } from './src/world/terrain-sectors.js';
@@ -90,6 +93,8 @@ const hud = createHud();
 // Físicas verticales
 let velocityY = 0;
 let canJump = true;
+const BED_BOUNCE_IMPULSES = [6, 4.8, 3.8, 3, 2.4];
+let bedBounceIndex = -1;
 let isCrouching = false;
 let isRunning = false;
 
@@ -180,10 +185,13 @@ const torchSprites = [];
 const altarFlames = [];
 const altarFireTorches = [];
 let underwaterVegetation = null;
+let underwaterVegetationPreparation = null;
 let underwaterPlantDefinitions = [];
 let vegetationBlend = 0;
 let surfaceVegetationFade = null;
 let underwaterVegetationFade = null;
+let surfaceVegetationBlend = 1;
+const SURFACE_VEGETATION_RETURN_HEIGHT = -2.5;
 let altarFlameTime = 0;
 const vegetationWindTime = { value: 0 };
 const heartVision = createHeartVision();
@@ -229,6 +237,7 @@ const underwaterFogColor = new THREE.Color(0x0979b0);
 const underwaterCurrentColor = underwaterFogColor.clone();
 let underwaterLightLevel = 1;
 const UNDERWATER_VISIBILITY_DISTANCE = 80;
+const UNDERWATER_PLANT_DISTANCE = UNDERWATER_VISIBILITY_DISTANCE / 1.3;
 scene.fog = new THREE.FogExp2(0x030304, Math.sqrt(-Math.log(FOG_RESIDUAL)) / WORLD_VISIBILITY_DISTANCE);
 
 // Iluminación Dark Fantasy (Noche de Luna)
@@ -332,6 +341,10 @@ const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,un
 
 const controls = new PointerLockControls(camera, document.body);
 if (isTouchMode) controls.disconnect();
+else {
+    guardPointerLockMouse(controls);
+    controls.lock=()=>requestGamePointerLock(document.body).catch(()=>{});
+}
 function resumeGame() {
     if (isDead || !mapLoaded) return;
     if (isTouchMode) {
@@ -715,7 +728,9 @@ const gameActions = {
     },
     move(direction, pressed) { moveState[direction] = pressed; },
     jump() {
-        if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) { velocityY = JUMP_FORCE; canJump = false; }
+        if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
+            velocityY = JUMP_FORCE; canJump = false; bedBounceIndex = 0;
+        }
     },
     crouch(pressed) { isCrouching = pressed; },
     run(pressed) { isRunning = pressed; },
@@ -823,7 +838,7 @@ const heartTextureReady = new Promise((resolve,reject)=>{resolveHeartTexture=res
 heldItemTextures = {
     heart: texLoader.load('./imagenes/Sprites/corazon.png', () => {updateHeldItemLayout();resolveHeartTexture();}, undefined, rejectHeartTexture),
     key: texLoader.load('./imagenes/Sprites/llave.png', () => updateHeldItemLayout()),
-    'sea-heart': texLoader.load('./imagenes/Sprites/corazon-mar.svg', () => updateHeldItemLayout())
+    'sea-heart': texLoader.load('./imagenes/Sprites/corazon-mar.png', () => updateHeldItemLayout())
 };
 for (const texture of Object.values(heldItemTextures)) {
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -1033,10 +1048,17 @@ Promise.all([
     loadMapImage('./imagenes/Mapa/capa2.png?v=' + Date.now()),
     heartTextureReady
 ]).then(async ([baseImage, roofImage]) => {
-    buildWorld(readMapLayers(baseImage, roofImage));
+    const prepared = prepareMap(readMapLayers(baseImage, roofImage), entities, shipwreckProps);
+    focusLoadingSpawn(prepared.playerStartX, prepared.playerStartZ, prepared.mapWidth, prepared.mapHeight);
+    // Presentar la carga antes de la construcción síncrona de geometría.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    buildWorld(prepared);
+    // La primera inmersión no debe estrenar framebuffer ni shaders del mundo.
+    await underwaterView.prepare(scene, camera);
     // Preparar también los materiales fuera de cámara durante la pantalla de carga.
     // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
     await renderer.compileAsync(scene, camera);
+    await finishLoadingZoom();
     mapLoaded = true;
     loadingScreen.style.display = 'none';
     if (isTouchMode) {
@@ -1055,8 +1077,7 @@ Promise.all([
 });
 
 
-function buildWorld(mapData) {
-    const prepared = prepareMap(mapData, entities, shipwreckProps);
+function buildWorld(prepared) {
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
@@ -1152,7 +1173,7 @@ function buildWorld(mapData) {
     heartVision.apply(THREE, aguaFloorMat, 'water');
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
-    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9, VEGETATION_HEIGHT * 3 * 1.9 - 2);
+    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9 + 0.6, VEGETATION_HEIGHT * 3 * 1.9 - 2);
     const pino1Mesh = new THREE.InstancedMesh(planeGeo, pino1Mat, counts.PINO1 * 2);
     const pino2Mesh = new THREE.InstancedMesh(planeGeo, pino2Mat, counts.PINO2 * 2);
     const alamo1Mesh = new THREE.InstancedMesh(planeGeo, alamo1Mat, counts.ALAMO1 * 2);
@@ -2041,7 +2062,7 @@ function buildWorld(mapData) {
 
     seaHeart = createSeaHeart(prepared.seaHeartFragments, floorMap, divingHelmet.position,
         UNIT_SIZE, MOVEMENT_SPEED * DIVING_WATER_SPEED_MOD / FRICTION, seaHeartAltar.center);
-    const fragmentTexture = texLoader.load('./imagenes/Sprites/fragmento-mar.svg');
+    const fragmentTexture = texLoader.load('./imagenes/Sprites/fragmento-mar.png');
     fragmentTexture.colorSpace = THREE.SRGBColorSpace;
     fragmentTexture.magFilter = fragmentTexture.minFilter = THREE.NearestFilter;
     const glowCanvas = document.createElement('canvas');
@@ -2141,7 +2162,8 @@ function buildWorld(mapData) {
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: definition.type === 'CRATE_STACK' ? 0x55351f : 0x555555, shininess: 12 })
         ]);
-        model.geometry.scale(FURNITURE_SCALE, FURNITURE_SCALE, FURNITURE_SCALE);
+        const furnitureScale = FURNITURE_SCALE * (definition.type === 'ANTIQUE_STOVE' ? 0.9 : 1);
+        model.geometry.scale(furnitureScale, furnitureScale, furnitureScale);
         model.geometry.computeBoundingBox();
         model.geometry.computeBoundingSphere();
         model.name = definition.id;
@@ -2243,9 +2265,11 @@ function getTerrainHeight(x, z) {
 
 // --- COLISIONES ---
 function isWall(x, z) {
+    const controlObj = controls.getObject();
     return hasObstacle(isRidingBoat ? x - boatSeatOffset.x : x,
         isRidingBoat ? z - boatSeatOffset.z : z,
-        mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference);
+        mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference,
+        controlObj.position.y - (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT));
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -2273,6 +2297,7 @@ const walkingRhythm = createWalkingRhythm();
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
+    bedBounceIndex = -1;
     isDead = false;
     stamina = STAMINA_MAX;
     divingAir.reset();
@@ -2659,8 +2684,8 @@ function animate(timestamp = performance.now()) {
             if (isFlying) {
                 controlObj.position.x += dx;
                 controlObj.position.z += dz;
-                if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * movementMultiplier * delta;
-                if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * movementMultiplier * delta;
+                if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * FLIGHT_VERTICAL_MULTIPLIER * delta;
+                if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * FLIGHT_VERTICAL_MULTIPLIER * delta;
             
                 velocityY = 0;
                 stamina = STAMINA_MAX;
@@ -2696,7 +2721,13 @@ function animate(timestamp = performance.now()) {
                 hud.updateStamina(stamina, STAMINA_MAX);
             }
 
-            const currentTerrainHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z);
+            const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+            const bedSupport = isRidingBoat || isFlying || inWater ? -Infinity
+                : getBedSupport(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight, solidInteractables);
+            const currentTerrainHeight = Math.max(getTerrainHeight(controlObj.position.x, controlObj.position.z),
+                bedSupport);
+            const onBed = Number.isFinite(bedSupport) && bedSupport >= currentTerrainHeight;
+            if ((!onBed && bedBounceIndex > 0) || isFlying || isRidingBoat || inWater) bedBounceIndex = -1;
             let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
             if (isRidingBoat && boatReference) {
@@ -2717,14 +2748,19 @@ function animate(timestamp = performance.now()) {
                 canJump = false;
             } else if (!isFlying) {
                 // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
-                if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.8) {
+                if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.15) {
                     controlObj.position.y = targetEyesHeight;
                 }
+                if (canJump && controlObj.position.y > targetEyesHeight + 0.15) canJump = false;
                 velocityY -= GRAVITY * delta;
                 controlObj.position.y += velocityY * delta;
 
                 if (controlObj.position.y < targetEyesHeight) {
-                    if (!inWater && controlObj.position.y < targetEyesHeight - 0.2) {
+                    if (onBed && !canJump && bedBounceIndex >= 0 && bedBounceIndex < BED_BOUNCE_IMPULSES.length) {
+                        controlObj.position.y = targetEyesHeight;
+                        velocityY = BED_BOUNCE_IMPULSES[bedBounceIndex++];
+                        canJump = false;
+                    } else if (!inWater && !onBed && controlObj.position.y < targetEyesHeight - 0.2) {
                         controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 15 * delta;
                         velocityY = 0;
                         canJump = false;
@@ -2732,6 +2768,7 @@ function animate(timestamp = performance.now()) {
                         controlObj.position.y = targetEyesHeight;
                         velocityY = 0;
                         canJump = true;
+                        bedBounceIndex = -1;
                     }
                 }
             }
@@ -2741,7 +2778,7 @@ function animate(timestamp = performance.now()) {
                 const currentFloor = floorMap[currentGZ][currentGX];
                 if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED') {
                     const passageHeight = ['DOOR_UNLOCKED','DOOR_LOCKED'].includes(currentFloor) ? DOOR_HEIGHT : WALL_HEIGHT;
-                    const ceilingMaxHeight = currentTerrainHeight + passageHeight - 0.3; // Margen para la cámara
+                    const ceilingMaxHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z) + passageHeight - 0.3; // La cama no eleva el techo.
                     if (controlObj.position.y > ceilingMaxHeight) {
                         controlObj.position.y = ceilingMaxHeight;
                         if (velocityY > 0) velocityY = 0;
@@ -2871,25 +2908,46 @@ function animate(timestamp = performance.now()) {
     hud.setUnderwaterTint(gameStarted && controls.isLocked && !isDead ? underwaterBlend * underwaterLightLevel : 0);
     const fogPlane = fogCulling?.update(camera);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
-    if (showUnderwaterPlants && !underwaterVegetation) {
-        underwaterVegetation = createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
-            getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
-        scene.add(underwaterVegetation.group);
-        underwaterVegetationFade = createVegetationVisibility(underwaterVegetation.group,{value:0});
-        underwaterVegetationFade.set(0);
+    const plantGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
+    const plantGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
+    const seaUnderfoot = ['WATER','BOAT'].includes(floorMap[plantGZ]?.[plantGX]);
+    const feetAtWater = controlObj.position.y - PLAYER_HEIGHT <= getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z) + 0.15;
+    if (mapLoaded && !underwaterVegetationPreparation && (showUnderwaterPlants || (seaUnderfoot && feetAtWater && !isRidingBoat))) {
+        underwaterVegetationPreparation = (async()=>{
+            const plants = await createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
+                getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
+            const fade = createVegetationVisibility(plants.group,{value:0});
+            fade.set(0);
+            // Subir texturas anticipadamente y repartir ese trabajo entre fotogramas.
+            for (const mesh of plants.group.children) {
+                await new Promise(resolve=>requestAnimationFrame(resolve));
+                renderer.initTexture(mesh.material.map);
+            }
+            plants.update(camera,fogPlane,UNDERWATER_PLANT_DISTANCE);
+            scene.add(plants.group);
+            // Usar la escena real conserva las variantes de niebla y luces del juego.
+            await renderer.compileAsync(scene,camera);
+            await underwaterView.prepare(scene,camera,true);
+            underwaterVegetationFade = fade;
+            underwaterVegetation = plants;
+        })().catch(error=>console.error('No se pudo preparar la vegetación submarina:',error));
     }
-    const underwaterPlantsReady = underwaterVegetation?.group.children.every(mesh=>mesh.material.map.image?.complete);
+    const underwaterPlantsReady = !!underwaterVegetation;
     const vegetationTarget = showUnderwaterPlants && underwaterPlantsReady ? 1 : 0;
     vegetationBlend += (vegetationTarget-vegetationBlend)*(1-Math.exp(-vegetationDelta*2));
     if(vegetationBlend>0.99)vegetationBlend=1;
     else if(vegetationBlend<0.01)vegetationBlend=0;
+    const surfaceTarget = !showUnderwaterPlants || !underwaterPlantsReady || controlObj.position.y >= SURFACE_VEGETATION_RETURN_HEIGHT ? 1 : 0;
+    surfaceVegetationBlend += (surfaceTarget-surfaceVegetationBlend)*(1-Math.exp(-vegetationDelta*2));
+    if(surfaceVegetationBlend>0.99)surfaceVegetationBlend=1;
+    else if(surfaceVegetationBlend<0.01)surfaceVegetationBlend=0;
     if (vegetationSectors) {
-        surfaceVegetationFade.set(1-vegetationBlend);
+        surfaceVegetationFade.set(surfaceVegetationBlend);
         if (vegetationSectors.group.visible) vegetationSectors.update(camera, fogPlane);
     }
     if (underwaterVegetation) {
         underwaterVegetationFade.set(vegetationBlend);
-        if (underwaterVegetation.group.visible) underwaterVegetation.update(camera, fogPlane);
+        if (underwaterVegetation.group.visible) underwaterVegetation.update(camera, fogPlane, UNDERWATER_PLANT_DISTANCE);
     }
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();

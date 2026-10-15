@@ -15,6 +15,36 @@ export function createMenus({ onResume, onUseItem }) {
     const seaHeartIcon = document.getElementById('sea-heart-icon');
     const seaHeartCount = document.getElementById('sea-heart-count');
     const description = document.getElementById('inventory-item-description');
+    const transitions = new Map();
+
+    function setMenuVisible(menu, visible) {
+        const previous = transitions.get(menu);
+        if (previous?.visible === visible) return;
+        if (!previous && (menu.style.display === 'flex') === visible) return;
+        const panel = menu.firstElementChild;
+        const currentTransform = previous ? getComputedStyle(panel).transform : null;
+        previous?.animation.cancel();
+        menu.style.display = 'flex';
+        menu.inert = !visible;
+        menu.style.pointerEvents = visible ? '' : 'none';
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            transitions.delete(menu);
+            menu.style.display = visible ? 'flex' : 'none';
+            return;
+        }
+        const animation = panel.animate([
+            { transform: currentTransform || (visible ? 'translateY(100vh)' : 'translateY(0)') },
+            { transform: visible ? 'translateY(0)' : 'translateY(100vh)' }
+        ], { duration: 420, easing: visible ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'cubic-bezier(0.64, 0, 0.78, 0)', fill: 'both' });
+        const transition = { animation, visible };
+        transitions.set(menu, transition);
+        animation.finished.then(() => {
+            if (transitions.get(menu) !== transition) return;
+            if (!visible) menu.style.display = 'none';
+            transitions.delete(menu);
+            animation.cancel();
+        }).catch(() => {}); // Una reapertura cancela la transición anterior.
+    }
     const itemButtons = Object.fromEntries([...inventoryMenu.querySelectorAll('[data-item]')].map(button => [button.dataset.item, button]));
     for (const [item, button] of Object.entries(itemButtons)) button.addEventListener('click', event => {
         event.stopPropagation();
@@ -28,13 +58,13 @@ export function createMenus({ onResume, onUseItem }) {
 
     function hideForGameplay() {
         mainMenu.style.display = 'none';
-        pauseMenu.style.display = 'none';
-        inventoryMenu.style.display = 'none';
+        setMenuVisible(pauseMenu, false);
+        setMenuVisible(inventoryMenu, false);
     }
 
-    function showPause() { inventoryMenu.style.display = 'none'; pauseMenu.style.display = 'flex'; }
-    function showInventory() { pauseMenu.style.display = 'none'; inventoryMenu.style.display = 'flex'; }
-    function hideInventory() { inventoryMenu.style.display = 'none'; }
+    function showPause() { setMenuVisible(inventoryMenu, false); setMenuVisible(pauseMenu, true); }
+    function showInventory() { setMenuVisible(pauseMenu, false); setMenuVisible(inventoryMenu, true); }
+    function hideInventory() { setMenuVisible(inventoryMenu, false); }
     function setDialogText(entry) {
         const text = typeof entry === 'string' ? entry : entry.text;
         const highlight = typeof entry === 'string' ? null : entry.highlight;
@@ -76,7 +106,7 @@ export function createMenus({ onResume, onUseItem }) {
     function setItemDescription(text) { description.textContent = text; }
     function setSeaHeartState(count, complete) {
         itemButtons['sea-heart'].style.display = count > 0 ? 'block' : 'none';
-        seaHeartIcon.src = complete ? './imagenes/Sprites/corazon-mar.svg' : './imagenes/Sprites/fragmento-mar.svg';
+        seaHeartIcon.src = complete ? './imagenes/Sprites/corazon-mar.png' : './imagenes/Sprites/fragmento-mar.png';
         seaHeartCount.textContent = complete ? '' : `${count}/10`;
         seaHeartIcon.alt = complete ? 'Corazón del Mar' : 'Fragmentos del Corazón del Mar';
         itemButtons['sea-heart'].setAttribute('aria-label',complete ? 'Seleccionar Corazón del Mar' : `Fragmentos del Corazón del Mar: ${count} de 10`);

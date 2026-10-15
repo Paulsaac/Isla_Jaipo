@@ -1,6 +1,8 @@
 // El mundo se solicita después de Enter o de tocar Comenzar.
 import { musicEvents } from './systems/music-events.js';
 import { isTouchMode } from './input/touch-mode.js';
+import { inheritLoadingMap } from './ui/loading-screen.js';
+import { requestGamePointerLock } from './input/pointer-lock.js';
 let loading = false;
 const startMenu = document.getElementById('main-menu');
 if (isTouchMode) {
@@ -16,12 +18,13 @@ function start(event) {
     loading = true;
     musicEvents.unlock();
     document.removeEventListener('keydown', start);
+    inheritLoadingMap();
     startMenu.style.display = 'none';
     const screen = document.getElementById('loading-screen');
     screen.style.display = 'flex';
     setTimeout(() => musicEvents.prepare('forest').catch(() => {}), 0);
     if (!isTouchMode) try {
-        const request = document.body.requestPointerLock();
+        const request = requestGamePointerLock(document.body);
         if (request?.catch) request.catch(() => {});
     } catch (_) { /* El menú permite reintentar captura del ratón. */ }
     import('../game.js').catch(error => {

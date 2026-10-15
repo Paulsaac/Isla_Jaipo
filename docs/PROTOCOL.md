@@ -16,6 +16,9 @@ Al retomar, proporcionar este mensaje o incorporarlo a sus reglas de proyecto me
 5. Revisar los archivos involucrados antes de proponer cambios. Conservar el bloqueo y las notas del chat entre ajustes; actualizar los documentos únicamente cuando el usuario indique el cierre de la sesión.
 
 ## Durante la sesión
+### Chat dedicado a diseño estético (2026-10-14)
+Gestiona sprites, texturas, materiales, apariencia del terreno, iluminación y efectos visuales según docs/VISUAL_DESIGN.md. Los cambios de sonido de esta sesión fueron pedidos explícitos del usuario. Coordinar cualquier impacto sobre colisiones, navegación, eventos o rendimiento con el ámbito responsable; no modificar esas reglas por un ajuste estético. Compartir el bloqueo y registrar el relevo en documentos.
+
 ### Responsables humanos y ramas por evento (2026-10-13)
 Clawshoot gestiona directamente el repositorio, revisa entregas y decide su integración en main. AxByZ participa como colaborador y desarrolla los eventos asignados. Mantener una rama por evento, con nombres y responsables en docs/QUESTS.md. La asignación de rama no sustituye la verificación de dependencias. En Bosque los diálogos de Graham son modificables; ciclos de luz y triggers acordados requieren coordinación previa con Clawshoot.
 
@@ -58,16 +61,16 @@ Esta autorización es para sincronizar al retomar; commit/push siguen requiriend
 - En otra computadora o checkout, el bloqueo local no protege esta copia: coordinar el relevo con el usuario y sincronizar los commits autorizados antes de trabajar. No trabajar simultáneamente en ambas copias bajo este protocolo inicial.
 
 ## Cierre y relevo
-El usuario marca el cierre: terminar una respuesta no termina la sesión de trabajo. No repetir reportes Git en cada entrega. Desde el acuerdo del 2026-10-11, «finalicemos la sesión», «cerremos la sesión» o una petición equivalente autorizan el cierre completo siguiente, incluido commit/push y apagado del servidor, sin pedir confirmación de nuevo. Si el usuario limita expresamente el alcance (por ejemplo, «sin push»), respetar esa excepción. Esta autorización sustituye la regla anterior de que el cierre no autorizaba Git.
+El usuario marca el cierre: terminar una respuesta no termina la sesión de trabajo. Acuerdo vigente 2026-10-14 para todos los chats y agentes: «finalicemos la sesión», «cerremos la sesión» o equivalente activa únicamente el cierre documental del rol y la liberación del bloqueo. Cada chat completa solo los documentos pertinentes a su ámbito; Clawshoot realiza manualmente la publicación en GitHub. No ejecutar staging, commit, push, PR, merge ni despliegue como consecuencia del cierre. Sustituye la autorización automática de commit/push del 2026-10-11; los registros anteriores conservan valor histórico. Pedidos de Git independientes deben tener su propio alcance explícito. El servidor LAN persistente permanece activo hasta orden expresa de apagado.
 
-1. Revisar el diff y ejecutar las verificaciones pertinentes.
-2. Actualizar HANDOFF.md con resultados, archivos, pendientes, comandos, limitaciones, rama, commit base y si hubo commit/push. Registrar también trabajo local que no esté en Git.
-3. Registrar decisiones duraderas en DECISIONS.md sin borrar las anteriores.
-4. Si cambió el protocolo, actualizar también el enlace vigente en ANTIGRAVITY_HANDOFF.md, sin duplicar allí el estado del proyecto.
-5. Seleccionar explícitamente los archivos del trabajo realizado y recursos necesarios, incluida documentación; preservar y excluir cambios ajenos y auxiliares no encargados. Crear commit y hacer push a la rama de trabajo correspondiente. Nunca git add indiscriminado, force push ni reescritura de historial. Comprobar que el remoto recibió el commit; no afirmar publicación de Pages solo por haber hecho push.
-6. Detener únicamente el servidor local identificado de esta copia (tools/serve.cjs), sin cerrar otros procesos Node o servicios ajenos, salvo que el usuario haya pedido expresamente mantenerlo encendido hasta nueva orden; en ese caso conservarlo activo y actualizar HANDOFF.md. Cuando corresponda apagar, comprobar que dejó de servir el proyecto. Si ya estaba apagado, indicarlo.
-7. Registrar en HANDOFF.md cualquier fallo o pendiente de cierre que cambie el relevo. Si el push falla, conservar commit y cambios y comunicar el impedimento; completar los demás pasos posibles. Liberar con `powershell -NoProfile -File tools/session.ps1 finish -Agent <agente> -Token <token>`.
-8. Entregar un resumen con cambios, verificaciones y limitaciones, estado de push y servidor. El próximo agente debe leer el relevo en los archivos, no depender del chat anterior.
+1. Revisar el diff del trabajo propio y sus verificaciones disponibles; distinguir pendientes de fallos. El cierre no encarga nuevas funciones ni pruebas de otros roles.
+2. Actualizar la entrada propia de HANDOFF.md con rol, persona, evento si corresponde, rama/base, archivos, valores finales, resultados, comandos/evidencias, pendientes y recursos locales sin seguimiento. Preservar entradas de otros chats, sin atribuirse sus cambios ni cerrar sus sesiones.
+3. Actualizar solo las guías del rol afectadas por cambios reales. Registrar decisiones duraderas del ámbito en DECISIONS.md cuando existan; no rellenar todos los documentos por rutina.
+4. AGENTS.md y docs/PROTOCOL.md solo cambian por acuerdos compartidos explícitos. Si cambió el protocolo, actualizar el enlace de ANTIGRAVITY_HANDOFF.md, sin duplicar allí el estado del proyecto.
+5. Dejar identificados código y assets propios para la integración manual de Clawshoot, especialmente archivos compartidos con ediciones ajenas. No ejecutar staging, commit ni push; conservar todos los cambios locales.
+6. Conservar el servidor LAN persistente. El chat responsable registra su estado si la tarea lo afecta; apagar únicamente por orden expresa e identificar el proceso de esta copia, sin detener servicios ajenos. Otros roles no gestionan el servidor por cerrar su sesión.
+7. Registrar impedimentos pertinentes al relevo y liberar únicamente la sesión propia con `powershell -NoProfile -File tools/session.ps1 finish -Agent <agente> -Token <token>`. Recuperar bloqueos ajenos solo según el procedimiento y tras confirmación del usuario.
+8. Entregar resumen del ámbito, verificaciones/pendientes y estado local de Git, indicando ausencia de commit/push automático. El siguiente agente lee los documentos; no enviar mensajes a otros chats automáticamente.
 
 ## Interrupción o bloqueo abandonado
 No caducan automáticamente. Si la herramienta se cierra inesperadamente, conservar los archivos y el bloqueo. Después de que el usuario confirme que el anterior agente dejó de trabajar, revisar el estado y usar `finish` con el agente y token registrados para liberar el bloqueo. Registrar en HANDOFF.md que fue una recuperación. Adquirir una nueva sesión antes de editar. No borrar el bloqueo a ciegas.

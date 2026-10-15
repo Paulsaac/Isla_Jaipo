@@ -29,10 +29,17 @@ Dejar en HANDOFF.md:
 - Cambios técnicos realizados y comprobaciones de comportamiento/regresión.
 - Estado de cada comprobación: aprobado, fallo confirmado o pendiente/no ejecutado; limitaciones y siguiente acción.
 
-Las evidencias auxiliares pueden conservarse en .coordination conforme al uso existente; no publicar copias, perfiles o scripts locales indiscriminadamente. Usar herramientas de diagnóstico solo dentro del alcance autorizado y mantener instrumentación de prueba fuera del juego distribuido cuando sea posible. Commit/push y cierre siguen el protocolo habitual; esta dedicación no ejecuta esas operaciones por sí sola. Mantener el servidor LAN persistente según la orden vigente del usuario.
+Las evidencias auxiliares pueden conservarse en .coordination conforme al uso existente; no publicar copias, perfiles o scripts locales indiscriminadamente. Usar herramientas de diagnóstico solo dentro del alcance autorizado y mantener instrumentación de prueba fuera del juego distribuido cuando sea posible. Al cierre completar solo documentación pertinente a pruebas/rendimiento y su entrada en HANDOFF.md, y liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente. Mantener el servidor LAN persistente según la orden vigente del usuario.
 
 ## Prioridades heredadas, aún pendientes
+- Revalidar con mouse físico la protección de src/input/pointer-lock.js: quietud, barridos rápidos, pausa/reanudación y captura compatible. Un delta grande aislado puede ser legítimo; el filtro no acredita el origen de los saltos. Integración del listener atada a Three.jsr160.
+- Medir primera inmersión inmediata y primeros dibujos: preparar shaders/framebuffer y construir por tandas anticipa trabajo, pero no garantiza que todos los recursos estén listos ni elimina el coste del primer dibujo. Las pruebas de software conservan picos; consultar evidencia y límites del cierre de pruebas2026-10-14 en HANDOFF.md.
 - Recorrido integral del Corazón del Mar con velocidad final 1.25/2.5 u/s y aire inicial10s/recarga30s; retorno desde piscina al romperse el casco.
 - Legibilidad de fragmentos pequeños de noche y regresiones de inventario, pausa, eventos y controles.
 - Rendimiento y memoria en móvil real con 19109 plantas submarinas, fundido de vegetación y refracción; separar primera inmersión de inmersiones posteriores.
 - Medición en los dispositivos afectados antes de atribuir mejoras a cambios previos. Estos pendientes no son resultados comprobados ni autorizan cambiar los parámetros de diseño.
+
+## Cambios técnicos vigentes — 2026-10-14
+- instance-sectors.js mantiene matrices activas y cambia solo altas/bajas, con rangos GPU por bloques64matrices. Su alcance radial opcional usa las esferas completas del sector; mantener comparación de cobertura y restauración al modificarlo. La reducción de bytes medida en un escenario aislado no es una ganancia equivalente de FPS.
+- underwater-vegetation.js prepara siete recursos y geometría por tandas de presupuesto3ms, comprobado cada64plantas; sectores16u y material de dos caras en una pasada. game.js dispara preparación al pisar mar, conserva caché, limita alcance≈61.54u y devuelve vegetación terrestre desdeY−2.5. underwater-view.js prepara shaders/framebuffer durante carga inicial y refresca al añadir plantas.
+- pointer-lock.js solicita captura raw y filtra muestras grandes aisladas; comparte uso en startup.js y game.js. Mantener sensibilidad ordinaria y barridos continuos, medir falsos positivos y comprobar reinicio en lock/unlock. Cualquier atribución al navegador/dispositivo requiere captura real de entradas, no solo un video de la escena.

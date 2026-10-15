@@ -21,6 +21,7 @@
 
         /* PANTALLA DE CARGA (Después de Enter) */
         #loading-screen {
+            overflow: hidden;
             position: absolute;
             width: 100%; height: 100%;
             background-color: #000;
@@ -32,6 +33,14 @@
             font-size: 20px;
             z-index: 300;
         }
+        #loading-map { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+        .loading-label { position: relative; padding: 20px; text-align: center; font-size: clamp(12px, 3vw, 20px); text-shadow: 2px 2px 2px #000, -2px -2px 2px #000; }
+        .loading-dots { display: inline-flex; }
+        .loading-dots span { display: inline-block; animation: loading-wave 1.2s ease-in-out infinite; }
+        .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes loading-wave { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-8px); } }
+        @media (prefers-reduced-motion: reduce) { .loading-dots span { animation: none; } }
 
         /* MENÚ INICIAL */
         #main-menu {
@@ -114,6 +123,7 @@
 
         /* OVERLAY DE PAUSA (In-Game) */
         #pause-menu {
+            overflow: hidden;
             position: absolute;
             width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.7);
@@ -125,11 +135,17 @@
         }
         .game-menu-box {
             text-align: center;
-            border: 8px solid #888;
+            border: none;
+            border-radius: 18px;
             padding: 40px;
-            background-color: rgba(30, 30, 30, 0.7);
+            background: linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)), url('./imagenes/Texturas/menu.png') repeat;
+            background-size: auto, 128px 256px;
             font-family: 'Press Start 2P', cursive;
             backdrop-filter: blur(4px);
+        }
+        #pause-menu, #pause-menu *, #inventory-menu, #inventory-menu * {
+            -webkit-text-stroke: 2px #000;
+            paint-order: stroke fill;
         }
         
         /* OVERLAY INVENTARIO */
@@ -142,19 +158,39 @@
             align-items: center;
             color: #fff;
             z-index: 100;
+            overflow: hidden;
         }
         
+        .inventory-windows {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            max-height: 94vh;
+            overflow-y: auto;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        .inventory-windows .game-menu-box { padding: 20px 28px; flex-shrink: 0; }
+        #inventory-heading {
+            margin: 0 0 4px;
+            color: #fff;
+            font: 24px 'Press Start 2P', cursive;
+            text-align: center;
+            text-shadow: 2px 2px #000;
+            flex-shrink: 0;
+        }
         .inventory-slots {
             display: grid;
             grid-template-columns: repeat(3, 92px);
             gap: 20px;
             justify-content: center;
-            margin-top: 30px;
+            margin-top: 0;
         }
         .inv-slot {
             width: 80px;
             height: 80px;
-            border: 6px solid #888;
+            border: none;
+            border-radius: 12px;
             background-color: rgba(0, 0, 0, 0.6);
             position: relative;
             display: flex;
@@ -178,7 +214,7 @@
             color: #fff; font: bold 18px sans-serif; text-shadow: 1px 1px #000;
         }
         .inventory-item:focus-visible { outline: 2px solid #fff; }
-        #inventory-item-description { max-width: 320px; min-height: 32px; margin: 16px auto 0; font-size: 10px; line-height: 1.7; color: #fff; }
+        #inventory-item-description { max-width: 320px; min-height: 32px; margin: 8px auto 0; font-family: 'Press Start 2P', cursive; font-size: 10px; line-height: 1.7; text-align: center; color: #fff; flex-shrink: 0; }
         #diving-helmet-view {
             display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none;
             background: radial-gradient(ellipse 60% 120% at 50% 50%,
@@ -321,8 +357,6 @@
             <button type="button" data-action="pause" aria-label="Start: pausa o continuar">START</button>
         </div>
         <div class="snes-buttons">
-            <button type="button" class="snes-x" data-action="map" aria-label="X: mapa">X</button>
-            <button type="button" class="snes-y" data-action="torch" aria-label="Y: antorcha">Y</button>
             <button type="button" class="snes-a" data-action="jump" aria-label="A: saltar">A</button>
             <button type="button" class="snes-b" data-action="interact" aria-label="B: interactuar">B</button>
         </div>
@@ -331,7 +365,10 @@
     <!-- Pantallas de UI -->
     <div id="diving-helmet-view" aria-hidden="true"></div>
     <div id="underwater-tint" aria-hidden="true"></div>
-    <div id="loading-screen">CARGANDO MUNDO...</div>
+    <div id="loading-screen" role="status" aria-label="Cargando mundo">
+        <img id="loading-map" src="./imagenes/Mapa/mapa_menu.png?v=6" alt="">
+        <div class="loading-label" aria-hidden="true">CARGANDO MUNDO<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
+    </div>
 
     <div id="main-menu">
         <img id="main-menu-bg" src="./imagenes/Mapa/mapa_menu.png?v=6" alt="Fondo">
@@ -342,29 +379,36 @@
         <div class="game-menu-box" style="padding: 25px 40px;">
             <p style="font-size:30px; font-weight:bold; margin-top:0; color:#fff;">PAUSA</p>
             <p id="resume-hint" style="font-size:16px; color:#fff; margin-bottom: 25px;">Clic izquierdo para continuar</p>
-            <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>X: mapa · Y: antorcha · B: interactuar · A: saltar</p>
+            <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar<br>Mapa y antorcha: desde el inventario</p>
             <div id="keyboard-controls" style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
                 <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
                 <span>Correr</span><span style="text-align:right;">[Shift]</span>
-                <span>Agacharse</span><span style="text-align:right;">[C]</span>
-                <span>Minimapa</span><span style="text-align:right;">[M]</span>
-                <span>Antorcha</span><span style="text-align:right;">[T]</span>
-                <span>Día / noche</span><span style="text-align:right;">[N]</span>
-                <span>Detener música</span><span style="text-align:right;">[P]</span>
                 <span>Inventario</span><span style="text-align:right;">[Q]</span>
             </div>
         </div>
     </div>
     
-    <div id="inventory-menu">
-        <div class="game-menu-box">
-            <h2 style="margin-top:0; color:#fff; font-size:24px;">INVENTARIO</h2>
-            <div class="inventory-slots">
+    <div id="inventory-menu" aria-labelledby="inventory-heading">
+        <div class="inventory-windows">
+            <h2 id="inventory-heading">INVENTARIO</h2>
+            <section class="game-menu-box" aria-label="Corazones">
+                <div class="inventory-slots" id="heart-slots">
                 <div class="inv-slot" id="forest-heart-slot">
                     <button id="forest-heart-item" class="inventory-item" type="button" data-item="heart" aria-pressed="false" aria-label="Seleccionar Corazón del Bosque">
                         <img id="forest-heart-icon" src="./imagenes/Sprites/corazon.png" alt="Corazón del Bosque" title="Corazón del Bosque" style="display:none;">
                     </button>
                 </div>
+                <div class="inv-slot">
+                    <button id="sea-heart-item" class="inventory-item" data-item="sea-heart" type="button" aria-label="Fragmentos del Corazón del Mar" aria-pressed="false">
+                        <img id="sea-heart-icon" src="./imagenes/Sprites/fragmento-mar.png" alt="Fragmentos del Corazón del Mar" style="width:64px;height:64px;image-rendering:pixelated;">
+                        <span id="sea-heart-count" style="position:absolute;bottom:4px;right:4px;font-size:12px;color:#fff;text-shadow:1px 1px #000;"></span>
+                    </button>
+                </div>
+                <div class="inv-slot" id="future-heart-slot" role="img" aria-label="Espacio reservado para un futuro corazón"></div>
+                </div>
+            </section>
+            <section class="game-menu-box" aria-label="Objetos de uso">
+                <div class="inventory-slots" id="usable-item-slots">
                 <div class="inv-slot">
                     <button id="diving-helmet-item" class="inventory-item" data-item="helmet" type="button" aria-label="Casco de escafandra" aria-pressed="false" title="Casco de escafandra">
                         <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -378,20 +422,16 @@
                         </svg>
                     </button>
                 </div>
-                <div class="inv-slot">
-                    <button id="sea-heart-item" class="inventory-item" data-item="sea-heart" type="button" aria-label="Fragmentos del Corazón del Mar" aria-pressed="false">
-                        <img id="sea-heart-icon" src="./imagenes/Sprites/fragmento-mar.svg" alt="Fragmentos del Corazón del Mar" style="width:64px;height:64px;image-rendering:pixelated;">
-                        <span id="sea-heart-count" style="position:absolute;bottom:4px;right:4px;font-size:12px;color:#fff;text-shadow:1px 1px #000;"></span>
-                    </button>
-                </div>
+                <div class="inv-slot" aria-hidden="true"></div>
+                <div class="inv-slot" aria-hidden="true"></div>
                 <div class="inv-slot">
                     <button id="torch-item" class="inventory-item" type="button" data-item="torch" aria-pressed="false" aria-label="Encender o apagar antorcha">
-                        <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — T para encender o apagar" style="display:none; image-rendering:pixelated;">
+                        <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — pulsa para encender o apagar" style="display:none; image-rendering:pixelated;">
                     </button>
                 </div>
                 <div class="inv-slot">
                     <button id="map-item" class="inventory-item" type="button" data-item="map" aria-pressed="false" aria-label="Abrir o cerrar mapa">
-                        <img id="map-icon" src="./imagenes/Sprites/mapa.svg" alt="Mapa de la isla" title="Mapa — M para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
+                        <img id="map-icon" src="./imagenes/Sprites/mapa.svg" alt="Mapa de la isla" title="Mapa — pulsa para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
                     </button>
                 </div>
                 <div class="inv-slot">
@@ -400,11 +440,12 @@
                         <span id="key-count" style="display:none;">0</span>
                     </button>
                 </div>
-            </div>
+                </div>
+            </section>
             <p id="inventory-item-description" aria-live="polite">Pulsa un objeto para usarlo.</p>
         </div>
     </div>
-    
+
     <div id="dialog-box" style="display:none; position:absolute; bottom:5%; left:15%; width:70%; background:rgba(0,0,0,0.85); border:6px solid #fff; color:white; font-family:'Press Start 2P', cursive; padding:30px; z-index:200; backdrop-filter: blur(4px);">
         <h3 id="dialog-name" style="margin-top:0; color:#ffeb3b; font-size: 22px;">Graham</h3>
         <p id="dialog-text" style="font-size: 16px; line-height:1.8; margin-bottom: 30px;">...</p>

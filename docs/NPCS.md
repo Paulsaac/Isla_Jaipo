@@ -45,7 +45,7 @@ No hay persistencia entre recargas. El reinicio tras morir conserva actualmente 
 4. Editar el módulo responsable: texto en content, reglas de misión en systems y presentación en ui. Mantener la coordinación actual en game.js cuando corresponda. Para un NPC nuevo documentar cómo se crea, identifica y conecta; no asociarle por defecto las recompensas de Graham.
 5. Aplicar efectos únicamente en el momento definido y con comprobación de estado para evitar duplicaciones. No cambiar el orden de entrega, consumo de objetos o desbloqueos incidentalmente al corregir texto.
 6. Verificar el comportamiento afectado y los recorridos dependientes. Si la actualización es compleja, preparar el paquete de relevo para el chat de pruebas según docs/PROTOCOL.md. Registrar las limitaciones; leer código no equivale a probar gameplay.
-7. Mantener la sesión entre ajustes. Al cierre explícito, actualizar HANDOFF.md, registrar decisiones duraderas en DECISIONS.md y ejecutar el cierre compartido. Una petición expresa de documentar, como este acuerdo, autoriza escribir documentación durante la sesión sin cerrarla.
+7. Mantener la sesión entre ajustes. Al cierre explícito, actualizar solo documentación pertinente a NPC y su entrada en HANDOFF.md; registrar decisiones duraderas del ámbito cuando corresponda y liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente. Una petición expresa de documentar autoriza esa escritura durante la sesión sin cerrarla.
 
 ## Ficha de NPC o cambio narrativo
 Usar esta ficha en el relevo para cada personaje nuevo o cambio significativo; completar con datos confirmados y marcar lo desconocido como pendiente.

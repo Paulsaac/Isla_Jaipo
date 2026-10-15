@@ -1,11 +1,12 @@
-// Audio de la partida: música única, pisadas y ambiente sintetizado.
+// Audio de la partida: música única, pisadas y ambiente.
 export function createMusicEvents() {
     let context = null;
-    let footstepNoise = null;
+    let grassFootstep = null;
+    let grassFootstepLoad = null;
     let indoorFootstepOutput = null;
     let windStarted = false;
     let paused = false;
-    let musicOutput = null;
+    const musicOutputs = new Map();
     let underwaterOutput = null;
     let underwaterFilter = null;
     const forestEnergy = { bass: 0, treble: 0 };
@@ -14,19 +15,25 @@ export function createMusicEvents() {
     // Nombres de producto: Bosque, Mañana y Submarino. IDs técnicos conservados.
     const tracks = {
         forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:1},
-        morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:0.8},
+        morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:1,reverbMix:0.5},
         underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
     };
 
     function unlock() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
-        if (!footstepNoise) {
-            footstepNoise = context.createBuffer(1, Math.ceil(context.sampleRate * 0.3), context.sampleRate);
-            const samples = footstepNoise.getChannelData(0);
-            for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
-        }
+        prepareGrassFootstep();
         getIndoorFootstepOutput();
         if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
+    }
+
+    function prepareGrassFootstep() {
+        if (grassFootstepLoad) return;
+        grassFootstepLoad = fetch('./sonidos/fx/pasto.mpeg').then(response => {
+            if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/pasto.mpeg');
+            return response.arrayBuffer();
+        }).then(data => context.decodeAudioData(data)).then(buffer => {
+            grassFootstep = buffer;
+        }).catch(error => console.warn('Error al cargar la pisada de pasto:', error));
     }
 
     function setPaused(value) {
@@ -37,11 +44,11 @@ export function createMusicEvents() {
         operation.catch(error => console.warn('No se pudo cambiar la pausa del audio:',error));
     }
 
-    function getMusicOutput() {
-        if (musicOutput) return musicOutput;
-        musicOutput = context.createGain();
+    function getMusicOutput(reverbMix = 0.6) {
+        if (musicOutputs.has(reverbMix)) return musicOutputs.get(reverbMix);
+        const musicOutput = context.createGain();
         const dry = context.createGain();
-        dry.gain.value = 0.4;
+        dry.gain.value = 1 - reverbMix;
         musicOutput.connect(dry);
         dry.connect(context.destination);
         const delay = context.createDelay();
@@ -60,12 +67,13 @@ export function createMusicEvents() {
         softTail.type = 'lowpass';
         softTail.frequency.value = 2400;
         const wet = context.createGain();
-        wet.gain.value = 0.6;
+        wet.gain.value = reverbMix;
         musicOutput.connect(delay);
         delay.connect(reverb);
         reverb.connect(softTail);
         softTail.connect(wet);
         wet.connect(context.destination);
+        musicOutputs.set(reverbMix, musicOutput);
         return musicOutput;
     }
 
@@ -114,7 +122,7 @@ export function createMusicEvents() {
         if (!context) unlock();
         // Construir la reverberación durante carga, antes de reproducir por primera vez.
         if (name === 'underwater') getUnderwaterOutput();
-        else getMusicOutput();
+        else getMusicOutput(track.reverbMix);
         track.buffer = fetch(track.url).then(response => {
             if (!response.ok) throw new Error('No se pudo cargar '+track.url);
             return response.arrayBuffer();
@@ -169,7 +177,7 @@ export function createMusicEvents() {
                     underwaterMotion.connect(underwaterMotionDepth);
                     underwaterMotionDepth.connect(underwaterFilter.frequency);
                     underwaterMotion.start();
-                } else volume.connect(getMusicOutput());
+                } else volume.connect(getMusicOutput(track.reverbMix));
                 source.onended = () => {
                     track.ended = true;
                     source.disconnect(); volume.disconnect(); track.source = null;
@@ -232,26 +240,16 @@ export function createMusicEvents() {
         if (!context || paused || context.state !== 'running') return;
         const now = context.currentTime;
         if (outdoor) {
-            const noise = context.createBufferSource();
-            noise.buffer = footstepNoise;
-            noise.playbackRate.value = 0.7;
-            const highpass = context.createBiquadFilter();
-            highpass.type = 'highpass';
-            highpass.frequency.value = 1050;
-            const lowpass = context.createBiquadFilter();
-            lowpass.type = 'lowpass';
-            lowpass.frequency.value = 5950;
+            if (!grassFootstep) return;
+            const source = context.createBufferSource();
+            source.buffer = grassFootstep;
             const gain = context.createGain();
-            gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.linearRampToValueAtTime((running ? 0.1122 : 0.0816) * 0.6 * accent, now + 0.002);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1794);
-            noise.connect(highpass);
-            highpass.connect(lowpass);
-            lowpass.connect(gain);
+            const volume = running ? 0.14 : 0.14 * (0.0816 / 0.1122);
+            gain.gain.value = volume * accent;
+            source.connect(gain);
             gain.connect(context.destination);
-            noise.onended = () => { noise.disconnect(); highpass.disconnect(); lowpass.disconnect(); gain.disconnect(); };
-            noise.start(now, Math.random() * 0.06);
-            noise.stop(now + 0.207);
+            source.onended = () => { source.disconnect(); gain.disconnect(); };
+            source.start(now);
             return;
         }
         const oscillator = context.createOscillator();

@@ -21,12 +21,17 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
         mesh.frustumCulled = false;
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         group.add(mesh);
-        return { mesh, original, sectors };
+        const sourceToSlot = new Int32Array(mesh.count).fill(-1);
+        const slotToSource = new Int32Array(mesh.count);
+        const dirty = new Uint8Array(Math.ceil(mesh.count / 64));
+        mesh.count = 0;
+        return { mesh, original, sectors, sourceToSlot, slotToSource, dirty };
     });
     const frustum = new THREE.Frustum(), projection = new THREE.Matrix4();
     const previousProjection = new Float64Array(16).fill(NaN);
-    let previousFogConstant = NaN;
-    function update(camera, fogPlane = null) {
+    let previousFogConstant = NaN, previousMaxDistance = NaN;
+    const cameraPosition = new THREE.Vector3();
+    function update(camera, fogPlane = null, maxDistance = Infinity) {
         camera.updateMatrixWorld(true);
         projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
         let cameraChanged = false;
@@ -37,27 +42,66 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
         const fogConstant = fogPlane?.constant ?? null;
         if (fogConstant !== previousFogConstant) cameraChanged = true;
         previousFogConstant = fogConstant;
+        if (maxDistance !== previousMaxDistance) cameraChanged = true;
+        previousMaxDistance = maxDistance;
         if (!cameraChanged) return;
+        camera.getWorldPosition(cameraPosition);
         frustum.setFromProjectionMatrix(projection);
-        for (const { mesh, original, sectors } of entries) {
+        for (const { mesh, original, sectors, sourceToSlot, slotToSource, dirty } of entries) {
             let changed = false;
             for (const sector of sectors) {
                 const visible = frustum.intersectsSphere(sector.sphere)
+                    && sector.sphere.center.distanceToSquared(cameraPosition) <= (maxDistance + sector.sphere.radius) ** 2
                     && (!fogPlane || fogPlane.distanceToPoint(sector.sphere.center) >= -sector.sphere.radius);
-                if (visible !== sector.visible) changed = true;
+                sector.changed = visible !== sector.visible;
+                if (sector.changed) changed = true;
                 sector.visible = visible;
             }
             if (!changed) continue;
-            let count = 0;
+            let count = mesh.count;
+            dirty.fill(0);
+            // Retirar solo lo que salió; llenar sus huecos con las últimas instancias.
             for (const sector of sectors) {
-                if (!sector.visible) continue;
+                if (!sector.changed || sector.visible) continue;
                 for (const index of sector.indices) {
-                    for (let component = 0; component < 16; component++) mesh.instanceMatrix.array[count * 16 + component] = original[index * 16 + component];
+                    const slot = sourceToSlot[index];
+                    if (slot < 0) continue;
+                    const last = --count;
+                    if (slot !== last) {
+                        const moved = slotToSource[last];
+                        mesh.instanceMatrix.array.set(original.subarray(moved * 16, moved * 16 + 16), slot * 16);
+                        slotToSource[slot] = moved;
+                        sourceToSlot[moved] = slot;
+                        dirty[Math.floor(slot / 64)] = 1;
+                    }
+                    sourceToSlot[index] = -1;
+                }
+            }
+            // Los sectores que siguen visibles conservan sus matrices y posiciones GPU.
+            for (const sector of sectors) {
+                if (!sector.changed || !sector.visible) continue;
+                for (const index of sector.indices) {
+                    mesh.instanceMatrix.array.set(original.subarray(index * 16, index * 16 + 16), count * 16);
+                    sourceToSlot[index] = count;
+                    slotToSource[count] = index;
+                    dirty[Math.floor(count / 64)] = 1;
                     count++;
                 }
             }
             mesh.count = count;
-            mesh.instanceMatrix.needsUpdate = true;
+            let wrote = false;
+            // Agrupar bloques sucios evita una llamada GPU por cada matriz movida.
+            // Conservar rangos previos si todavía no hubo render entre actualizaciones.
+            for (let block = 0; block * 64 < count; block++) {
+                if (!dirty[block]) continue;
+                const start = block;
+                while ((block + 1) * 64 < count && dirty[block + 1]) block++;
+                const first = start * 64 * 16;
+                const end = Math.min((block + 1) * 64, count) * 16;
+                mesh.instanceMatrix.addUpdateRange(first, end - first);
+                wrote = true;
+            }
+            if (wrote) mesh.instanceMatrix.needsUpdate = true;
         }
     }
     return { group, update };

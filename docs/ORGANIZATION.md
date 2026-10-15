@@ -58,4 +58,4 @@ Inspección local del 2026-10-13: listado de carpetas y archivos fuera de .git/n
 2. Identificar lectores/escritores y registrar el motivo de cada traslado o extracción.
 3. Comprobar el propio token antes de editar; actualizar rutas y documentación en el mismo lote.
 4. Verificar referencias y diff. Si afecta carga o comportamiento, comprobar navegador y entregar al chat de pruebas el alcance complejo con reproducción. Registrar lo no ejecutado.
-5. Mantener sesión entre pedidos. El cierre explícito sigue docs/PROTOCOL.md, con selección de archivos propios para commit/push y actualización del relevo.
+5. Mantener sesión entre pedidos. Al cierre explícito actualizar solo documentación pertinente a organización y su entrada en HANDOFF.md; liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente.

@@ -25,8 +25,6 @@ export function bindKeyboard(actions, target = document) {
             case 'Space': actions.jump(); actions.move('up', true); break;
             case 'KeyC': actions.crouch(true); actions.move('down', true); break;
             case 'ShiftLeft': case 'ShiftRight': actions.run(true); break;
-            case 'KeyM': actions.map(); break;
-            case 'KeyT': actions.torch(); break;
             case 'KeyN': if (!event.repeat) actions.toggleDayNight(); break;
             case 'KeyP': if (!event.repeat) actions.stopMusic?.(); break;
             case 'KeyK': if (!event.repeat) actions.teleportToForestHeart?.(); break;
