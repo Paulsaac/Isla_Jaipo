@@ -16,6 +16,9 @@ export function createMenus({ onResume, onUseItem }) {
     const seaHeartCount = document.getElementById('sea-heart-count');
     const description = document.getElementById('inventory-item-description');
     const transitions = new Map();
+    const dialogFontReady = document.fonts
+        ? document.fonts.load('16px "Super Legend Boy"').catch(() => {}) : Promise.resolve();
+    let dialogVersion = 0, dialogAnimation = null;
 
     function setMenuVisible(menu, visible) {
         const previous = transitions.get(menu);
@@ -84,15 +87,42 @@ export function createMenus({ onResume, onUseItem }) {
             dialogText.append(document.createTextNode(part));
         });
     }
-    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false } = {}) {
-        setDialogText(text);
-        document.getElementById('dialog-name').hidden = anonymous;
-        dialogBox.style.textAlign = anonymous ? 'center' : '';
-        dialogHint.hidden = automatic;
-        dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
-        dialogBox.style.display = 'block';
+    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false } = {}) {
+        const version = ++dialogVersion;
+        dialogAnimation?.cancel();
+        dialogAnimation = null;
+        function reveal() {
+            if (version !== dialogVersion) return;
+            // Preparar contenido, nombre y formato antes del primer fotograma visible.
+            setDialogText(text);
+            document.getElementById('dialog-name').hidden = anonymous;
+            dialogBox.style.textAlign = anonymous ? 'center' : '';
+            dialogHint.hidden = automatic;
+            dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
+            dialogBox.style.display = 'block';
+            if (smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const animation = dialogBox.animate([
+                    { opacity: 0, transform: 'translateY(6px)' },
+                    { opacity: 1, transform: 'translateY(0)' }
+                ], { duration: 160, easing: 'ease-out' });
+                dialogAnimation = animation;
+                animation.finished.then(() => {
+                    if (dialogAnimation === animation) dialogAnimation = null;
+                }).catch(() => {});
+            }
+        }
+        if (smooth) {
+            dialogBox.style.display = 'none';
+            return dialogFontReady.then(reveal);
+        }
+        reveal();
     }
-    function hideDialog() { dialogBox.style.display = 'none'; }
+    function hideDialog() {
+        ++dialogVersion;
+        dialogAnimation?.cancel();
+        dialogAnimation = null;
+        dialogBox.style.display = 'none';
+    }
     function setKeyCount(count) {
         keyCountDisplay.innerText = count;
         keyIcon.style.display = count > 0 ? 'block' : 'none';

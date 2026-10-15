@@ -420,7 +420,7 @@ export function createDryVineShrine(THREE, maderaTex, heartImage) {
 
     const heartGeo = createForestHeartSpriteGeometry(THREE, heartImage);
     heartGeo.rotateX(-Math.PI/5);
-    const heartMaterials = new THREE.MeshPhongMaterial({vertexColors:true,shininess:0,flatShading:true});
+    const heartMaterials = new THREE.MeshPhongMaterial({vertexColors:true,shininess:0,flatShading:true,emissive:0x75d7ff,emissiveIntensity:0});
     const heartMesh = new THREE.Mesh(heartGeo, heartMaterials);
     heartMesh.name = 'forest-heart-relic';
     // El corazón reposa en el cáliz a 0.52m de la base de la enredadera
@@ -432,6 +432,11 @@ export function createDryVineShrine(THREE, maderaTex, heartImage) {
 
     heartMesh.add(heartLight);
     vineMesh.add(heartMesh);
+    let pullStrength = 0, pulseLight = 0.85;
+    function updateGlow() {
+        heartMaterials.emissiveIntensity = pullStrength * 0.65;
+        heartLight.intensity = pulseLight + pullStrength * 2.2;
+    }
 
     vineMesh.userData = {
         type: 'CHEST',
@@ -441,7 +446,13 @@ export function createDryVineShrine(THREE, maderaTex, heartImage) {
         heartMesh,
         brokenBase,
         heartLight,
+        setPullStrength: (strength) => {
+            pullStrength = THREE.MathUtils.clamp(strength, 0, 1);
+            updateGlow();
+        },
         collectHeart: () => {
+            pullStrength = 0;
+            heartMaterials.emissiveIntensity = 0;
             heartMesh.userData.visibilityEnabled = false;
             heartMesh.visible = false;
             heartMesh.scale.set(0, 0, 0);
@@ -453,7 +464,8 @@ export function createDryVineShrine(THREE, maderaTex, heartImage) {
             if (!heartMesh.visible || !heartMesh.parent) return;
             const pulse = 1.0 + Math.sin(time * 2.8) * 0.04;
             heartMesh.scale.set(pulse, pulse, pulse);
-            heartLight.intensity = 0.75 + Math.sin(time * 2.8) * 0.25;
+            pulseLight = 0.75 + Math.sin(time * 2.8) * 0.25;
+            updateGlow();
         }
     };
     heartMesh.userData = {

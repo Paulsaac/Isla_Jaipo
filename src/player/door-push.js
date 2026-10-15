@@ -3,6 +3,7 @@ import { COLLISION_RADIUS } from '../config.js';
 // Liberar al jugador de la hoja en su posición final, al abrir o cerrar.
 export function pushPlayerFromMovingDoors(position, backward, doors, isBlocked) {
     for (const door of doors) {
+        if (door.userData.collisionEnabled === false) continue;
         if (!door.geometry.boundingBox) door.geometry.computeBoundingBox();
         const bounds = door.geometry.boundingBox;
         const matrix = door.matrixWorld.elements;

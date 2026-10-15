@@ -22,7 +22,7 @@ export function bindKeyboard(actions, target = document) {
         }
         if (directions[code]) actions.move(directions[code], true);
         switch (code) {
-            case 'Space': actions.jump(); actions.move('up', true); break;
+            case 'Space': event.preventDefault(); actions.holdJump?.(true); if (!event.repeat) actions.jump(); actions.move('up', true); break;
             case 'KeyC': actions.crouch(true); actions.move('down', true); break;
             case 'ShiftLeft': case 'ShiftRight': actions.run(true); break;
             case 'KeyN': if (!event.repeat) actions.toggleDayNight(); break;
@@ -36,7 +36,7 @@ export function bindKeyboard(actions, target = document) {
         const code = event.code;
         if (directions[code]) actions.move(directions[code], false);
         switch (code) {
-            case 'Space': actions.move('up', false); break;
+            case 'Space': actions.holdJump?.(false); actions.move('up', false); break;
             case 'KeyC': actions.crouch(false); actions.move('down', false); break;
             case 'ShiftLeft': case 'ShiftRight': actions.run(false); break;
         }

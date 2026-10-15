@@ -45,10 +45,14 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause }) {
             if (!isActive() && !['inventory', 'pause'].includes(action)) return;
             button.setPointerCapture(event.pointerId);
             button.classList.add('pressed');
+            if (action === 'jump') actions.holdJump?.(true);
             actions[action]?.();
         });
         for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
-            button.addEventListener(type, () => button.classList.remove('pressed'));
+            button.addEventListener(type, () => {
+                button.classList.remove('pressed');
+                if (button.dataset.action === 'jump') actions.holdJump?.(false);
+            });
     }
     canvas.style.touchAction = 'none';
     canvas.addEventListener('pointerdown', event => {
@@ -67,6 +71,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause }) {
         canvas.addEventListener(type, releaseLook);
 
     function reset() {
+        actions.holdJump?.(false);
         directionTouches.clear(); updateMovement(); lookPointer = null;
         for (const button of root.querySelectorAll('.pressed')) button.classList.remove('pressed');
     }

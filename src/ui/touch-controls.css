@@ -13,6 +13,7 @@
     -webkit-tap-highlight-color: transparent;
 }
 #touch-controls button.pressed { filter: brightness(1.4); box-shadow: 0 1px 0 #2d2934; transform: translateY(3px); }
+#touch-controls.touch-paused { z-index: 701; }
 .snes-dpad { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); pointer-events: auto; touch-action: none; }
 .snes-dpad button { background: #36323e; border-radius: 5px; }
 .snes-dpad [data-direction="forward"] { grid-area: 1 / 2; }

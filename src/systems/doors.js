@@ -19,27 +19,30 @@ function toggleDoorSingle(door, forceState, collisionMap) {
         door.userData.isOpen = true;
         group.userData.isOpen = true;
     }
+    door.userData.collisionEnabled = !shouldOpen;
     door.userData.motion = { from: group.rotation.y,
         to: shouldOpen ? (Math.PI / 2) * door.userData.swingDir : 0, elapsed: 0 };
 }
 
-// Colisiones y empuje consultan la hoja en su ángulo visible de cada fotograma.
+// Al abrir, la hoja atraviesa al jugador hasta el último 10% del giro; después recupera el empuje.
 export function updateDoorAnimations(doors, delta, movePlayer) {
     const moving = doors.filter(door => door.userData.motion);
     if (!moving.length) return;
     const previous = moving.map(door => ({ door, angle: door.userData.parentGroup.rotation.y,
-        elapsed: door.userData.motion.elapsed }));
+        elapsed: door.userData.motion.elapsed, collisionEnabled: door.userData.collisionEnabled }));
     for (const door of moving) {
         const motion = door.userData.motion;
         motion.elapsed = Math.min(0.7, motion.elapsed + delta);
         const t = motion.elapsed / 0.7;
+        door.userData.collisionEnabled = !door.userData.isOpen || t >= 0.9;
         door.userData.parentGroup.rotation.y = motion.from + (motion.to - motion.from) * t * t * (3 - 2 * t);
         door.userData.parentGroup.updateMatrixWorld(true);
     }
     if (!movePlayer()) {
         // Si no hay espacio seguro, detener este paso hasta que el jugador se aparte.
-        for (const { door, angle, elapsed } of previous) {
+        for (const { door, angle, elapsed, collisionEnabled } of previous) {
             door.userData.motion.elapsed = elapsed;
+            door.userData.collisionEnabled = collisionEnabled;
             door.userData.parentGroup.rotation.y = angle;
             door.userData.parentGroup.updateMatrixWorld(true);
         }

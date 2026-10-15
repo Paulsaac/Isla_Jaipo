@@ -61,7 +61,7 @@ export const divingHelmet = {
 };
 
 export const doorOverrides = [
-    { position: { x: 228, z: 423 }, openDirection: 'south' },
+    { position: { x: 228, z: 423 }, openDirection: 'south', hinge: 'left' },
     { position: { x: 235, z: 423 }, openDirection: 'north' }
 ];
 

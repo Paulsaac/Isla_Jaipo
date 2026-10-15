@@ -16,6 +16,7 @@ import { createForestHeartQuest } from './src/systems/forest-heart.js';
 import { loadMapImage, readMapLayers } from './src/world/map-loader.js';
 import { prepareMap } from './src/world/map-data.js';
 import { getBedSupport } from './src/player/bed-support.js';
+import { createAtticSupport, BED_CEILING_OPENING } from './src/player/attic-support.js';
 import { focusLoadingSpawn, finishLoadingZoom } from './src/ui/loading-screen.js';
 import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
@@ -93,9 +94,19 @@ const hud = createHud();
 // Físicas verticales
 let velocityY = 0;
 let canJump = true;
-const BED_BOUNCE_IMPULSES = [6, 4.8, 3.8, 3, 2.4];
+const BED_BOUNCE_IMPULSES = [7, 8.5, 10, 12, 14, 16, 18, 20];
 let bedBounceIndex = -1;
+let jumpHeld = false;
+let bedCeilingTimer = 0;
+let bedCeilingHoleOpen = false;
+let bedCeilingHoleTile = null;
+const bedRoofPieces = new Map();
+const bedFalseCeilingPieces = new Map();
+let bedHoleRim = null;
+let atticSupport = null;
+const bedDefinition = furniture.find(item => item.id === 'graham-bed');
 let isCrouching = false;
+let crouchRequested = false;
 let isRunning = false;
 
 // Inventario e Interacciones
@@ -103,6 +114,7 @@ let keys = 0;
 const keyInventory = createKeyInventory(keyBindings);
 let heldItem = null;
 let heldItemSprite = null;
+let heldHeartGlow = null;
 let heldItemTextures = null;
 let hasTorch = false;
 let hasMap = false;
@@ -377,14 +389,16 @@ const greetingLookMatrix = new THREE.Matrix4();
 const previousPlayerPosition = new THREE.Vector3();
 let greetingPointerSpeed = 1;
 
-function clearGreetingInput() {
-    for (const key of Object.keys(moveState)) moveState[key] = false;
+function clearGreetingInput(preserveMovement = false) {
+    if (!preserveMovement) for (const key of Object.keys(moveState)) moveState[key] = false;
     velocity.set(0, 0, 0);
     velocityY = 0;
+    jumpHeld = false;
     isRunning = false;
-    isCrouching = false;
+    crouchRequested = false;
+    updatePlayerPosture();
     keyboardBinding.resetSequence();
-    touchControls?.reset();
+    if (!preserveMovement) touchControls?.reset();
 }
 
 function showGreetingPhase() {
@@ -489,17 +503,20 @@ controls.addEventListener('lock', () => {
     menus.hideForGameplay();
     if (spawnGreeting.active) showGreetingPhase();
     heartPull.show();
+    if (isDialogOpen) menus.showDialog(activeDialogs[dialogIndex]);
     touchControls?.show();
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
-    if (spawnGreeting.active) menus.hideDialog();
-    if (heartPull.active) menus.hideDialog();
+    jumpHeld = false;
+    hud.hideInteraction();
+    menus.hideDialog();
     musicEvents.setPaused(true);
     for (const direction of Object.keys(moveState)) moveState[direction] = false;
     velocity.set(0, 0, 0);
     isRunning = false;
-    isCrouching = false;
+    crouchRequested = false;
+    updatePlayerPosture();
     keyboardBinding.resetSequence();
     touchControls?.sync(false);
     if (gameStarted && !isDead) {
@@ -727,12 +744,22 @@ const gameActions = {
         }
     },
     move(direction, pressed) { moveState[direction] = pressed; },
+    holdJump(pressed) { jumpHeld = pressed; },
     jump() {
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
-            velocityY = JUMP_FORCE; canJump = false; bedBounceIndex = 0;
+            const player = controls.getObject();
+            const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+            const support = getBedSupport(player.position.x, player.position.z, player.position.y - eyeHeight, solidInteractables);
+            const standingOnBed = Number.isFinite(support) && Math.abs(player.position.y - eyeHeight - support) < 0.18;
+            velocityY = standingOnBed ? 5.5 : JUMP_FORCE;
+            canJump = false;
+            bedBounceIndex = standingOnBed ? 0 : -1;
         }
     },
-    crouch(pressed) { isCrouching = pressed; },
+    crouch(pressed) {
+        crouchRequested = pressed;
+        updatePlayerPosture();
+    },
     run(pressed) { isRunning = pressed; },
     map() {
         if (mapLoaded && hasMap) {
@@ -766,9 +793,13 @@ const gameActions = {
 const heartPull = createHeartPull(THREE, {
     scene, camera, input: moveState, isWall,
     groundHeight: (x,z) => getTerrainHeight(x,z) + PLAYER_HEIGHT,
-    showMessage: text => menus.showDialog(text, {blurBackdrop:false, anonymous:true}),
+    showMessage: text => {
+        hud.hideInteraction();
+        menus.showDialog(text, {blurBackdrop:false, anonymous:true, smooth:true});
+    },
     hideMessage: () => menus.hideDialog(),
-    clearInput: clearGreetingInput,
+    // Detener la inercia sin olvidar las direcciones ni soltar la cruceta durante el tirón.
+    clearInput: () => clearGreetingInput(true),
     release(vine) {
         if (!heartQuest.collect()) return;
         vine.userData.collectHeart();
@@ -789,7 +820,7 @@ const heartPull = createHeartPull(THREE, {
     }
 });
 // Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
-for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'move', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
+for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
     gameActions[name] = (...args) => { if (!spawnGreeting.active && (!heartPull.active || name === 'move')) return action(...args); };
 }
@@ -851,6 +882,14 @@ heldItemSprite.name = 'held-inventory-item';
 heldItemSprite.visible = false;
 heldItemSprite.renderOrder = 1000;
 camera.add(heldItemSprite);
+heldHeartGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: heldItemTextures.heart, color: 0x9ae4ff, opacity: 0.12, rotation: -0.12,
+    transparent: true, blending: THREE.AdditiveBlending, fog: false, depthWrite: false, depthTest: false
+}));
+heldHeartGlow.name = 'held-forest-heart-glow';
+heldHeartGlow.visible = false;
+heldHeartGlow.renderOrder = 1001;
+camera.add(heldHeartGlow);
 function updateHeldItemLayout() {
     if (!heldItemSprite) return;
     const distance = 0.7;
@@ -862,6 +901,10 @@ function updateHeldItemLayout() {
     const width = Math.min(height * imageRatio, viewRadius * 0.65);
     heldItemSprite.position.set(viewRadius * 0.32, -viewRadius * 0.35, -distance);
     heldItemSprite.scale.set(width, height, 1);
+    if (heldHeartGlow) {
+        heldHeartGlow.position.copy(heldItemSprite.position);
+        heldHeartGlow.scale.set(width * 1.06, height * 1.06, 1);
+    }
 }
 updateHeldItemLayout();
 const torchFrames = [];
@@ -1197,9 +1240,34 @@ function buildWorld(prepared) {
     const bldgMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, WALL_HEIGHT, UNIT_SIZE), bldgMat, counts.BUILDING + altarWalls.length);
     const doorCount = floorMap.reduce((total,row)=>total+row.filter(type=>['DOOR_UNLOCKED','DOOR_LOCKED'].includes(type)).length,0);
     const lintelHeight = WALL_HEIGHT - DOOR_HEIGHT;
-    const lintelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, lintelHeight, UNIT_SIZE), bldgMat, doorCount);
+    // Recortar la textura del muro completo; no comprimir una copia entera en cada pieza del marco.
+    function createDoorFrameMaterial(verticalOffset) {
+        const material = bldgMat.clone();
+        material.onBeforeCompile = shader => {
+            shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', `
+                #include <uv_vertex>
+                #ifdef USE_MAP
+                    vec3 framePosition = (instanceMatrix * vec4(position, 1.0)).xyz;
+                    vec2 frameUv;
+                    if (abs(normal.y) > 0.5) {
+                        frameUv = vec2(framePosition.x, normal.y > 0.0 ? -framePosition.z : framePosition.z) / ${UNIT_SIZE.toFixed(8)} + 0.5;
+                    } else {
+                        float alongWall = abs(normal.x) > 0.5
+                            ? (normal.x > 0.0 ? -framePosition.z : framePosition.z)
+                            : (normal.z > 0.0 ? framePosition.x : -framePosition.x);
+                        frameUv = vec2(alongWall / ${UNIT_SIZE.toFixed(8)} + 0.5,
+                            (position.y + ${verticalOffset.toFixed(8)}) / ${WALL_HEIGHT.toFixed(8)} + 0.5);
+                    }
+                    vMapUv = (mapTransform * vec3(frameUv, 1.0)).xy;
+                #endif
+            `);
+        };
+        material.customProgramCacheKey = () => `door-frame-${verticalOffset}`;
+        return material;
+    }
+    const lintelMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, lintelHeight, UNIT_SIZE), createDoorFrameMaterial(DOOR_HEIGHT / 2), doorCount);
     let idxLintel = 0;
-    const jambMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, DOOR_HEIGHT, 1), bldgMat, doorCount * 2);
+    const jambMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, DOOR_HEIGHT, 1), createDoorFrameMaterial(-lintelHeight / 2), doorCount * 2);
     let idxJamb = 0;
     const roofSubdivisions = 8;
     const roofStepHeight = WALL_HEIGHT * 0.0625;
@@ -1371,6 +1439,7 @@ function buildWorld(prepared) {
     levelBuildingAtTerrain(grahamPosition, floorMap, roofMap, elevationMap, (x, z) =>
         getTerrainVertexY(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile));
     const roofBaseMap = createRoofBaseMap(roofMap, floorMap, elevationMap);
+    atticSupport = bedDefinition ? createAtticSupport(roofMap, roofBaseMap, bedDefinition, roofSubdivisions) : null;
 
     let idxPino1=0, idxPino2=0, idxAlamo1=0, idxAlamo2=0, idxArau1=0, idxArau2=0, idxBUSH1=0, idxBUSH2=0, idxWeed1=0, idxWeed2=0, idxWeed3=0, idxBldg=0, idxMtn=0, idxPeak=0, idxSnowPeak=0, idxCeil=0, idxFalseCeil=0, idxRoof=0, idxMadera=0;
     const dummy = new THREE.Object3D(); 
@@ -1432,10 +1501,20 @@ function buildWorld(prepared) {
             
             if (rType === 'ROOF') {
                 const roofBaseH = roofBaseMap[z][x];
+                const atticCell = atticSupport?.cells.get(z * mapWidth + x);
                 dummy.position.set(posX, roofBaseH + WALL_HEIGHT, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
-                falseCeilingMesh.setMatrixAt(idxFalseCeil++, dummy.matrix);
+                const overBed = x === bedDefinition?.position.x && z >= bedDefinition.position.z && z < bedDefinition.position.z + bedDefinition.size.z;
+                if (overBed) {
+                    const key = `${x},${z}`;
+                    const piece = new THREE.Mesh(falseCeilingMesh.geometry, ceilingMat);
+                    piece.position.copy(dummy.position);
+                    bedFalseCeilingPieces.set(key, piece);
+                    const roofPiece = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE / roofSubdivisions, roofStepHeight, UNIT_SIZE / roofSubdivisions), roofMat, roofSubdivisions ** 2);
+                    roofPiece.count = 0;
+                    bedRoofPieces.set(key, roofPiece);
+                } else falseCeilingMesh.setMatrixAt(idxFalseCeil++, dummy.matrix);
 
                 const stepHeight = roofStepHeight;
                 const subSize = UNIT_SIZE / roofSubdivisions;
@@ -1453,12 +1532,17 @@ function buildWorld(prepared) {
                         const subPosZ = posZ + startOffset + (sz * subSize);
                         
                         const techoBottom = roofBaseH + WALL_HEIGHT + (effectiveDist * stepHeight);
+                        if (atticCell) atticCell.roofHeights[sz * roofSubdivisions + sx] = techoBottom;
                         const techoCenter = techoBottom + (stepHeight / 2);
                         
                         dummy.position.set(subPosX, techoCenter, subPosZ);
                         dummy.rotation.set(0, 0, 0);
                         dummy.updateMatrix();
-                        ceilingMesh.setMatrixAt(idxCeil++, dummy.matrix);
+                        if (overBed) {
+                            const piece = bedRoofPieces.get(`${x},${z}`);
+                            piece.setMatrixAt(piece.count++, dummy.matrix);
+                        }
+                        else ceilingMesh.setMatrixAt(idxCeil++, dummy.matrix);
                     }
                 }
             }
@@ -1630,6 +1714,8 @@ function buildWorld(prepared) {
                 // Determinar orientación basada en los edificios vecinos (horizontal o vertical)
                 const opening = getDoorOpening(floorMap, x, z);
                 const { isHorizontal, isRightDoor } = opening;
+                const doorOverride = doorOverrides.find(definition => definition.position.x === x && definition.position.z === z);
+                const hingeOnRight = doorOverride?.hinge === 'left' ? false : isRightDoor;
                 
                 // Determinar si es la hoja derecha de una puerta doble
 
@@ -1656,10 +1742,10 @@ function buildWorld(prepared) {
                 let mats;
                 
                 if (isHorizontal) {
-                    if (!isRightDoor) mats = [matNormal, matNormal, matNormal, matNormal, matNormal, matFlipped];
+                    if (!hingeOnRight) mats = [matNormal, matNormal, matNormal, matNormal, matNormal, matFlipped];
                     else mats = [matNormal, matNormal, matNormal, matNormal, matFlipped, matNormal];
                 } else {
-                    if (!isRightDoor) mats = [matFlipped, matNormal, matNormal, matNormal, matNormal, matNormal];
+                    if (!hingeOnRight) mats = [matFlipped, matNormal, matNormal, matNormal, matNormal, matNormal];
                     else mats = [matNormal, matFlipped, matNormal, matNormal, matNormal, matNormal];
                 }
                 
@@ -1667,21 +1753,20 @@ function buildWorld(prepared) {
                 
                 // Desplazar el mesh para que el pivote quede en el borde
                 if (isHorizontal) {
-                    const offset = isRightDoor ? -opening.width/2 : opening.width/2;
+                    const offset = hingeOnRight ? -opening.width/2 : opening.width/2;
                     doorMesh.position.set(offset, 0, 0);
                     doorGroup.position.x -= offset;
                 } else {
-                    const offset = isRightDoor ? -opening.width/2 : opening.width/2;
+                    const offset = hingeOnRight ? -opening.width/2 : opening.width/2;
                     doorMesh.position.set(0, 0, offset);
                     doorGroup.position.z -= offset;
                 }
                 
                 doorGroup.add(doorMesh);
                 
-                const doorOverride = doorOverrides.find(definition => definition.position.x === x && definition.position.z === z);
                 const swingDir = doorOverride?.openDirection === 'south' && isHorizontal
-                    ? (isRightDoor ? 1 : -1)
-                    : (isRightDoor ? -1 : 1);
+                    ? (hingeOnRight ? 1 : -1)
+                    : (hingeOnRight ? -1 : 1);
                 const uData = { type: 'DOOR', locked: isLocked, isOpen: false, gx: x, gz: z, parentGroup: doorGroup, isHorizontal: isHorizontal, swingDir: swingDir };
                 doorMesh.userData = uData;
                 doorGroup.userData = uData;
@@ -1724,8 +1809,59 @@ function buildWorld(prepared) {
     scene.add(lintelMesh);
     jambMesh.count = idxJamb;
     scene.add(jambMesh);
+    ceilingMesh.count = idxCeil;
+    falseCeilingMesh.count = idxFalseCeil;
     scene.add(mergeRoofBlocks(THREE, ceilingMesh));
+    for (const piece of bedRoofPieces.values()) {
+        piece.instanceMatrix.needsUpdate = true;
+        scene.add(piece);
+    }
+    for (const piece of bedFalseCeilingPieces.values()) scene.add(piece);
     scene.add(falseCeilingMesh);
+    if (bedDefinition && bedRoofPieces.size) {
+        // Conservar tablas alrededor de una rotura irregular, con espesor visible desde abajo.
+        const width = bedDefinition.size.x * UNIT_SIZE;
+        const length = bedDefinition.size.z * UNIT_SIZE;
+        const outline = new THREE.Shape();
+        outline.moveTo(-width / 2, -length / 2);
+        outline.lineTo(width / 2, -length / 2);
+        outline.lineTo(width / 2, length / 2);
+        outline.lineTo(-width / 2, length / 2);
+        outline.closePath();
+        const opening = new THREE.Path();
+        BED_CEILING_OPENING.forEach(([x,z], index) => {
+            if (index === 0) opening.moveTo(x,z);
+            else opening.lineTo(x,z);
+        });
+        opening.closePath();
+        outline.holes.push(opening);
+        const brokenWood = new THREE.MeshPhongMaterial({ color: 0x65432b, shininess: 0, flatShading: true });
+        const brokenCeiling = new THREE.ExtrudeGeometry(outline, { depth: 0.1, bevelEnabled: false, steps: 1, curveSegments: 1 });
+        brokenCeiling.rotateX(Math.PI / 2);
+        // Mismo tamaño, orientación y fase de textura que las caras inferiores de cada casilla.
+        const ceilingPositions = brokenCeiling.attributes.position;
+        const ceilingNormals = brokenCeiling.attributes.normal;
+        const ceilingUvs = brokenCeiling.attributes.uv;
+        for (const group of brokenCeiling.groups) {
+            if (group.materialIndex !== 0) continue;
+            for (let i = group.start; i < group.start + group.count; i++) {
+                ceilingUvs.setXY(i,
+                    ceilingPositions.getX(i) / UNIT_SIZE + bedDefinition.size.x / 2,
+                    ceilingNormals.getY(i) > 0
+                        ? 1 - bedDefinition.size.z / 2 - ceilingPositions.getZ(i) / UNIT_SIZE
+                        : bedDefinition.size.z / 2 + ceilingPositions.getZ(i) / UNIT_SIZE);
+            }
+        }
+        bedHoleRim = new THREE.Mesh(brokenCeiling, [ceilingMat, brokenWood]);
+        bedHoleRim.position.set(
+            (bedDefinition.position.x + (bedDefinition.size.x - 1) / 2) * UNIT_SIZE,
+            roofBaseMap[bedDefinition.position.z][bedDefinition.position.x] + WALL_HEIGHT + 0.05,
+            (bedDefinition.position.z + (bedDefinition.size.z - 1) / 2) * UNIT_SIZE
+        );
+        bedHoleRim.userData.visibilityEnabled = false;
+        bedHoleRim.visible = false;
+        scene.add(bedHoleRim);
+    }
     maderaFloorMesh.count = idxMadera;
     scene.add(maderaFloorMesh);
     waterDeckMesh.count = waterDeckCount;
@@ -2264,12 +2400,49 @@ function getTerrainHeight(x, z) {
 }
 
 // --- COLISIONES ---
+function updatePlayerPosture() {
+    if (isCrouching === crouchRequested) return;
+    const player = controls.getObject();
+    if (!isFlying && !isRidingBoat) {
+        const previousHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+        const nextHeight = crouchRequested ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+        const feetY = player.position.y - previousHeight;
+        const nextY = feetY + nextHeight;
+        if (!crouchRequested) {
+            const gx = Math.floor((player.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
+            const gz = Math.floor((player.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
+            const cell = atticSupport?.cellAt(player.position.x, player.position.z);
+            const inAttic = bedCeilingHoleOpen && cell && (feetY >= cell.top - 0.08
+                || atticSupport.fitsOpening(player.position.x, player.position.z));
+            const floor = floorMap[gz]?.[gx];
+            let limit = Infinity;
+            if (inAttic) limit = atticSupport.upperLimit(player.position.x, player.position.z);
+            else if (['INDOOR_FLOOR','DOOR_UNLOCKED','DOOR_LOCKED'].includes(floor)) {
+                limit = getTerrainHeight(player.position.x, player.position.z)
+                    + (floor === 'INDOOR_FLOOR' ? WALL_HEIGHT : DOOR_HEIGHT) - 0.3;
+            }
+            // Si no cabe, conservar la postura hasta salir de debajo del obstáculo.
+            if (nextY > limit + 0.01) return;
+        }
+        // Cambiar la altura de los ojos, nunca la cota de los pies ni el impulso vertical.
+        player.position.y = nextY;
+    }
+    isCrouching = crouchRequested;
+}
+
 function isWall(x, z) {
     const controlObj = controls.getObject();
+    const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+    const atticCell = atticSupport?.cellAt(controlObj.position.x, controlObj.position.z);
+    if (!isRidingBoat && bedCeilingHoleOpen && atticCell && (controlObj.position.y > atticCell.bottom || velocityY > 0)
+        && (controlObj.position.y - eyeHeight >= atticCell.top - 0.08
+            || atticSupport.fitsOpening(controlObj.position.x, controlObj.position.z))) {
+        return atticSupport.blocksMovement(x,z,controlObj.position.y,eyeHeight);
+    }
     return hasObstacle(isRidingBoat ? x - boatSeatOffset.x : x,
         isRidingBoat ? z - boatSeatOffset.z : z,
         mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference,
-        controlObj.position.y - (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT));
+        controlObj.position.y - eyeHeight);
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -2298,6 +2471,9 @@ let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
     bedBounceIndex = -1;
+    jumpHeld = false;
+    bedCeilingTimer = 0;
+    crouchRequested = isCrouching = false;
     isDead = false;
     stamina = STAMINA_MAX;
     divingAir.reset();
@@ -2637,6 +2813,7 @@ function animate(timestamp = performance.now()) {
         const pullingHeart = heartPull.active;
         heartPull.update(delta);
         if (!spawnGreeting.active && !pullingHeart) {
+            updatePlayerPosture();
             velocity.x -= velocity.x * FRICTION * delta;
             velocity.z -= velocity.z * FRICTION * delta;
 
@@ -2721,12 +2898,17 @@ function animate(timestamp = performance.now()) {
                 hud.updateStamina(stamina, STAMINA_MAX);
             }
 
+            // Reintentar incorporarse al despejar la cabeza durante este mismo desplazamiento.
+            updatePlayerPosture();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
             const bedSupport = isRidingBoat || isFlying || inWater ? -Infinity
                 : getBedSupport(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight, solidInteractables);
+            const ceilingSupport = isRidingBoat || isFlying || inWater || !bedCeilingHoleOpen ? -Infinity
+                : atticSupport?.supportHeight(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight, true) ?? -Infinity;
             const currentTerrainHeight = Math.max(getTerrainHeight(controlObj.position.x, controlObj.position.z),
-                bedSupport);
+                bedSupport, ceilingSupport);
             const onBed = Number.isFinite(bedSupport) && bedSupport >= currentTerrainHeight;
+            const onAttic = Number.isFinite(ceilingSupport) && ceilingSupport >= currentTerrainHeight;
             if ((!onBed && bedBounceIndex > 0) || isFlying || isRidingBoat || inWater) bedBounceIndex = -1;
             let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
@@ -2746,6 +2928,23 @@ function animate(timestamp = performance.now()) {
                 controlObj.position.y = targetEyesHeight;
                 velocityY = 0;
                 canJump = false;
+            } else if (!isFlying && bedCeilingTimer > 0) {
+                bedCeilingTimer -= delta;
+                velocityY = 0;
+                if (bedCeilingTimer <= 0) {
+                    bedCeilingTimer = 0;
+                    bedCeilingHoleOpen = true;
+                    // Se rompe solo el cielo falso; la cubierta superior queda intacta.
+                    for (const piece of bedFalseCeilingPieces.values()) {
+                        piece.userData.visibilityEnabled = false;
+                        piece.visible = false;
+                    }
+                    if (bedHoleRim) {
+                        bedHoleRim.userData.visibilityEnabled = true;
+                        bedHoleRim.visible = true;
+                    }
+                    velocityY = -1;
+                }
             } else if (!isFlying) {
                 // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
                 if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.15) {
@@ -2756,11 +2955,11 @@ function animate(timestamp = performance.now()) {
                 controlObj.position.y += velocityY * delta;
 
                 if (controlObj.position.y < targetEyesHeight) {
-                    if (onBed && !canJump && bedBounceIndex >= 0 && bedBounceIndex < BED_BOUNCE_IMPULSES.length) {
+                    if (onBed && jumpHeld && !canJump && bedBounceIndex >= 0) {
                         controlObj.position.y = targetEyesHeight;
-                        velocityY = BED_BOUNCE_IMPULSES[bedBounceIndex++];
+                        velocityY = BED_BOUNCE_IMPULSES[Math.min(bedBounceIndex++, BED_BOUNCE_IMPULSES.length - 1)];
                         canJump = false;
-                    } else if (!inWater && !onBed && controlObj.position.y < targetEyesHeight - 0.2) {
+                    } else if (!inWater && !onBed && !onAttic && controlObj.position.y < targetEyesHeight - 0.2) {
                         controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 15 * delta;
                         velocityY = 0;
                         canJump = false;
@@ -2774,14 +2973,36 @@ function animate(timestamp = performance.now()) {
             }
         
             // Colisión de techos (tanto normal como vuelo)
-            if (currentGZ >= 0 && currentGZ < mapHeight && currentGX >= 0 && currentGX < mapWidth) {
-                const currentFloor = floorMap[currentGZ][currentGX];
-                if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED') {
+            const roofGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
+            const roofGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
+            if (roofGZ >= 0 && roofGZ < mapHeight && roofGX >= 0 && roofGX < mapWidth) {
+                const currentFloor = floorMap[roofGZ][roofGX];
+                if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED'
+                    || (bedCeilingHoleOpen && atticSupport?.cellAt(controlObj.position.x, controlObj.position.z))) {
                     const passageHeight = ['DOOR_UNLOCKED','DOOR_LOCKED'].includes(currentFloor) ? DOOR_HEIGHT : WALL_HEIGHT;
                     const ceilingMaxHeight = getTerrainHeight(controlObj.position.x, controlObj.position.z) + passageHeight - 0.3; // La cama no eleva el techo.
-                    if (controlObj.position.y > ceilingMaxHeight) {
+                    const atBedOpening = roofGX === bedCeilingHoleTile?.x && roofGZ === bedCeilingHoleTile?.z;
+                    const atticCell = atticSupport?.cellAt(controlObj.position.x, controlObj.position.z);
+                    const throughOpening = bedCeilingHoleOpen && atticSupport?.fitsOpening(controlObj.position.x, controlObj.position.z);
+                    const aboveFalseCeiling = bedCeilingHoleOpen && atticCell && controlObj.position.y - eyeHeight >= atticCell.top - 0.08;
+                    const inAttic = aboveFalseCeiling || throughOpening || (atBedOpening && bedCeilingTimer > 0);
+                    if (!inAttic && controlObj.position.y > ceilingMaxHeight) {
                         controlObj.position.y = ceilingMaxHeight;
                         if (velocityY > 0) velocityY = 0;
+                        if (onBed && jumpHeld && bedBounceIndex >= 4 && !bedCeilingHoleOpen && bedCeilingTimer <= 0 && bedRoofPieces.has(`${roofGX},${roofGZ}`)) {
+                            bedCeilingTimer = 0.7;
+                            bedCeilingHoleTile = { x: roofGX, z: roofGZ };
+                            controlObj.position.y = ceilingMaxHeight + 0.35;
+                            canJump = false;
+                        }
+                    }
+                    // El hueco permite entrar al entretecho, sin atravesar la cubierta exterior.
+                    if (inAttic && atticSupport) {
+                        const upperLimit = atticSupport.upperLimit(controlObj.position.x, controlObj.position.z);
+                        if (Number.isFinite(upperLimit) && controlObj.position.y > upperLimit) {
+                            controlObj.position.y = upperLimit;
+                            if (velocityY > 0) velocityY = 0;
+                        }
                     }
                 }
             }
@@ -2954,9 +3175,15 @@ function animate(timestamp = performance.now()) {
     if (!controls.isLocked || isDead) hud.hideDivingAir();
     hud.updateCoordinates(controlObj.position, UNIT_SIZE, gameStarted && controls.isLocked && !isDead);
     heldItemSprite.visible = !!heldItem && gameStarted && controls.isLocked && !isDead;
+    heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && controls.isLocked && !isDead);
     underwaterStrength.value = underwaterBlend;
-    underwaterView.render(scene, camera);
+    if (controls.isLocked && !isDead) heartPull.applyCameraShake();
+    try {
+        underwaterView.render(scene, camera);
+    } finally {
+        heartPull.restoreCameraShake();
+    }
 }
 
 animate();
