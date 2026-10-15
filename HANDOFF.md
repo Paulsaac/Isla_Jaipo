@@ -474,3 +474,6 @@ Reproducida con Chrome/NVIDIA GTX1660SUPER a1280x720: al girar, render2663.7ms y
 
 ## Tunel temporal Cloudflare — 2026-10-14
 Solicitud explicita de AxByZ: enlace publico temporal https://reload-november-hoped-puzzle.trycloudflare.com dirigido a http://127.0.0.1:8001. cloudflared PID 5112, proceso oculto, QUIC conectado. Verificados HTTP 200 de raiz y game.js por URL publica. Servidor LAN permanece activo. Logs en TEMP isla-jaipo-cloudflare-20261014.log. Enlace depende del proceso del tunel y del servidor local; sin commit/push.
+
+## Pull request publicado — 2026-10-15
+PR #1: https://github.com/Paulsaac/Isla_Jaipo/pull/1 (codex/evento-01-bosque hacia main), commit de implementacion 5e85596 publicado y verificado. Incluye 19 archivos de producto/documentacion; auxiliares .coordination excluidos. Entrega autorizada por AxByZ, sin merge automatico y sin cierre de sesion. Pruebas de saludo, dialogo/mapa/llave y forcejeo aprobadas sobre version final. Servidor LAN PID 22552 y cloudflared PID 5112 siguen activos. Correccion final de espacio al EOF de antique-stove-geometry.js incluida en seguimiento documental.

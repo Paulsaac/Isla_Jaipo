@@ -93,4 +93,3 @@ export function createAntiqueStoveGeometry(THREE) {
     result.computeBoundingBox(); result.computeBoundingSphere();
     return result;
 }
-
