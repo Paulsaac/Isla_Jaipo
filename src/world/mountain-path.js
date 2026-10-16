@@ -1,5 +1,5 @@
 // Regulariza la subida según distancia recorrida por el camino pintado.
-export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight) {
+export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight, reference = null) {
     const height=floorMap.length,width=floorMap[0].length;
     const distance=Array.from({length:height},()=>new Float64Array(width).fill(Infinity));
     const queue=[];
@@ -20,14 +20,20 @@ export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight
     for(let z=0;z<height;z++) for(let x=0;x<width;x++) {
         if(floorMap[z][x]==='DIRT'&&mountainMask[z][x]&&heights[z][x]>=summitHeight*0.99) climbLength=Math.min(climbLength,distance[z][x]);
     }
+    if (reference) climbLength=reference.climbLength;
     if(!Number.isFinite(climbLength)||climbLength<=0) return;
     // Perfil natural del trazado, con el aumento de altura del 15% solicitado.
-    const adjustedHeight=Math.min(summitHeight,(1+climbLength*0.65*0.95)*1.15);
+    const adjustedHeight=reference?.summitHeight != null
+        ? 1+(reference.summitHeight-1)*(reference.inclineMultiplier ?? 1)
+        : Math.min(summitHeight,(1+climbLength*0.65*0.95)*1.15);
     const scale=(adjustedHeight-1)/(summitHeight-1);
     for(let z=0;z<height;z++) for(let x=0;x<width;x++) {
         if(mountainMask[z][x]) heights[z][x]=1+(heights[z][x]-1)*scale;
     }
     summitHeight=adjustedHeight;
+    // En modo integrado el camino es pintura sobre la ladera, no una rampa aparte.
+    // La meseta y la ladera se terminan de calcular después, sobre estas alturas.
+    if(reference?.followTerrain) return {summitHeight, followsTerrain:true, mountainMask};
     const road=Array.from({length:height},()=>new Float32Array(width).fill(NaN));
     for(let z=0;z<height;z++) for(let x=0;x<width;x++) {
         if(floorMap[z][x]!=='DIRT'||!Number.isFinite(distance[z][x])) continue;
@@ -59,7 +65,7 @@ export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight
 
 // Proyectar sobre segmentos evita bultos transversales y escalones de celda en celda.
 export function sampleMountainPath(profile, x, z) {
-    if(!profile) return null;
+    if(!profile || profile.followsTerrain) return null;
     const rows=profile.surface,cx=Math.round(x),cz=Math.round(z);
     if(!profile.nearby[cz]?.[cx]) return null;
     let bestDistance=Infinity,bestHeight=0;
