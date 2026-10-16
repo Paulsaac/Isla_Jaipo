@@ -49,11 +49,11 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     let y = y0 * (1 - tz) + y1 * tz;
 
     const interpolate = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
-    const noiseWeight = value => ['SAND', 'WET_SAND'].includes(value) ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
+    const noiseWeight = (value,x,z) => mountainPathProfile?.followsTerrain && mountainPathProfile.mountainMask[z]?.[x] ? 0 : ['SAND', 'WET_SAND'].includes(value) ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
     const t00 = floorMap[r0][c0], t10 = floorMap[r0][c1], t01 = floorMap[r1][c0], t11 = floorMap[r1][c1];
     // Interpolar profundidad y relieve evita el salto de dos metros al cambiar de celda.
     const coastalRelief = Math.max(0, Math.min(1, (y - 0.2) / 0.8));
-    const noiseAmount = interpolate(noiseWeight(t00), noiseWeight(t10), noiseWeight(t01), noiseWeight(t11)) * (0.25 + 0.75 * coastalRelief);
+    const noiseAmount = interpolate(noiseWeight(t00,c0,r0), noiseWeight(t10,c1,r0), noiseWeight(t01,c0,r1), noiseWeight(t11,c1,r1)) * (0.25 + 0.75 * coastalRelief);
     if (noiseAmount > 0) {
         // Large rolling hills (scale = 3.0 tiles)
         let macroNoise = getSmoothNoise(colF, rowF, 3.0) * 0.4;

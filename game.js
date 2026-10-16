@@ -40,6 +40,8 @@ import { toggleDoor, unlockDoor, updateDoorAnimations } from './src/systems/door
 import { createWoodFloorMap, createWaterDeckMap, createWaterDeckTerrain, levelBuildingAtTerrain, createWetSandShoreMap } from './src/world/surfaces.js';
 import { createTorchLighting } from './src/systems/torch-lighting.js';
 import { createMountainHeights } from './src/world/mountain-height.js';
+import { createMountainReliefMap } from './src/world/mountain-relief.js';
+import { MOUNTAIN_PROFILE_REFERENCE } from './src/content/mountain-relief.js';
 import { smoothMountainPath } from './src/world/mountain-path.js';
 import { createRoofBaseMap } from './src/world/roof-height.js';
 import { getDoorOpening } from './src/world/door-opening.js';
@@ -52,6 +54,8 @@ import { createHeartVision } from './src/world/heart-vision.js';
 import { createHeartHalos } from './src/world/heart-halos.js';
 import { createHeartLevitation, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
+import { CAVE_ENTRY, createCaveEntrance } from './src/world/cave-entrance.js';
+import { loadCaveTestMap } from './src/world/cave-test-map.js';
 import { createUnderwaterView } from './src/world/underwater-view.js';
 import { createUnderwaterVegetation } from './src/world/underwater-vegetation.js';
 import { createVegetationVisibility } from './src/world/vegetation-visibility.js';
@@ -672,6 +676,7 @@ function canReachForestHeart() {
 function interact() {
     if (!controls.isLocked || isDead) return false;
     if (grahamDap.active) return true;
+    if (caveMap?.active) { leaveCaveTestMap(); return true; }
     if (heartPull.active) { heartPull.interact(); return true; }
     if (spawnGreeting.active) {
         if (spawnGreeting.dismiss()) {
@@ -920,7 +925,7 @@ const gameActions = {
     },
     run(pressed) { isRunning = pressed; },
     map() {
-        if (mapLoaded && hasMap) {
+        if (mapLoaded && hasMap && !caveMap?.active) {
             minimap.toggle();
             menus.setItemActive('map', minimap.enabled);
         }
@@ -1036,6 +1041,41 @@ let woodFloorMap = [];
 let mountainPathProfile = null;
 let terrainHeightSamples = null;
 let mapLoaded = false;
+let caveEntrance = null;
+let caveMap = null;
+let caveTransitionPending = false;
+
+async function enterCaveTestMap() {
+    if (caveTransitionPending || caveMap?.active) return;
+    caveTransitionPending = true;
+    velocity.set(0,0,0);
+    hud.showInteraction();hud.setInteractionText('Entrando a la cueva…');
+    try {
+        if (!caveMap) {
+            caveMap = await loadCaveTestMap(THREE,UNIT_SIZE,PLAYER_HEIGHT);
+            scene.add(caveMap.group);
+            await renderer.compileAsync(scene,camera);
+        }
+        caveMap.active=true;caveMap.group.visible=true;
+        if (minimap.enabled) minimap.toggle();
+        menus.setItemActive('map',false);
+        controls.getObject().position.copy(caveMap.spawn);
+        velocityY=0;isFlying=false;targetInteractable=null;
+    } catch(error) {
+        console.error('No se pudo entrar a mapa_cueva.png:',error);
+        hud.showReceivedItem('un error al cargar mapa_cueva.png; vuelve a intentarlo');
+        controls.getObject().position.copy(caveEntrance.returnPosition).y+=PLAYER_HEIGHT;
+    } finally { caveTransitionPending=false; }
+}
+
+function leaveCaveTestMap() {
+    if (!caveMap?.active) return;
+    caveMap.active=false;caveMap.group.visible=false;
+    controls.getObject().position.copy(caveEntrance.returnPosition).y+=PLAYER_HEIGHT;
+    camera.rotation.set(0,Math.PI/2,0);
+    velocity.set(0,0,0);velocityY=0;targetInteractable=null;
+    hud.hideInteraction();
+}
 let playerStartX = 0;
 let playerStartZ = 0;
 
@@ -1141,9 +1181,9 @@ fondoTex.magFilter = THREE.LinearFilter;
 fondoTex.minFilter = THREE.LinearMipmapLinearFilter;
 fondoTex.colorSpace = THREE.SRGBColorSpace;
 fondoTex.wrapS = fondoTex.wrapT = THREE.RepeatWrapping;
-const agua1Tex = texLoader.load('./imagenes/Texturas/Agua1.png?v=' + Date.now());
-const agua2Tex = texLoader.load('./imagenes/Texturas/Agua2.png?v=' + Date.now());
-const agua3Tex = texLoader.load('./imagenes/Texturas/Agua3.png?v=' + Date.now());
+const agua1Tex = texLoader.load('./imagenes/Texturas/Agua1_niebla.png?v=' + Date.now());
+const agua2Tex = texLoader.load('./imagenes/Texturas/Agua2_niebla.png?v=' + Date.now());
+const agua3Tex = texLoader.load('./imagenes/Texturas/Agua3_niebla.png?v=' + Date.now());
 const muroTex = texLoader.load('./imagenes/Texturas/muro.png?v=' + Date.now());
 muroTex.wrapS = THREE.RepeatWrapping;
 muroTex.wrapT = THREE.RepeatWrapping;
@@ -1322,6 +1362,7 @@ function buildWorld(prepared) {
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
+    const mountainReliefMap = createMountainReliefMap(floorMap, collisionMap);
     woodFloorMap = createWoodFloorMap(floorMap, roofMap, mapWidth, mapHeight, prepared.externalTorchMap);
     const waterDeckMap = createWaterDeckMap(floorMap, roofMap, mapWidth, mapHeight);
     const seaFloorHeights = createSeaFloorHeights(floorMap,waterDeckMap,mapWidth,mapHeight);
@@ -1408,7 +1449,7 @@ function buildWorld(prepared) {
     const grassFloorMat = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 });
     const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
-    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xb8d9ff, transparent: true, opacity: 0.4752, shininess: 60, side: THREE.DoubleSide });
+    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 1, shininess: 60, side: THREE.DoubleSide });
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
         createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight), UNIT_SIZE, underwaterStrength, raisedWaterCell);
     heartVision.apply(THREE, aguaFloorMat, 'water');
@@ -1528,11 +1569,11 @@ function buildWorld(prepared) {
 
     let previousMountainMaximum = 1;
     for(let z=0;z<mapHeight;z++) for(let x=0;x<mapWidth;x++) {
-        const factor = {MOUNTAIN:1.5,PEAK:2,SNOW_PEAK:3}[floorMap[z][x]];
+        const factor = {MOUNTAIN:1.5,PEAK:2,SNOW_PEAK:3}[mountainReliefMap[z][x]];
         if(factor) previousMountainMaximum=Math.max(previousMountainMaximum,elevationMap[z][x]*factor);
     }
     previousMountainMaximum *= 0.85 * 0.8;
-    const { heights: mountainHeights, mask: mountainMask } = createMountainHeights(floorMap, mapWidth, mapHeight, previousMountainMaximum);
+    const { heights: mountainHeights, mask: mountainMask } = createMountainHeights(mountainReliefMap, mapWidth, mapHeight, previousMountainMaximum);
     // Aplanar y esculpir
     for (let z = 0; z < mapHeight; z++) {
         for (let x = 0; x < mapWidth; x++) {
@@ -1601,7 +1642,7 @@ function buildWorld(prepared) {
             elevationMap[z][x]=platformHeight*(1-blend)+elevationMap[z][x]*blend;
         }
     }
-    mountainPathProfile = smoothMountainPath(floorMap, elevationMap, mountainMask, previousMountainMaximum);
+    mountainPathProfile = smoothMountainPath(mountainReliefMap, elevationMap, mountainMask, previousMountainMaximum, {...MOUNTAIN_PROFILE_REFERENCE, followTerrain:true, inclineMultiplier:1.1});
     // Smooth indoor boundaries
     for (let z = 0; z < mapHeight; z++) {
         for (let x = 0; x < mapWidth; x++) {
@@ -1621,7 +1662,7 @@ function buildWorld(prepared) {
         }
     }
 
-    smoothMountainSlope(floorMap, elevationMap, mountainMask);
+    smoothMountainSlope(mountainReliefMap, elevationMap, mountainMask, mountainPathProfile?.summitHeight, mountainPathProfile?.followsTerrain);
     // Elevar cada puente cubierto al terreno de sus accesos, antes de construir sus piezas.
     for (const bridge of waterDeckMap.coveredBridges) {
         const midX = (bridge.minX + bridge.maxX) / 2, midZ = (bridge.minZ + bridge.maxZ) / 2;
@@ -2155,6 +2196,10 @@ function buildWorld(prepared) {
         }
     }
     // El marcador de bote conserva el fondo del agua que lo rodea.
+    const caveBaseY = getTerrainVertexY(CAVE_ENTRY.x-2,CAVE_ENTRY.z,mapWidth,mapHeight,terrainFloorMap,terrainElevations,terrainWoodMap,mountainPathProfile);
+    caveEntrance = createCaveEntrance(THREE,UNIT_SIZE,caveBaseY,rocaTex);
+    scene.add(caveEntrance.group);
+    solidInteractables.push(...caveEntrance.solids);
     const boatBottomChannels = new Map();
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
         if (floorMap[z][x] !== 'BOAT') continue;
@@ -2208,7 +2253,7 @@ function buildWorld(prepared) {
         }
 
         const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, terrainFloorMap, terrainElevations, terrainWoodMap, mountainPathProfile);
-        positions[i * 3 + 1] = y;
+        positions[i * 3 + 1] = caveEntrance.carveHeight(colF*UNIT_SIZE,rowF*UNIT_SIZE,y);
     }
     
     terrainGeo.setAttribute('splatWeights', new THREE.BufferAttribute(splatWeights, 4));
@@ -2624,6 +2669,8 @@ function alignGrahamToFloor() {
 }
 
 function getTerrainHeight(x, z) {
+    if (caveMap?.active && caveMap.contains(x,z)) return caveMap.getHeight(x,z);
+    if (caveEntrance?.contains(x,z)) return caveEntrance.baseY + 0.025;
     const gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
     const top=slabTops.get(gz*mapWidth+gx);
     if(gx>=0&&gz>=0&&gx<mapWidth&&gz<mapHeight&&top!==undefined) return top;
@@ -2664,6 +2711,8 @@ function updatePlayerPosture() {
 function treeCanopyHeight(x, z) { return getTerrainHeight(x, z) + TREE_SPRITE_HEIGHT - 0.5; }
 
 function isWall(x, z) {
+    if (caveMap?.active) return caveMap.isWall(x,z);
+    if (caveEntrance?.contains(x,z)) return false;
     const controlObj = controls.getObject();
     const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
     const atticCell = atticSupport?.cellAt(controlObj.position.x, controlObj.position.z);
@@ -2747,7 +2796,7 @@ function animate(timestamp = performance.now()) {
     daySkyMesh.position.y = controlObj.position.y - 200;
     nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y; // Horizonte del atlas a la altura de los ojos.
 
-    if (controls.isLocked && mapLoaded) {
+    if (controls.isLocked && mapLoaded && !caveTransitionPending) {
         previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const rawDelta = clock.getDelta();
@@ -3108,6 +3157,11 @@ function animate(timestamp = performance.now()) {
             }
         }
 
+        if (caveMap?.active) {
+            targetInteractable=null;hud.showInteraction();
+            hud.setInteractionText('Mapa de prueba de la cueva — Presiona E para volver a la playa');
+            hud.setInteractionColor('#d8e4eb');
+        }
         const pullingHeart = heartPull.active;
         heartPull.update(delta);
         if (!spawnGreeting.active && !pullingHeart && !grahamDap.active) {
@@ -3448,6 +3502,9 @@ function animate(timestamp = performance.now()) {
         } else hud.hideDivingAir();
         frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
         minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE, -frameCameraHeading.y);
+        if (!caveMap?.active && !isFlying && !isRidingBoat && !isDialogOpen && caveEntrance?.triggered(controlObj.position)) {
+            enterCaveTestMap();
+        }
         
         // Variación suave de la antorcha de mano, conservando intensidad media 8.
         handTorchFlickerTime += delta;
@@ -3485,10 +3542,12 @@ function animate(timestamp = performance.now()) {
         grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
     updateFogColor();
-    underwaterBackdrop.visible = underwaterBlend > 0.001;
-    underwaterBackdrop.material.opacity = underwaterBlend;
+    const cameraSubmerged = isPlayerUnderwater();
+    // Cubrir también los huecos más allá del mapa desde el primer instante sumergido.
+    underwaterBackdrop.visible = cameraSubmerged || underwaterBlend > 0.001;
+    underwaterBackdrop.material.opacity = cameraSubmerged ? 1 : underwaterBlend;
     underwaterBackdrop.material.color.copy(underwaterCurrentColor);
-    skyMesh.visible = underwaterBlend < 0.995;
+    skyMesh.visible = !cameraSubmerged;
     daySkyMesh.visible = dayMaterials.some(material => material.opacity !== 0);
     dawnSkyMesh.visible = dawnSkyMesh.material.opacity !== 0;
     duskSkyMesh.visible = duskSkyMesh.material.opacity !== 0;
@@ -3540,7 +3599,7 @@ function animate(timestamp = performance.now()) {
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
     if (!controls.isLocked || isDead) hud.hideDivingAir();
-    hud.updateCoordinates(controlObj.position, UNIT_SIZE, gameStarted && controls.isLocked && !isDead);
+    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, gameStarted && controls.isLocked && !isDead);
     heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && gameStarted && controls.isLocked && !isDead;
     heldMate.update(controls.isLocked ? vegetationDelta : 0, canDrinkMate());
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';

@@ -261,3 +261,6 @@
 - El usuario dedica este chat a gestión y organización de archivos y coherencia de arquitectura. Funciones, inventario inicial, límites y procedimiento en docs/ORGANIZATION.md, enlazado desde las reglas y el protocolo.
 - Mantener responsabilidades de NPC y pruebas en sus chats; un solo bloqueo y relevo para esta copia. Mismo nombre de agente no permite reutilizar el token de otro chat.
 - Reorganizar gradualmente tras revisar lectores/escritores y referencias. Los destinos de auxiliares son propuestas; este acuerdo no movió archivos de ejecución, recursos ni scripts históricos.
+
+## 2026-10-16 — Forma de montaña según nieve vigente
+- La nieve del mapa vigente define la cima y el marrón las laderas; el camino sigue el terreno. El desnivel de referencia sube 10% (cima 129.02256, pie 1). Se conserva la clasificación de colisiones previa al repintado.

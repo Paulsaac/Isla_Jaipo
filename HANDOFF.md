@@ -1,3 +1,9 @@
+# Integración de copia local posterior al PR #2 — 2026-10-16
+
+La rama para este PR parte del merge commit `deb6edcc0567da30e491714dca25f58c166663ae`. Recoge la versión local confirmada por Clawshoot: relieve de montaña definido por la pintura vigente y camino integrado en la ladera (+10% de desnivel), ajustes de transparencia/textura del agua y acceso con mapa provisional de cueva. La cueva sigue documentada como prueba, no como nivel final.
+
+La copia servida en `http://127.0.0.1:8002/` fue abierta por Clawshoot y confirmada como funcional antes de esta integración. No se repitió una prueba integral al preparar el PR. Se excluyeron dependencias instaladas, scripts/fixtures temporales y respaldos de mapas/texturas; se preservan en la copia local original. El checkout principal local sigue en `c7bc312` con cambios sin commit; no se hizo pull ahí. Los servidores siguen activos.
+
 # AxByZ: instantánea IslaJaipoC1 para revisión — 2026-10-16
 
 ## Revisión vigente de Clawshoot para PR #2 — 2026-10-16

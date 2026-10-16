@@ -39,6 +39,12 @@ export function applyWaterWaves(THREE, material, time, currentField, unitSize, i
             #endif
             float waterLuminance = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
             diffuseColor.rgb = mix(vec3(waterLuminance), diffuseColor.rgb, 0.7225);
+            // Aclarar solo el agua próxima, con distancia horizontal al jugador.
+            float waterDistance = distance(vWaterPosition.xz, cameraPosition.xz);
+            float surfaceOpacity = mix(0.5, opacity, smoothstep(6.0, 12.0, waterDistance));
+            // La cara inferior es opaca incluso durante la transición de inmersión.
+            float viewOpacity = cameraPosition.y < vWaterPosition.y ? 1.0 : surfaceOpacity;
+            diffuseColor.a *= viewOpacity / opacity;
         `);
         shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `
             #include <normal_fragment_maps>
@@ -46,5 +52,5 @@ export function applyWaterWaves(THREE, material, time, currentField, unitSize, i
             normal = normalize(normal + (viewMatrix * vec4(ripple, 0.0)).xyz);
         `);
     };
-    material.customProgramCacheKey = () => 'water-waves-river-v6';
+    material.customProgramCacheKey = () => 'water-waves-river-v12';
 }
