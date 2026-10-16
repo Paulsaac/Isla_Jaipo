@@ -75,8 +75,9 @@ export function createMateSet(THREE) {
         [new THREE.BoxGeometry(0.022, 0.05, 0.014), steel, 0.05, 0.394, 0, -0.4]
     ]);
     // Extremo oeste de la mesa, junto a la posición actual de Graham.
-    kettle.scale.setScalar(0.8);
+    kettle.scale.setScalar(0.68);
     kettle.position.set(-1.05, 1.1, 0.18);
+    mate.scale.setScalar(0.72);
     mate.position.set(-1.22, 1.1, -0.25);
     const set = new THREE.Group();
     set.name = 'graham-mate-set';

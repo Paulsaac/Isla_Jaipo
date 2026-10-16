@@ -10,6 +10,25 @@ export function createMinimap() {
         if (minimapContainer) return;
 
         minimapContainer = document.createElement('div');
+        minimapContainer.id = 'minimap';
+        if (document.body.classList.contains('touch-mode')) {
+            minimapContainer.setAttribute('role', 'button');
+            minimapContainer.tabIndex = 0;
+            minimapContainer.setAttribute('aria-label', 'Ampliar mapa');
+            minimapContainer.setAttribute('aria-expanded', 'false');
+            function resizeMap(event) {
+                event.stopPropagation();
+                const expanded = minimapContainer.classList.toggle('map-expanded');
+                minimapContainer.setAttribute('aria-expanded', String(expanded));
+                minimapContainer.setAttribute('aria-label', expanded ? 'Reducir mapa' : 'Ampliar mapa');
+            }
+            minimapContainer.addEventListener('click', resizeMap);
+            minimapContainer.addEventListener('keydown', event => {
+                if (event.code !== 'Enter' && event.code !== 'Space') return;
+                event.preventDefault();
+                resizeMap(event);
+            });
+        }
         minimapContainer.style.position = 'absolute';
         minimapContainer.style.top = '20px';
         minimapContainer.style.right = '20px';
@@ -43,6 +62,7 @@ export function createMinimap() {
         minimapContainer.appendChild(illustratedMap);
 
         playerDot = document.createElement('div');
+        playerDot.className = 'minimap-player';
         playerDot.style.position = 'absolute';
         playerDot.style.width = '20px';
         playerDot.style.height = '26px';

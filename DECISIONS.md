@@ -1,5 +1,18 @@
 # Decisiones del proyecto
 
+## 2026-10-16 — Integración de PR #2 con la progresión vigente
+- `GRAHAM_BRIDGE_KEY_AVAILABLE=true`: Graham termina primero la entrega y el agradecimiento del Corazón del Bosque. En una interacción posterior entrega la llave del puente; solo entonces se abre el cofre del mapa y permite recogerlo. Los apuntes de la instantánea del PR que indiquen llave pendiente o cofre abierto antes quedan sustituidos por esta decisión.
+
+## 2026-10-16 — Cofre y mate en IslaJaipoC1
+- El cofre se abre al cerrar el agradecimiento completo tras entregar el corazón; el mapa permanece visible dentro y exige E/B para recogerlo. Se descarta la llave del cofre y la adjudicación automática del mapa.
+- Graham entrega un mate al interactuar con mate/tetera. Clic derecho en PC o A en móvil acercan la bombilla; gesto breve de 1,5 s o sostenido mientras se pulsa. No consume el objeto ni cambia misiones.
+- La llave del puente permanece pendiente. La publicación solicitada es un PR para revisión en main, sin fusión automática.
+
+
+## 2026-10-16 — Entrega de Graham y dap de AxByZ
+- Texto de entrega y recordatorio sustituidos por pedido explícito. Tras segundo agradecimiento, acercamiento rápido de ambos con sonido adjunto y retirada suave antes de seguir. El gesto no se repite en el recordatorio. Audio original M4A conservado; pausa usa el mismo reloj de audio.
+- Graham todavía busca las llaves: disponibilidad desactivada, sin recompensa inmediata ni condición de hallazgo inventada. La futura forma de obtenerlas queda pendiente. No cambian triggers de cielo: amanecer detenido y Mañana esperan apertura del puente. Ver HANDOFF.md para alcance y comprobaciones.
+
 ## 2026-10-14 — Preparación submarina y protección de rotación
 - Anticipar vegetación submarina al pisar mar, conservar recursos en memoria y limitar dibujo al alcance de niebla vigente80/1.3≈61.54u; vegetación terrestre retorna desde altura de cámara−2.5 y se oculta al descender. Construcción con presupuesto3ms por tanda y preparación del render a textura antes de la primera inmersión. Sectores actualizan matrices incrementalmente sin alterar reglas físicas ni población.
 - Solicitar entrada de mouse sin aceleración cuando se admita, con respaldo compatible, y confirmar deltas grandes aislados mediante otra muestra coherente en50ms. Umbral base100px/adaptación12×muestra previa reciente120ms; conservar sensibilidad normal, barridos rápidos y ruta táctil. Puede descartar movimientos intencionales grandes de una sola muestra: revalidar con hardware del usuario. Video confirma salto visual, no causa del dispositivo; resultados aislados no acreditan FPS real ni solución definitiva en mouse físico. Detalles y evidencias en el cierre propio de HANDOFF.md.

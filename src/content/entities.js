@@ -28,6 +28,13 @@ export const spawnRoomExit = { x: 235, z: 423 };
 
 export const kitchenGardenPosition = { x: 237, z: 433 };
 
+// Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
+// La antorcha interior estaba apoyada en el muro sur, hacia el mar.
+export const mapCellOverrides = [
+    { id: 'kitchen-rear-torch-floor', position: { x: 229, z: 430 }, expectedType: 'TORCH', type: 'INDOOR_FLOOR' },
+    { id: 'kitchen-rear-door', position: { x: 229, z: 431 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' }
+];
+
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
 
 export const keyBindings = [{
@@ -61,11 +68,17 @@ export const divingHelmet = {
 };
 
 export const doorOverrides = [
-    { position: { x: 228, z: 423 }, openDirection: 'south' },
-    { position: { x: 235, z: 423 }, openDirection: 'north' }
+    { position: { x: 228, z: 423 }, openDirection: 'south', hinge: 'left' },
+    { position: { x: 235, z: 423 }, openDirection: 'north' },
+    { position: { x: 229, z: 431 }, openDirection: 'south' }
 ];
 
 export const furniture = [
+    // Rincón de playa de AxByZ (261,443): silla hacia el mar, al este.
+    { id: 'shore-rustic-chair', type: 'RUSTIC_BEACH_CHAIR', position: { x: 261, z: 443 }, size: { x: 1, z: 1 }, offset: { z: 0.1 }, rotationY: Math.PI / 2 },
+    { id: 'shore-plank-table', type: 'BEACH_PLANK_TABLE', position: { x: 261, z: 442 }, size: { x: 1, z: 1 }, offset: { z: 0.45 }, rotationY: 0 },
+    // Esquina noroeste de la sala, entre librero y entrada: frente hacia el interior.
+    { id: 'graham-living-room-wood-stove', type: 'WOOD_STOVE', position: { x: 228, z: 419 }, size: { x: 1, z: 1 }, offset: { x: 0.1, z: 0.15 }, rotationY: Math.PI / 4 },
     { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },
     { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.28 }, rotationY: Math.PI },
     { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 419 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },

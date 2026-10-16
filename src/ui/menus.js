@@ -16,6 +16,9 @@ export function createMenus({ onResume, onUseItem }) {
     const seaHeartCount = document.getElementById('sea-heart-count');
     const description = document.getElementById('inventory-item-description');
     const transitions = new Map();
+    const dialogFontReady = document.fonts
+        ? document.fonts.load('16px "Super Legend Boy"').catch(() => {}) : Promise.resolve();
+    let dialogVersion = 0, dialogAnimation = null;
 
     function setMenuVisible(menu, visible) {
         const previous = transitions.get(menu);
@@ -84,15 +87,54 @@ export function createMenus({ onResume, onUseItem }) {
             dialogText.append(document.createTextNode(part));
         });
     }
-    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false } = {}) {
-        setDialogText(text);
-        document.getElementById('dialog-name').hidden = anonymous;
-        dialogBox.style.textAlign = anonymous ? 'center' : '';
-        dialogHint.hidden = automatic;
-        dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
-        dialogBox.style.display = 'block';
+    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false, speaker = 'Graham' } = {}) {
+        const version = ++dialogVersion;
+        const waitForControls = !anonymous && document.body.classList.contains('touch-mode')
+            && dialogBox.style.display !== 'block';
+        dialogAnimation?.cancel();
+        dialogAnimation = null;
+        function reveal() {
+            if (version !== dialogVersion) return;
+            // Preparar contenido, nombre y formato antes del primer fotograma visible.
+            setDialogText(text);
+            document.getElementById('dialog-name').hidden = anonymous;
+            document.getElementById('dialog-name').textContent = speaker;
+            dialogBox.style.textAlign = anonymous ? 'center' : '';
+            dialogHint.hidden = automatic;
+            if (document.body.classList.contains('touch-mode'))
+                dialogHint.textContent = anonymous ? '[B] Continuar' : '(Tocar para continuar)';
+            dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
+            dialogBox.style.display = 'block';
+            if (smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const animation = dialogBox.animate([
+                    { opacity: 0, transform: 'translateY(6px)' },
+                    { opacity: 1, transform: 'translateY(0)' }
+                ], { duration: 160, easing: 'ease-out' });
+                dialogAnimation = animation;
+                animation.finished.then(() => {
+                    if (dialogAnimation === animation) dialogAnimation = null;
+                }).catch(() => {});
+            }
+        }
+        if (waitForControls) {
+            dialogBox.style.display = 'none';
+            // Dejar un fotograma pintado con controles ocultos antes de mostrar la conversación.
+            return dialogFontReady.then(() => new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(() => { reveal(); resolve(); }));
+            }));
+        }
+        if (smooth) {
+            dialogBox.style.display = 'none';
+            return dialogFontReady.then(reveal);
+        }
+        reveal();
     }
-    function hideDialog() { dialogBox.style.display = 'none'; }
+    function hideDialog() {
+        ++dialogVersion;
+        dialogAnimation?.cancel();
+        dialogAnimation = null;
+        dialogBox.style.display = 'none';
+    }
     function setKeyCount(count) {
         keyCountDisplay.innerText = count;
         keyIcon.style.display = count > 0 ? 'block' : 'none';
@@ -101,6 +143,7 @@ export function createMenus({ onResume, onUseItem }) {
     }
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; itemButtons.heart.style.display = visible ? 'block' : 'none'; }
     function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; itemButtons.torch.style.display = visible ? 'block' : 'none'; }
+    function setMateVisible(visible) { itemButtons.mate.style.display = visible ? 'block' : 'none'; }
     function setMapVisible(visible) { mapIcon.style.display = visible ? 'block' : 'none'; itemButtons.map.style.display = visible ? 'block' : 'none'; }
     function setItemActive(item, active) { itemButtons[item]?.setAttribute('aria-pressed', String(active)); }
     function setItemDescription(text) { description.textContent = text; }
@@ -120,5 +163,5 @@ export function createMenus({ onResume, onUseItem }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

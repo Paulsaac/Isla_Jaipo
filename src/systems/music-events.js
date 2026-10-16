@@ -1,11 +1,15 @@
+import { createForestHeartBeacon, FOREST_HEART_BEACON_RANGE } from './forest-heart-beacon.js';
 // Audio de la partida: música única, pisadas y ambiente.
 export function createMusicEvents() {
     let context = null;
+    let forestHeartBeacon = null;
     let grassFootstep = null;
     let grassFootstepLoad = null;
     let indoorFootstepOutput = null;
     let windStarted = false;
     let paused = false;
+    let dapBuffer = null, dapLoad = null, dapSource = null, dapOffset = 0;
+    let chestUnlockBuffer = null, chestUnlockSound = null;
     const musicOutputs = new Map();
     let underwaterOutput = null;
     let underwaterFilter = null;
@@ -14,7 +18,7 @@ export function createMusicEvents() {
     let forestSpectrum = null;
     // Nombres de producto: Bosque, Mañana y Submarino. IDs técnicos conservados.
     const tracks = {
-        forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:1},
+        forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:0.8,reverbMix:0.12,sky:true},
         morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:1,reverbMix:0.5},
         underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
     };
@@ -22,6 +26,7 @@ export function createMusicEvents() {
     function unlock() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
         prepareGrassFootstep();
+        prepareDap();
         getIndoorFootstepOutput();
         if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
     }
@@ -36,6 +41,93 @@ export function createMusicEvents() {
         }).catch(error => console.warn('Error al cargar la pisada de pasto:', error));
     }
 
+    function prepareDap() {
+        if (dapLoad) return dapLoad;
+        if (!context) return Promise.resolve(false);
+        dapLoad = fetch('./sonidos/fx/dap.m4a').then(response => {
+            if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/dap.m4a');
+            return response.arrayBuffer();
+        }).then(data => context.decodeAudioData(data)).then(buffer => {
+            dapBuffer = buffer;
+            // Quitar solo silencio inicial para que el ataque coincida con el contacto.
+            let peak = 0;
+            for (let c = 0; c < buffer.numberOfChannels; c++) {
+                const data = buffer.getChannelData(c);
+                for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+            }
+            let first = buffer.length;
+            for (let c = 0; c < buffer.numberOfChannels; c++) {
+                const data = buffer.getChannelData(c);
+                for (let i = 0; i < first; i++) if (Math.abs(data[i]) > Math.max(0.003, peak * 0.05)) { first = i; break; }
+            }
+            dapOffset = Math.max(0, first / buffer.sampleRate - 0.015); return true;
+        }).catch(error => { console.warn('Error al cargar el dap:', error); return false; });
+        return dapLoad;
+    }
+    function stopDap() {
+        if (!dapSource) return;
+        const source = dapSource; dapSource = null; source.onended = null;
+        try { source.stop(); } catch {} source.disconnect();
+    }
+    function playDap() {
+        if (!context || paused || !dapBuffer) return false;
+        stopDap(); const source = context.createBufferSource(); source.buffer = dapBuffer;
+        source.connect(context.destination);
+        source.onended = () => { if (dapSource === source) dapSource = null; source.disconnect(); };
+        dapSource = source;
+        source.start(context.currentTime, Math.min(dapOffset, Math.max(0, dapBuffer.duration - 0.01))); return true;
+    }
+
+    function updateChestUnlockPosition(position) {
+        if (!chestUnlockSound || !position) return;
+        const panner = chestUnlockSound.panner, now = context.currentTime;
+        if (panner.positionX) {
+            panner.positionX.setTargetAtTime(position.x, now, 0.02);
+            panner.positionY.setTargetAtTime(position.y, now, 0.02);
+            panner.positionZ.setTargetAtTime(position.z, now, 0.02);
+        } else panner.setPosition(position.x, position.y, position.z);
+    }
+    function playChestUnlock(position) {
+        if (!context || paused || !position || chestUnlockSound) return false;
+        if (!chestUnlockBuffer) {
+            const duration = 0.48;
+            chestUnlockBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+            const data = chestUnlockBuffer.getChannelData(0);
+            // Pasador metálico breve seguido por el chasquido de la cerradura.
+            for (const [offset, frequency, strength, decay] of [[0,170,.38,42],[.10,1100,.22,24],[.22,260,.42,46]]) {
+                for (let i = 0; i < Math.ceil(context.sampleRate * .20); i++) {
+                    const t = i / context.sampleRate, index = Math.round(offset * context.sampleRate) + i;
+                    const attack = Math.min(1, t / .002), release = Math.max(0, 1 - t / .20);
+                    const tone = Math.sin(2 * Math.PI * frequency * t)
+                        + .28 * Math.sin(2 * Math.PI * frequency * 2.73 * t);
+                    data[index] += strength * attack * Math.exp(-t * decay) * release * tone;
+                }
+            }
+        }
+        const panner = context.createPanner();
+        panner.panningModel = 'HRTF'; panner.distanceModel = 'inverse';
+        panner.refDistance = 8; panner.maxDistance = 45; panner.rolloffFactor = 1;
+        if (panner.positionX) {
+            panner.positionX.value = position.x; panner.positionY.value = position.y; panner.positionZ.value = position.z;
+        } else panner.setPosition(position.x, position.y, position.z);
+        const source = context.createBufferSource(); source.buffer = chestUnlockBuffer;
+        source.connect(panner); panner.connect(context.destination);
+        const sound = { source, panner }; chestUnlockSound = sound;
+        source.onended = () => {
+            if (chestUnlockSound === sound) chestUnlockSound = null;
+            source.disconnect(); panner.disconnect();
+        };
+        source.start(context.currentTime); return true;
+    }
+
+
+    function updateForestHeartBeacon(position) {
+        if (!context || paused || context.state !== 'running') return;
+        if (!forestHeartBeacon && position && Math.hypot(position.x, position.y, position.z) < FOREST_HEART_BEACON_RANGE)
+            forestHeartBeacon = createForestHeartBeacon(context);
+        forestHeartBeacon?.update(position);
+    }
+
     function setPaused(value) {
         paused = value;
         if (!context) return;
@@ -44,17 +136,40 @@ export function createMusicEvents() {
         operation.catch(error => console.warn('No se pudo cambiar la pausa del audio:',error));
     }
 
-    function getMusicOutput(reverbMix = 0.6) {
-        if (musicOutputs.has(reverbMix)) return musicOutputs.get(reverbMix);
+    function getMusicOutput(reverbMix = 0.6, sky = false) {
+        const outputKey = `${reverbMix}:${sky}`;
+        if (musicOutputs.has(outputKey)) return musicOutputs.get(outputKey);
         const musicOutput = context.createGain();
+        let signal = musicOutput;
+        if (sky) {
+            // Menos presencia cercana y fuente elevada, sin una cola de sala grande.
+            const lowCut = context.createBiquadFilter();
+            lowCut.type = 'highpass';
+            lowCut.frequency.value = 160;
+            lowCut.Q.value = 0.707;
+            const air = context.createBiquadFilter();
+            air.type = 'lowpass';
+            air.frequency.value = 5500;
+            air.Q.value = 0.707;
+            const above = context.createPanner();
+            above.panningModel = 'HRTF';
+            above.rolloffFactor = 0; // La distancia percibida se ajusta por timbre y volumen.
+            above.positionX.value = 0;
+            above.positionY.value = 12;
+            above.positionZ.value = -4;
+            musicOutput.connect(lowCut);
+            lowCut.connect(air);
+            air.connect(above);
+            signal = above;
+        }
         const dry = context.createGain();
         dry.gain.value = 1 - reverbMix;
-        musicOutput.connect(dry);
+        signal.connect(dry);
         dry.connect(context.destination);
         const delay = context.createDelay();
         delay.delayTime.value = 0.065;
         const reverb = context.createConvolver();
-        const duration = 8;
+        const duration = sky ? 1.8 : 8;
         const impulse = context.createBuffer(2, Math.ceil(context.sampleRate * duration), context.sampleRate);
         for (let channel = 0; channel < 2; channel++) {
             const data = impulse.getChannelData(channel);
@@ -68,12 +183,12 @@ export function createMusicEvents() {
         softTail.frequency.value = 2400;
         const wet = context.createGain();
         wet.gain.value = reverbMix;
-        musicOutput.connect(delay);
+        signal.connect(delay);
         delay.connect(reverb);
         reverb.connect(softTail);
         softTail.connect(wet);
         wet.connect(context.destination);
-        musicOutputs.set(reverbMix, musicOutput);
+        musicOutputs.set(outputKey, musicOutput);
         return musicOutput;
     }
 
@@ -122,7 +237,7 @@ export function createMusicEvents() {
         if (!context) unlock();
         // Construir la reverberación durante carga, antes de reproducir por primera vez.
         if (name === 'underwater') getUnderwaterOutput();
-        else getMusicOutput(track.reverbMix);
+        else getMusicOutput(track.reverbMix, track.sky);
         track.buffer = fetch(track.url).then(response => {
             if (!response.ok) throw new Error('No se pudo cargar '+track.url);
             return response.arrayBuffer();
@@ -177,7 +292,7 @@ export function createMusicEvents() {
                     underwaterMotion.connect(underwaterMotionDepth);
                     underwaterMotionDepth.connect(underwaterFilter.frequency);
                     underwaterMotion.start();
-                } else volume.connect(getMusicOutput(track.reverbMix));
+                } else volume.connect(getMusicOutput(track.reverbMix, track.sky));
                 source.onended = () => {
                     track.ended = true;
                     source.disconnect(); volume.disconnect(); track.source = null;
@@ -342,8 +457,14 @@ export function createMusicEvents() {
         if (!track.played) return Infinity;
         return Math.max(0, track.duration - (context.currentTime - track.startedAt));
     }
+    // Tiempo del archivo original: excluye los 4s de espera y se congela al pausar AudioContext.
+    function getEventPlaybackTime(name) {
+        const track = tracks[name];
+        if (!context || paused || context.state !== 'running' || !track?.played || !track.source || !isEventActive(name)) return null;
+        return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
+    }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,prepare,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration};
+    return {unlock,setPaused,playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

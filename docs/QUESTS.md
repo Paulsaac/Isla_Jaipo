@@ -1,3 +1,7 @@
+## Ajuste local de Bosque — 2026-10-16
+
+AxByZ pidió que, tras entregar el corazón, Graham aún busque las llaves del puente y repita el nuevo agradecimiento. La disponibilidad queda false en src/config.js; no se inventó espera, evento ni requisito de hallazgo. Entrega del corazón y frontera del cielo conservan sus triggers: se llega al amanecer detenido y la salida del sol/Mañana siguen esperando apertura del puente. Retomar la progresión por el puente requiere definir cómo encuentra Graham la llave. El cofre se abre con sonido espacial al terminar por completo el agradecimiento de Graham; el mapa permanece dentro y se toma con E/B. No se concede una llave del cofre. La llave del puente sigue pendiente. HANDOFF.md identifica versión local, gesto dap, audio y pruebas; las referencias previas de disponibilidad inmediata son históricas para esta copia.
+
 # Gestión de quests y eventos musicales
 
 ## Alcance acordado — 2026-10-13

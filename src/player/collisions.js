@@ -3,7 +3,7 @@ import { getDoorOpening } from '../world/door-opening.js';
 import { bedSurfaces } from './bed-support.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
-export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity) {
+export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeTopAt = null) {
     if (collisionMap.length === 0) return true;
     if (isRidingBoat) {
         // Toda la huella del casco debe estar sobre agua libre, no solo el centro del jugador.
@@ -27,6 +27,7 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
 
     // Círculo del jugador frente a la huella del modelo, incluida la hoja abierta.
     for (const object of solidInteractables) {
+        if (object.userData.type === 'DOOR' && object.userData.collisionEnabled === false) continue;
         if (object.userData.type === 'BED') {
             if (bedSurfaces(x, z, object).some(top => feetY < top - 0.08)) return true;
             continue;
@@ -51,6 +52,7 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
                 if (collisionMap[cz][cx] === 'TREE') {
                     const centerX = cx * UNIT_SIZE;
                     const centerZ = cz * UNIT_SIZE;
+                    if (treeTopAt && feetY > treeTopAt(centerX, centerZ) + 0.1) continue;
                     const dist = Math.sqrt((x - centerX)**2 + (z - centerZ)**2);
                     if (dist < 0.4 + COLLISION_RADIUS) return true;
                 }

@@ -19,6 +19,20 @@ Los archivos son la memoria de relevo; otro chat o Antigravity no recibe automá
 
 Mantener módulos ES nativos y cambios pequeños. No crear un motor de diálogos, una máquina de estados genérica o dependencias por esta documentación. El registro de entity-registry.js se consulta actualmente para cofres; Graham se crea explícitamente en game.js. Añadir una definición al registro no crea ni conecta un NPC automáticamente. Para varios NPC, conectar una identidad propia y la selección de contenido explícitamente antes de reutilizar la rama genérica de tipo NPC.
 
+## Estado actual de Graham, cofre y mate — IslaJaipoC1, 2026-10-16
+
+El corazón sale del inventario después del dap. Al terminar toda la conversación de agradecimiento, el cofre emite un sonido espacial y se abre; el mapa queda visible dentro hasta tomarlo con E/B. No hay llave del cofre. Interactuar con el mate o la tetera del comedor inicia «Quieres mate?» y entrega un mate una sola vez. Seleccionado en inventario, se bebe con clic derecho en PC o A en celular: una pulsación breve conserva el gesto durante 1,5 s y mantenerlo deja la bombilla junto a la boca. La llave del puente sigue pendiente y no se entrega en esta secuencia.
+
+## Bicho del entretecho — incorporación local de AxByZ, 2026-10-16
+
+Segundo NPC conectado en esta copia. Identidad técnica attic-ant, etiqueta descriptiva «Bicho». Habita sobre el cielo falso, hacia rincón izquierdo/norte de la casa de Graham; la posición se elige bajo una parte de cubierta con espacio suficiente y fuera del hueco de la cama. Modelo de hormiga marrón oscura, seis patas, antenas y dos ojos saltones negros sin iris de color; no bloquea movimiento.
+
+E/B abre atticAntDialogs: «no le digas a nadie que vivo aqui». La misma frase se repite al hablar otra vez. No cambia misiones, inventario, antorcha, mapa ni llaves. game.js distingue id antes de lógica de Graham; menus.js recibe speaker y conserva Graham por defecto en sus conversaciones/saludo. Referencia visual/modelo/colocación y pruebas en HANDOFF.md. La afirmación histórica inferior de que Graham es el único NPC ya no describe esta copia local.
+
+## Ajuste local de AxByZ — 2026-10-16
+
+La entrega usa ahora heartDeliveryDialogs con el texto solicitado y una acción dap tras el segundo mensaje; al completar retira el corazón y las conversaciones siguientes usan heartDeliveredDialogs (agradecimiento, llave pendiente y techo/mate). GRAHAM_BRIDGE_KEY_AVAILABLE=false por este pedido: todavía no da la llave. La condición futura para encontrarla está pendiente. El dap acerca ambos actores durante1.1s, reproduce el audio original y devuelve las posiciones antes de continuar; pausa/reanudación y bloqueo E/B evitan duplicaciones. Detalle de implementación, pruebas y límites en la entrada de HANDOFF.md del16deoctubre. Las tablas inferiores conservan la referencia anterior con llave habilitada y no sustituyen este ajuste local.
+
 ## Referencia vigente de Graham
 Alcance de Bosque aclarado por Clawshoot (2026-10-13): AxByZ puede modificar los diálogos de Graham; no están cerrados. Coordinar con este ámbito y preservar las conexiones entre secuencias y efectos. Los ciclos de luz y triggers que los accionan se mantienen como acuerdos estables; cualquier modificación a ellos requiere coordinación previa con Clawshoot. La autorización de edición narrativa no cambia por sí sola reglas de misión o recompensas.
 

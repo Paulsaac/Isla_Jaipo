@@ -8,7 +8,7 @@ export function createForestHeartQuest() {
         get hasHeart() { return stage === 'carrying'; },
         get hasBridgeKey() { return bridgeKeyReceived; },
         get canOpenMapChest() { return mapChestUnlocked; },
-        unlockMapChest() { mapChestUnlocked = true; },
+        unlockMapChest() { if (mapChestUnlocked) return false; mapChestUnlocked = true; return true; },
         receiveBridgeKey(available) {
             if (!available || stage !== 'delivered' || bridgeKeyReceived) return false;
             bridgeKeyReceived = true;

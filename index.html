@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="stylesheet" href="./src/ui/touch-controls.css">
     <title>Isla Jaipó</title>
+    <link rel="preload" href="./src/ui/fonts/SuperLegendBoy-4w8Y.ttf" as="font" type="font/ttf" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'Super Legend Boy';
+            src: url('./src/ui/fonts/SuperLegendBoy-4w8Y.ttf') format('truetype');
+            font-display: swap;
+        }
         body { 
             margin: 0; 
             overflow: hidden; 
@@ -131,7 +137,7 @@
             justify-content: center;
             align-items: center;
             color: #ff3333;
-            z-index: 10;
+            z-index: 700;
         }
         .game-menu-box {
             text-align: center;
@@ -345,6 +351,14 @@
         <div id="diving-air-track" role="progressbar" aria-label="Aire de la escafandra" aria-valuemin="0" aria-valuemax="10" aria-valuenow="10"><div id="diving-air-bar"></div></div>
     </div>
     <div id="touch-controls" hidden aria-label="Control táctil SNES">
+        <div class="touch-utilities">
+            <button type="button" class="touch-heart-shortcut touch-heart-grant" data-action="grantForestHeartForTesting" aria-label="Atajo temporal: obtener el Corazón del Bosque" title="Obtener corazón sin activar la escena">♥+</button>
+            <button type="button" class="touch-heart-shortcut" data-action="teleportToForestHeart" aria-label="Atajo temporal: ir al Corazón del Bosque" title="Ir al Corazón del Bosque">♥</button>
+        <button type="button" class="touch-fullscreen" aria-label="Pantalla completa" aria-pressed="false">
+            <span aria-hidden="true">⛶</span> <span class="touch-fullscreen-label" hidden>Pantalla completa</span>
+        </button>
+        </div>
+        <span class="touch-fullscreen-status" role="status" hidden></span>
         <div class="snes-dpad" aria-label="Cruceta de movimiento">
             <button type="button" data-direction="forward" aria-label="Avanzar">▲</button>
             <button type="button" data-direction="left" aria-label="Mover a la izquierda">◀</button>
@@ -357,11 +371,13 @@
             <button type="button" data-action="pause" aria-label="Start: pausa o continuar">START</button>
         </div>
         <div class="snes-buttons">
+            <button type="button" class="snes-y" data-action="run" aria-label="Y: correr hasta soltar la cruceta" aria-pressed="false">Y</button>
             <button type="button" class="snes-a" data-action="jump" aria-label="A: saltar">A</button>
             <button type="button" class="snes-b" data-action="interact" aria-label="B: interactuar">B</button>
         </div>
     </div>
     
+    <button type="button" id="touch-dialog-continue" aria-label="Tocar para continuar" hidden></button>
     <!-- Pantallas de UI -->
     <div id="diving-helmet-view" aria-hidden="true"></div>
     <div id="underwater-tint" aria-hidden="true"></div>
@@ -379,11 +395,12 @@
         <div class="game-menu-box" style="padding: 25px 40px;">
             <p style="font-size:30px; font-weight:bold; margin-top:0; color:#fff;">PAUSA</p>
             <p id="resume-hint" style="font-size:16px; color:#fff; margin-bottom: 25px;">Clic izquierdo para continuar</p>
-            <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar<br>Mapa y antorcha: desde el inventario</p>
+            <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar · Y: correr hasta soltar la cruceta<br>Mapa y antorcha: desde el inventario</p>
             <div id="keyboard-controls" style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
                 <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
                 <span>Correr</span><span style="text-align:right;">[Shift]</span>
                 <span>Inventario</span><span style="text-align:right;">[Q]</span>
+                <span>Antorcha</span><span style="text-align:right;">[T]</span>
             </div>
         </div>
     </div>
@@ -422,7 +439,15 @@
                         </svg>
                     </button>
                 </div>
-                <div class="inv-slot" aria-hidden="true"></div>
+                <div class="inv-slot">
+                    <button id="mate-item" class="inventory-item" type="button" data-item="mate" aria-pressed="false" aria-label="Sacar o guardar mate" title="Mate — clic derecho para tomar" style="display:none;">
+                        <svg viewBox="0 0 64 64" aria-hidden="true" style="width:56px;height:56px;">
+                            <path d="M38 9L44 4L47 7L42 13L35 38" fill="none" stroke="#c3c6bf" stroke-width="4"/>
+                            <path d="M13 29Q10 53 21 57H42Q53 49 49 29Z" fill="#8b4928" stroke="#35271d" stroke-width="2"/>
+                            <ellipse cx="31" cy="29" rx="18" ry="6" fill="#657537" stroke="#c3c6bf" stroke-width="3"/>
+                        </svg>
+                    </button>
+                </div>
                 <div class="inv-slot" aria-hidden="true"></div>
                 <div class="inv-slot">
                     <button id="torch-item" class="inventory-item" type="button" data-item="torch" aria-pressed="false" aria-label="Encender o apagar antorcha">
@@ -448,7 +473,7 @@
 
     <div id="dialog-box" style="display:none; position:absolute; bottom:5%; left:15%; width:70%; background:rgba(0,0,0,0.85); border:6px solid #fff; color:white; font-family:'Press Start 2P', cursive; padding:30px; z-index:200; backdrop-filter: blur(4px);">
         <h3 id="dialog-name" style="margin-top:0; color:#ffeb3b; font-size: 22px;">Graham</h3>
-        <p id="dialog-text" style="font-size: 16px; line-height:1.8; margin-bottom: 30px;">...</p>
+        <p id="dialog-text" style="font-family:'Super Legend Boy', 'Press Start 2P', cursive; font-size: 18px; line-height:1.8; margin-bottom: 30px;">...</p>
         <p id="dialog-hint" style="font-size: 12px; color:#aaa; text-align:right; margin-bottom:0; animation: blinker 1.5s linear infinite;">[E] Continuar</p>
     </div>
     

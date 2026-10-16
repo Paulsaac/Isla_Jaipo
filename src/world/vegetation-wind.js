@@ -29,10 +29,12 @@ export function applyVegetationWind(THREE, materials, time, heartVision = null) 
                     mvPosition.xz += vec2(1.0, 0.3) * sway * windParameters.x * heightWeight * heightWeight
                         ${heartVision && index >= 6 ? '* (1.0 + heartVegetationStrength * (0.6 + heartBass * 1.8))' : ''};
                     ${heartVision && index < 6 ? `
+                        if (heartTreeMotion > 0.0) {
                         vec2 heartMotionCell = floor(origin / windUnitSize + 0.5);
                         float motionVariant = mod(heartMotionCell.x + heartMotionCell.y * 2.0, 4.0);
                         mvPosition.xyz += heartTreeMovement(mvPosition.xyz, origin, heightWeight,
                             motionVariant, heartTime, phase, heartBass) * heartTreeMotion;
+                        }
                     ` : ''}
                 #endif
                 mvPosition = modelViewMatrix * mvPosition;
@@ -40,6 +42,6 @@ export function applyVegetationWind(THREE, materials, time, heartVision = null) 
             );
             shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', projection);
         };
-        material.customProgramCacheKey = () => 'vegetation-wind-v4-' + (index < 6);
+        material.customProgramCacheKey = () => 'vegetation-wind-v5-' + (index < 6);
     });
 }
