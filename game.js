@@ -690,6 +690,7 @@ function interact() {
             } else {
                 // Cerrar diálogo
                 const completedHeartDelivery = deliveringHeart;
+                let receivedBridgeKey = false;
                 if (activeDialogs === mateOfferDialogs && !hasMate) {
                     hasMate = true; menus.setMateVisible(true); hud.showReceivedItem('un mate');
                 }
@@ -703,6 +704,7 @@ function interact() {
                     if (heldItem === 'heart') setHeldItem(null);
                 }
                 if (activeDialogs === bridgeKeyDeliveryDialogs && heartQuest.receiveBridgeKey(GRAHAM_BRIDGE_KEY_AVAILABLE)) {
+                    receivedBridgeKey = true;
                     keyInventory.add('bridge-key');
                     updateKeyInventory();
                     hud.showReceivedItem('la llave del puente');
@@ -710,7 +712,7 @@ function interact() {
                 deliveringHeart = false;
                 isDialogOpen = false;
                 menus.hideDialog();
-                if (completedHeartDelivery) openMapChestAfterThanks();
+                if ((completedHeartDelivery && !GRAHAM_BRIDGE_KEY_AVAILABLE) || receivedBridgeKey) openMapChestAfterThanks();
             }
             return true;
         }
@@ -837,7 +839,7 @@ function interact() {
 
                 deliveringHeart = hasTorch && heartQuest.hasHeart;
                 activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : heartSearchDialogs;
-                if (hasTorch && GRAHAM_BRIDGE_KEY_AVAILABLE && (deliveringHeart || heartQuest.stage === 'delivered')) {
+                if (hasTorch && GRAHAM_BRIDGE_KEY_AVAILABLE && heartQuest.stage === 'delivered') {
                     activeDialogs = heartQuest.hasBridgeKey ? bridgeKeyReceivedDialogs : bridgeKeyDeliveryDialogs;
                 }
                 dialogIndex = 0;

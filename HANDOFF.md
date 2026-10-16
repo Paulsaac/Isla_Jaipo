@@ -1,5 +1,9 @@
 # AxByZ: instantánea IslaJaipoC1 para revisión — 2026-10-16
 
+## Revisión vigente de Clawshoot para PR #2 — 2026-10-16
+
+`GRAHAM_BRIDGE_KEY_AVAILABLE=true`. Graham completa primero la entrega y el agradecimiento del Corazón del Bosque; la llave del puente se ofrece en la interacción siguiente. El cofre del mapa solo se abre al completar la entrega de la llave. Esta progresión sustituye las notas históricas de la instantánea que dejaban la llave pendiente o abrían el cofre tras el agradecimiento. La corrección queda en la rama del PR para integrarse por su flujo habitual. Las verificaciones de la entrega se describen en el PR; no se repitió aquí el recorrido integral.
+
 Estado actual de la copia ZIP: 217 archivos de proyecto; respaldo externo IslaJaipoC1.zip excluye .coordination, bloqueos y fixtures. Las entradas posteriores de este archivo conservan historia y pueden describir estados sustituidos por pedidos más recientes. El código de esta instantánea y este resumen prevalecen.
 
 Cambios acumulados para PR contra main: Corazón del Bosque (tirón/rebote y pausa de 0,2 s, brillo celeste, latidos, música lejana y levitación por marcas), cama/entretecho y hormiga, dap y diálogos de Graham, cofre que se abre al concluir el agradecimiento con mapa recogible mediante E/B, mate utilizable en PC/celular, controles táctiles, puerta posterior, salamandra negra, estrellas fugaces, salto en agua y muebles rústicos de playa en 261/443. La llave del puente sigue sin entregarse; no se altera la frontera de amanecer/puente ni se añaden modos ligeros.

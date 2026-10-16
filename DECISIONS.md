@@ -1,5 +1,8 @@
 # Decisiones del proyecto
 
+## 2026-10-16 — Integración de PR #2 con la progresión vigente
+- `GRAHAM_BRIDGE_KEY_AVAILABLE=true`: Graham termina primero la entrega y el agradecimiento del Corazón del Bosque. En una interacción posterior entrega la llave del puente; solo entonces se abre el cofre del mapa y permite recogerlo. Los apuntes de la instantánea del PR que indiquen llave pendiente o cofre abierto antes quedan sustituidos por esta decisión.
+
 ## 2026-10-16 — Cofre y mate en IslaJaipoC1
 - El cofre se abre al cerrar el agradecimiento completo tras entregar el corazón; el mapa permanece visible dentro y exige E/B para recogerlo. Se descarta la llave del cofre y la adjudicación automática del mapa.
 - Graham entrega un mate al interactuar con mate/tetera. Clic derecho en PC o A en móvil acercan la bombilla; gesto breve de 1,5 s o sostenido mientras se pulsa. No consume el objeto ni cambia misiones.
