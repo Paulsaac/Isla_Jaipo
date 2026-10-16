@@ -1,7 +1,16 @@
+import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
+import { createHeldMate } from './src/player/held-mate.js';
+import { createAtticAnt, findAtticAntHome } from './src/world/attic-ant.js';
+import { createGrahamDap } from './src/systems/graham-dap.js';
+import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/world/wood-stove-geometry.js';
+import { prepareInactiveLights } from './src/world/inactive-lights.js';
+import { getTerrainTextureBlend } from './src/world/terrain-textures.js';
+import { createPerformancePanel } from './src/ui/performance-panel.js';
+
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
-import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings } from './src/content/dialogues.js';
+import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
+import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs } from './src/content/dialogues.js';
 import { entities, grahamPosition, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
@@ -84,7 +93,7 @@ import { createDivingHelmetGeometry } from './src/world/diving-helmet-geometry.j
 import { createSeaHeart } from './src/systems/sea-heart.js';
 import { createQuestSkyCycle } from './src/systems/quest-sky.js';
 import { createSunFlare } from './src/world/sun-flare.js';
-import { furniture, doorOverrides } from './src/content/entities.js';
+import { furniture, doorOverrides, mapCellOverrides } from './src/content/entities.js';
 
 const minimap = createMinimap();
 const hud = createHud();
@@ -93,10 +102,22 @@ const hud = createHud();
 
 // Físicas verticales
 let velocityY = 0;
+const NORMAL_JUMP_TIME_SCALE = 0.85;
+const WATER_GRAVITY_SCALE = 0.6;
+const WATER_FALL_GRAVITY_SCALE = 0.32;
 let canJump = true;
-const BED_BOUNCE_IMPULSES = [7, 8.5, 10, 12, 14, 16, 18, 20];
-let bedBounceIndex = -1;
+const BED_BOUNCE_BASE_IMPULSE = 5.5;
+const BED_BOUNCE_MAX_IMPULSE = 20;
+const BED_BOUNCE_AFTER_IMPACT_GAIN = 4;
+const BED_BOUNCE_INITIAL_TIME_SCALE = 0.45;
+const BED_CEILING_HITS_TO_BREAK = 6;
+let bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
+let bedBounceHitCeiling = false;
+let bedBounceActive = false;
+let bedCeilingHits = 0;
 let jumpHeld = false;
+const TOUCH_JUMP_REPEAT_PAUSE = 0.08;
+let touchJumpRepeatWait = 0;
 let bedCeilingTimer = 0;
 let bedCeilingHoleOpen = false;
 let bedCeilingHoleTile = null;
@@ -118,6 +139,7 @@ let heldHeartGlow = null;
 let heldItemTextures = null;
 let hasTorch = false;
 let hasMap = false;
+let hasMate = false, heldMate = null;
 let hasDivingHelmet = false;
 let helmetEquipped = false;
 let helmetBroken = false;
@@ -187,6 +209,8 @@ const heartQuest = createForestHeartQuest();
 const interactables = [];
 const chestOpenings = [];
 let forestHeartShrine = null;
+const heartBeaconPosition = new THREE.Vector3();
+const heartBeaconCameraRotation = new THREE.Quaternion();
 const slabTops = new Map();
 const SLAB_HEIGHT = 0.4;
 const WATER_DECK_THICKNESS = 0.25;
@@ -233,6 +257,7 @@ function getBoatEyesHeight(boat) {
 let isDialogOpen = false;
 let dialogIndex = 0;
 let activeDialogs = npcDialogs;
+let activeDialogSpeaker = 'Graham';
 let deliveringHeart = false;
 
 // --- SETUP DE THREE.JS ---
@@ -349,6 +374,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(0.5); 
 document.body.appendChild(renderer.domElement);
+const performancePanel = createPerformancePanel(renderer);
 const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime);
 
 const controls = new PointerLockControls(camera, document.body);
@@ -379,6 +405,68 @@ function pauseGame() {
 const loadingScreen = document.getElementById('loading-screen');
 const mainMenu = document.getElementById('main-menu');
 const menus = createMenus({ onResume: resumeGame, onUseItem: useInventoryItem });
+let dapPointerSpeed = 1;
+const grahamDap = createGrahamDap(THREE, {
+    onImpact: () => musicEvents.playDap(),
+    onFinish() {
+        controls.pointerSpeed = dapPointerSpeed; clearGreetingInput();
+        if (deliveringHeart) {
+            menus.setHeartVisible(false);
+            if (heldItem === 'heart') setHeldItem(null);
+        }
+        if (isDialogOpen) { dialogIndex++; showActiveDialog(); }
+    },
+    onCancel: () => musicEvents.stopDap()
+});
+let mapChestSoundSource = null;
+const mapChestSoundPosition = new THREE.Vector3();
+function getMapChestSoundPosition() {
+    mapChestSoundSource.getWorldPosition(mapChestSoundPosition);
+    return camera.worldToLocal(mapChestSoundPosition);
+}
+function openMapChestAfterThanks() {
+    const chest = interactables.find(object => object.userData.id === 'island-map-chest');
+    if (!chest || chest.userData.opened || !heartQuest.unlockMapChest()) return;
+    mapChestSoundSource = chest;
+    musicEvents.playChestUnlock(getMapChestSoundPosition());
+    const pickup = chest.userData.mapPickup;
+    const enablePickup = () => {
+        if (pickup && !hasMap && !interactables.includes(pickup)) interactables.push(pickup);
+    };
+    if (pickup) {
+        pickup.userData.visibilityEnabled = true;
+        pickup.visible = true;
+    }
+    if (chest.userData.opening) chestOpenings.push({
+        update(delta) {
+            const done = chest.userData.opening.update(delta);
+            if (done) enablePickup();
+            return done;
+        }
+    });
+    else enablePickup();
+    chest.userData.opened = true;
+    interactables.splice(interactables.indexOf(chest), 1);
+    if (targetInteractable === chest) targetInteractable = null;
+    hud.hideInteraction();
+}
+
+
+function showActiveDialog() {
+    touchControls?.syncDialogue(true);
+    if (activeDialogs[dialogIndex]?.action === 'dap') {
+        menus.hideDialog();
+        if (!grahamDap.active) {
+            clearGreetingInput(); dapPointerSpeed = controls.pointerSpeed; controls.pointerSpeed = 0;
+            if (!grahamDap.begin(controls.getObject(), grahamSprite)) {
+                controls.pointerSpeed = dapPointerSpeed; dialogIndex++; showActiveDialog();
+            }
+        }
+        return;
+    }
+
+    menus.showDialog(activeDialogs[dialogIndex], { speaker: activeDialogSpeaker });
+}
 const spawnGreeting = createSpawnGreeting({
     door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN
 });
@@ -399,9 +487,11 @@ function clearGreetingInput(preserveMovement = false) {
     updatePlayerPosture();
     keyboardBinding.resetSequence();
     if (!preserveMovement) touchControls?.reset();
+    else touchControls?.syncRun();
 }
 
 function showGreetingPhase() {
+    touchControls?.syncDialogue(spawnGreeting.active);
     if (spawnGreeting.showingDialog) menus.showDialog(grahamWakeGreetings[spawnGreeting.dialogIndex], { automatic: spawnGreeting.phase !== 'invitation', blurBackdrop: false });
     else menus.hideDialog();
 }
@@ -443,12 +533,14 @@ function toggleDivingHelmet() {
 
 function setHeldItem(item) {
     heldItem = item;
+    if (item !== 'mate') heldMate?.cancel();
+    menus.setItemActive('mate', item === 'mate');
     if (item !== 'key') keyInventory.clearSelection();
     menus.setItemActive('heart', item === 'heart');
     menus.setItemActive('key', item === 'key');
     menus.setItemActive('sea-heart', item === 'sea-heart');
     if (heldItemSprite && item) {
-        heldItemSprite.material.map = heldItemTextures[item];
+        heldItemSprite.material.map = heldItemTextures[item] || heldItemTextures.heart;
         heldItemSprite.material.rotation = item === 'heart' ? -0.12 : 0.25;
         updateHeldItemLayout();
     }
@@ -473,6 +565,9 @@ function useInventoryItem(item) {
         menus.setItemDescription(before === handTorchEnabled
             ? isPlayerUnderwater() ? 'La antorcha no puede encenderse bajo el agua.' : 'La antorcha está bloqueada durante el evento del corazón.'
             : handTorchEnabled ? 'Antorcha encendida.' : 'Antorcha apagada.');
+    } else if (item === 'mate' && hasMate) {
+        setHeldItem(heldItem === 'mate' ? null : 'mate');
+        menus.setItemDescription(heldItem === 'mate' ? (isTouchMode ? 'Mate en la mano. Pulsa A para tomar; mantén A para seguir tomando.' : 'Mate en la mano. Clic derecho para tomar; mantenlo para seguir bebiendo.') : 'Mate guardado.');
     } else if (item === 'map' && hasMap) {
         gameActions.map();
         menus.setItemDescription(minimap.enabled ? 'Mapa abierto al volver al juego.' : 'Mapa cerrado.');
@@ -503,7 +598,7 @@ controls.addEventListener('lock', () => {
     menus.hideForGameplay();
     if (spawnGreeting.active) showGreetingPhase();
     heartPull.show();
-    if (isDialogOpen) menus.showDialog(activeDialogs[dialogIndex]);
+    if (isDialogOpen) showActiveDialog();
     touchControls?.show();
     touchControls?.sync(true);
 });
@@ -576,6 +671,7 @@ function canReachForestHeart() {
 }
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    if (grahamDap.active) return true;
     if (heartPull.active) { heartPull.interact(); return true; }
     if (spawnGreeting.active) {
         if (spawnGreeting.dismiss()) {
@@ -590,9 +686,13 @@ function interact() {
             // Avanzar al siguiente diálogo
             if (dialogIndex < activeDialogs.length - 1) {
                 dialogIndex++;
-                menus.setDialogText(activeDialogs[dialogIndex]);
+                showActiveDialog();
             } else {
                 // Cerrar diálogo
+                const completedHeartDelivery = deliveringHeart;
+                if (activeDialogs === mateOfferDialogs && !hasMate) {
+                    hasMate = true; menus.setMateVisible(true); hud.showReceivedItem('un mate');
+                }
                 if (activeDialogs === npcDialogs && !hasTorch) {
                     hasTorch = true;
                     menus.setTorchVisible(true);
@@ -610,6 +710,7 @@ function interact() {
                 deliveringHeart = false;
                 isDialogOpen = false;
                 menus.hideDialog();
+                if (completedHeartDelivery) openMapChestAfterThanks();
             }
             return true;
         }
@@ -627,15 +728,42 @@ function interact() {
             boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
+            if (targetInteractable.userData.type === 'MAP_PICKUP') {
+                if (hasMap || !heartQuest.canOpenMapChest) return true;
+                hasMap = true;
+                menus.setMapVisible(true);
+                hud.showReceivedItem('un mapa');
+                targetInteractable.userData.visibilityEnabled = false;
+                targetInteractable.visible = false;
+                fogCulling?.unregister(targetInteractable);
+                const index = interactables.indexOf(targetInteractable);
+                if (index >= 0) interactables.splice(index,1);
+                targetInteractable = null;
+                hud.hideInteraction();
+                return true;
+            }
+            if (targetInteractable.userData.type === 'MATE_SET') {
+                deliveringHeart = false;
+                isDialogOpen = true;
+                clearGreetingInput();
+                activeDialogs = mateOfferDialogs;
+                activeDialogSpeaker = 'Graham';
+                dialogIndex = 0;
+                showActiveDialog();
+                return true;
+            }
+
             if (targetInteractable.userData.type === 'CHEST') {
                 if (targetInteractable.userData.opened) return;
                 if (targetInteractable.userData.item === 'map' && !heartQuest.canOpenMapChest) return;
                 if (targetInteractable.userData.item === 'forest-heart') {
-                    if (!canReachForestHeart()) return true;
+                    if (heartQuest.stage !== 'searching' || !canReachForestHeart()) return true;
                     isFlying = false;
                     heartPull.begin(forestHeartShrine);
                     return true;
                 } else if (targetInteractable.userData.item === 'map') {
+
+                    updateKeyInventory();
                     hasMap = true;
                     menus.setMapVisible(true);
                     hud.showReceivedItem('un mapa');
@@ -695,15 +823,25 @@ function interact() {
                 canJump = true;
             } else if (targetInteractable.userData.type === 'NPC') {
                 isDialogOpen = true;
-                // La antorcha acredita la primera charla completa; esta ya es la segunda.
-                if (hasTorch) heartQuest.unlockMapChest();
+                if (isTouchMode) clearGreetingInput();
+                if (targetInteractable.userData.id === 'attic-ant') {
+                    deliveringHeart = false;
+                    activeDialogs = atticAntDialogs;
+                    activeDialogSpeaker = 'Bicho';
+                    dialogIndex = 0;
+                    showActiveDialog();
+                    return true;
+                }
+                activeDialogSpeaker = 'Graham';
+                // El cofre del mapa se abre al terminar todo el agradecimiento por el corazón.
+
                 deliveringHeart = hasTorch && heartQuest.hasHeart;
                 activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : heartSearchDialogs;
                 if (hasTorch && GRAHAM_BRIDGE_KEY_AVAILABLE && (deliveringHeart || heartQuest.stage === 'delivered')) {
                     activeDialogs = heartQuest.hasBridgeKey ? bridgeKeyReceivedDialogs : bridgeKeyDeliveryDialogs;
                 }
                 dialogIndex = 0;
-                menus.showDialog(activeDialogs[dialogIndex]);
+                showActiveDialog();
             } else if (targetInteractable.userData.type === 'DOOR') {
                 if (targetInteractable.userData.locked) {
                     if (heldItem === 'key' && keyInventory.useOn(targetInteractable.userData.gx, targetInteractable.userData.gz)) {
@@ -726,6 +864,12 @@ const gameActions = {
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
     start() { if (mapLoaded && !gameStarted) resumeGame(); },
     interact,
+    grantForestHeartForTesting() {
+        if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isInventoryOpen || isRidingBoat) return;
+        if (!heartQuest.collect()) return;
+        menus.setHeartVisible(true);
+        hud.showReceivedItem('el Corazón del Bosque');
+    },
     teleportToForestHeart() {
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isRidingBoat || !forestHeartShrine) return;
         const shrine=forestHeartShrine;
@@ -744,16 +888,28 @@ const gameActions = {
         }
     },
     move(direction, pressed) { moveState[direction] = pressed; },
-    holdJump(pressed) { jumpHeld = pressed; },
+    holdJump(pressed) {
+        jumpHeld = pressed;
+        if (!pressed) {
+            touchJumpRepeatWait = 0;
+            bedBounceActive = false;
+            bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
+            bedBounceHitCeiling = false;
+        }
+    },
     jump() {
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
             const player = controls.getObject();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
             const support = getBedSupport(player.position.x, player.position.z, player.position.y - eyeHeight, solidInteractables);
             const standingOnBed = Number.isFinite(support) && Math.abs(player.position.y - eyeHeight - support) < 0.18;
-            velocityY = standingOnBed ? 5.5 : JUMP_FORCE;
+            touchJumpRepeatWait = 0;
+            velocityY = standingOnBed ? BED_BOUNCE_BASE_IMPULSE : JUMP_FORCE;
             canJump = false;
-            bedBounceIndex = standingOnBed ? 0 : -1;
+            bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
+            bedBounceHitCeiling = false;
+            bedBounceActive = standingOnBed;
+            bedCeilingHits = 0;
         }
     },
     crouch(pressed) {
@@ -820,21 +976,49 @@ const heartPull = createHeartPull(THREE, {
     }
 });
 // Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
-for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
+for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'grantForestHeartForTesting', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
-    gameActions[name] = (...args) => { if (!spawnGreeting.active && (!heartPull.active || name === 'move')) return action(...args); };
+    gameActions[name] = (...args) => { if (!spawnGreeting.active && !grahamDap.active && (!heartPull.active || name === 'move')) return action(...args); };
 }
 const keyboardBinding = bindKeyboard(gameActions);
+
 const touchLook = new THREE.Euler(0, 0, 0, 'YXZ');
+const TOUCH_LOOK_SENSITIVITY = 0.0045;
+let touchMateHeld = false;
+const touchActions = {
+    ...gameActions,
+    holdJump(pressed) {
+        if (!pressed) {
+            if (touchMateHeld) heldMate?.release();
+            touchMateHeld = false;
+            gameActions.holdJump(false);
+            return;
+        }
+        if (heldItem === 'mate') {
+            gameActions.holdJump(false);
+            touchMateHeld = true;
+            if (canDrinkMate()) heldMate?.press();
+            return;
+        }
+        gameActions.holdJump(true);
+    },
+    jump() {
+        if (touchMateHeld || heldItem === 'mate') return;
+        gameActions.jump();
+    }
+};
+
 const touchControls = isTouchMode ? bindTouchControls({
-    actions: gameActions, canvas: renderer.domElement,
-    isActive: () => gameStarted && controls.isLocked && !isDead,
+    actions: touchActions, canvas: renderer.domElement,
+    isActive: () => gameStarted && controls.isLocked && !isDead && !isDialogOpen && !spawnGreeting.active,
+    canAdvanceDialogue: () => controls.isLocked && !isDead && menus.isDialogVisible() && ((isDialogOpen && !grahamDap.active)
+        || (spawnGreeting.active && spawnGreeting.phase === 'invitation')),
     pause: pauseGame,
     look(dx, dy) {
-        if (spawnGreeting.active) return;
+        if (spawnGreeting.active || grahamDap.active || isDialogOpen) return;
         touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
-        touchLook.y -= dx * 0.003;
-        touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * 0.003, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
+        touchLook.y -= dx * TOUCH_LOOK_SENSITIVITY;
+        touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * TOUCH_LOOK_SENSITIVITY, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
         camera.quaternion.setFromEuler(touchLook);
     }
 }) : null;
@@ -895,7 +1079,7 @@ function updateHeldItemLayout() {
     const distance = 0.7;
     const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * distance;
     const viewRadius = Math.min(halfHeight, halfHeight * camera.aspect);
-    const texture = heldItemTextures[heldItem || 'heart'];
+    const texture = heldItemTextures[heldItem || 'heart'] || heldItemTextures.heart;
     const imageRatio = texture.image ? texture.image.width / texture.image.height : 1;
     const height = viewRadius * 0.6;
     const width = Math.min(height * imageRatio, viewRadius * 0.65);
@@ -907,6 +1091,15 @@ function updateHeldItemLayout() {
     }
 }
 updateHeldItemLayout();
+heldMate = createHeldMate(THREE,camera);
+const canDrinkMate = () => heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
+    && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
+document.addEventListener('mousedown', event => {
+    if (event.button === 2 && canDrinkMate()) { event.preventDefault(); heldMate.press(); }
+});
+document.addEventListener('mouseup', event => { if (event.button === 2) heldMate.release(); });
+window.addEventListener('blur', () => heldMate.cancel());
+renderer.domElement.addEventListener('contextmenu', event => { if (canDrinkMate()) event.preventDefault(); });
 const torchFrames = [];
 const blueFireFrames = [1,2,3].map(frame => {
     const texture = texLoader.load(`./imagenes/Sprites/fuego-azul-${frame}.svg`);
@@ -1083,6 +1276,9 @@ let moonAzulOpacity = 0;
 let hasShootingStarFired = false;
 let starSprite = null;
 let starTimer = 0;
+const starStart = new THREE.Vector3(), starEnd = new THREE.Vector3();
+const starFlights = [], extraStarSprites = [];
+let starSequenceActive = false;
 
 scene.add(skyMesh);
 
@@ -1091,7 +1287,7 @@ Promise.all([
     loadMapImage('./imagenes/Mapa/capa2.png?v=' + Date.now()),
     heartTextureReady
 ]).then(async ([baseImage, roofImage]) => {
-    const prepared = prepareMap(readMapLayers(baseImage, roofImage), entities, shipwreckProps);
+    const prepared = prepareMap(readMapLayers(baseImage, roofImage), entities, shipwreckProps, mapCellOverrides);
     focusLoadingSpawn(prepared.playerStartX, prepared.playerStartZ, prepared.mapWidth, prepared.mapHeight);
     // Presentar la carga antes de la construcción síncrona de geometría.
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -1216,7 +1412,7 @@ function buildWorld(prepared) {
     heartVision.apply(THREE, aguaFloorMat, 'water');
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
-    const planeGeo = new THREE.PlaneGeometry(UNIT_SIZE * 1.9 + 0.6, VEGETATION_HEIGHT * 3 * 1.9 - 2);
+    const planeGeo = new THREE.PlaneGeometry((UNIT_SIZE * 1.9 + 0.6) * TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT);
     const pino1Mesh = new THREE.InstancedMesh(planeGeo, pino1Mat, counts.PINO1 * 2);
     const pino2Mesh = new THREE.InstancedMesh(planeGeo, pino2Mat, counts.PINO2 * 2);
     const alamo1Mesh = new THREE.InstancedMesh(planeGeo, alamo1Mat, counts.ALAMO1 * 2);
@@ -1683,6 +1879,28 @@ function buildWorld(prepared) {
                     chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
                     // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
                     chestMesh.userData.opening = createChestOpening(THREE, chestMesh);
+                    if (chestMesh.userData.item === 'map') {
+                        // SVG sin dimensiones intrínsecas: rasterizar una vez para WebGL.
+                        const canvas = document.createElement('canvas');
+                        canvas.width = canvas.height = 128;
+                        const texture = new THREE.CanvasTexture(canvas);
+                        const icon = new Image();
+                        icon.onload = () => {
+                            canvas.getContext('2d').drawImage(icon,0,0,128,128);
+                            texture.needsUpdate = true;
+                        };
+                        icon.src = './imagenes/Sprites/mapa.svg';
+                        texture.colorSpace = THREE.SRGBColorSpace;
+                        const pickup = new THREE.Mesh(new THREE.PlaneGeometry(.48,.32),
+                            new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));
+                        pickup.name = 'map-inside-chest';
+                        pickup.position.set(0,-.235,-.015);
+                        pickup.rotation.x = -Math.PI/2 + .12;
+                        pickup.userData = {type:'MAP_PICKUP',visibilityEnabled:false};
+                        pickup.visible = false;
+                        chestMesh.add(pickup); chestMesh.userData.mapPickup = pickup;
+                    }
+
                     scene.add(chestMesh);
                     chestMesh.updateMatrixWorld(true);
                     solidInteractables.push(chestMesh);
@@ -1861,6 +2079,14 @@ function buildWorld(prepared) {
         bedHoleRim.userData.visibilityEnabled = false;
         bedHoleRim.visible = false;
         scene.add(bedHoleRim);
+        const atticAnt = createAtticAnt(THREE);
+        const antHome = findAtticAntHome(THREE, atticAnt, atticSupport, mapWidth, UNIT_SIZE);
+        if (antHome) {
+            atticAnt.position.set(antHome.x, antHome.y, antHome.z);
+            atticAnt.rotation.y = antHome.rotationY;
+            scene.add(atticAnt);
+            interactables.push(atticAnt);
+        } else console.warn('No se encontró un rincón seguro para el bicho del entretecho.');
     }
     maderaFloorMesh.count = idxMadera;
     scene.add(maderaFloorMesh);
@@ -2048,25 +2274,7 @@ function buildWorld(prepared) {
             varying vec4 vMountain;
             ${shader.fragmentShader}
         `.replace(
-            `#include <map_fragment>`,
-            `
-            #ifdef USE_MAP
-                vec4 texelGrass = texture2D(tGrass, vMapUv);
-                vec4 texelDirt = texture2D(tDirt, vMapUv);
-                float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.12, terrainWaterHeight + 0.02, vTerrainHeight);
-                vec4 texelSand = mix(texture2D(tSand, vMapUv), texture2D(tWetSand, vMapUv), submergedSand);
-                vec4 texelBase = texture2D(tSlab, vMapUv);
-
-                // Promedio ponderado de texturas
-                vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y + texelSand * vSplat.z + texelBase * vSplat.w
-                    + texture2D(tMountain, vMapUv) * vMountain.x
-                    + texture2D(tRock, vMapUv) * vMountain.y
-                    + texture2D(tSnow, vMapUv) * vMountain.z
-                    + texture2D(tSeabed, vMapUv) * vMountain.w
-                    + texture2D(tWetSand, vMapUv) * vWetSand;
-                diffuseColor *= blendedTexel;
-            #endif
-            `
+            `#include <map_fragment>`, getTerrainTextureBlend(renderer.capabilities.isWebGL2)
         ).replace('#include <alphahash_fragment>', `
             #ifdef USE_FOG
                 float terrainMountainPresence = max(clamp(vMountain.x + vMountain.y + vMountain.z, 0.0, 1.0),
@@ -2253,9 +2461,9 @@ function buildWorld(prepared) {
     revealNextSeaHeartFragment();
 
     for (const definition of furniture) {
-        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP', 'ANTIQUE_STOVE', 'SPICE_SHELF'].includes(definition.type)) continue;
+        if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP', 'ANTIQUE_STOVE', 'WOOD_STOVE', 'SPICE_SHELF', 'BEACH_PLANK_TABLE', 'RUSTIC_BEACH_CHAIR'].includes(definition.type)) continue;
         const { position, size } = definition;
-        const allowedGround = ['LOG_STACK', 'WORKBENCH', 'STUMP'].includes(definition.type)
+        const allowedGround = ['LOG_STACK', 'WORKBENCH', 'STUMP', 'BEACH_PLANK_TABLE', 'RUSTIC_BEACH_CHAIR'].includes(definition.type)
             ? ['INDOOR_FLOOR', 'WOOD', 'GRASS', 'DIRT', 'SAND', 'WET_SAND'] : ['INDOOR_FLOOR', 'WOOD'];
         for (let z = position.z; z < position.z + size.z; z++) for (let x = position.x; x < position.x + size.x; x++) {
             if (!allowedGround.includes(floorMap[z]?.[x])) throw new Error(`El mueble ${definition.id} requiere suelo compatible en (${x},${z}).`);
@@ -2263,10 +2471,12 @@ function buildWorld(prepared) {
         const x = (position.x + (size.x - 1) / 2) * UNIT_SIZE + (definition.offset?.x ?? 0);
         const z = (position.z + (size.z - 1) / 2) * UNIT_SIZE + (definition.offset?.z ?? 0);
         const isBed = definition.type === 'BED';
-        const model = new THREE.Mesh(definition.type === 'SPICE_SHELF' ? createSpiceShelfGeometry(THREE) : definition.type === 'ANTIQUE_STOVE' ? createAntiqueStoveGeometry(THREE) : definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
+        const model = new THREE.Mesh(definition.type === 'BEACH_PLANK_TABLE' ? createBeachPlankTableGeometry(THREE) : definition.type === 'RUSTIC_BEACH_CHAIR' ? createRusticBeachChairGeometry(THREE) : definition.type === 'SPICE_SHELF' ? createSpiceShelfGeometry(THREE) : definition.type === 'WOOD_STOVE' ? createWoodStoveGeometry(THREE) : definition.type === 'ANTIQUE_STOVE' ? createAntiqueStoveGeometry(THREE) : definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd8ceb3, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x40566b, shininess: 0 })
+        ] : ['BEACH_PLANK_TABLE', 'RUSTIC_BEACH_CHAIR'].includes(definition.type) ? [
+            new THREE.MeshPhongMaterial({map:maderaTex,color:0xffffff,vertexColors:true,shininess:0,flatShading:true})
         ] : definition.type === 'SPICE_SHELF' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x987448, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x4e7135, shininess: 0, side: THREE.DoubleSide }),
@@ -2275,6 +2485,11 @@ function buildWorld(prepared) {
             new THREE.MeshPhongMaterial({ color: 0x896341, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd4c79c, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x785030, shininess: 0, side: THREE.DoubleSide })
+        ] : definition.type === 'WOOD_STOVE' ? [
+            new THREE.MeshPhongMaterial({ color: 0x25292b, shininess: 18, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x727a78, shininess: 45, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true, shininess: 0, flatShading: true }),
+            new THREE.MeshPhongMaterial({ color: 0x1c302c, transparent: true, opacity: 0.18, shininess: 65, side: THREE.DoubleSide, depthWrite: false })
         ] : definition.type === 'ANTIQUE_STOVE' ? [
             new THREE.MeshPhongMaterial({ color: 0xd5ca78, shininess: 28, flatShading: true }),
             new THREE.MeshPhongMaterial({ color: 0x262a29, shininess: 16, flatShading: true }),
@@ -2306,10 +2521,23 @@ function buildWorld(prepared) {
         model.rotation.y = definition.rotationY ?? 0;
         model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
         model.userData = { type: definition.type, id: definition.id, gx: position.x, gz: position.z };
+        if (definition.type === 'WOOD_STOVE') {
+            const pipeAt = new THREE.Vector3(0,0,-0.14).multiplyScalar(furnitureScale).applyEuler(model.rotation).add(model.position);
+            const roofLimit = atticSupport?.upperLimit(pipeAt.x, pipeAt.z);
+            // Superar la cubierta escalonada sin modificarla ni abrir un paso para el jugador.
+            const pipeTop = Number.isFinite(roofLimit)
+                ? Math.max(5.15, (roofLimit + 0.2 + roofStepHeight + 1 - model.position.y) / furnitureScale)
+                : 5.15;
+            const pipe = new THREE.Mesh(createWoodStovePipeGeometry(THREE, pipeTop), model.material[0]);
+            pipe.name = definition.id + '-pipe';
+            pipe.scale.setScalar(furnitureScale);
+            model.add(pipe);
+        }
         if (definition.id === 'graham-table') {
             const mateSet = createMateSet(THREE);
             mateSet.scale.setScalar(FURNITURE_SCALE);
             model.add(mateSet);
+            for (const object of mateSet.children) { object.userData.type = 'MATE_SET'; interactables.push(object); }
         }
         scene.add(model);
         model.updateMatrixWorld(true);
@@ -2370,6 +2598,7 @@ function buildWorld(prepared) {
     structureSectors.group.name = 'structure-sectors';
     scene.add(structureSectors.group);
     fogCulling = createFogCulling(THREE, scene, [skyMesh, sunFlare.object, camera], FOG_RESIDUAL);
+    prepareInactiveLights(THREE, scene);
     fogCulling.register();
     heartHalos = createHeartHalos(THREE, scene, floorMap, UNIT_SIZE, getTerrainHeight);
     minimap.initialize(floorCanvas);
@@ -2430,6 +2659,8 @@ function updatePlayerPosture() {
     isCrouching = crouchRequested;
 }
 
+function treeCanopyHeight(x, z) { return getTerrainHeight(x, z) + TREE_SPRITE_HEIGHT - 0.5; }
+
 function isWall(x, z) {
     const controlObj = controls.getObject();
     const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -2442,7 +2673,7 @@ function isWall(x, z) {
     return hasObstacle(isRidingBoat ? x - boatSeatOffset.x : x,
         isRidingBoat ? z - boatSeatOffset.z : z,
         mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference,
-        controlObj.position.y - eyeHeight);
+        controlObj.position.y - eyeHeight, heartLevitationHeight > 0.15 ? treeCanopyHeight : null);
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -2470,7 +2701,11 @@ const walkingRhythm = createWalkingRhythm();
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
-    bedBounceIndex = -1;
+    if (grahamDap.active) { grahamDap.cancel(); controls.pointerSpeed = dapPointerSpeed; }
+    bedBounceActive = false;
+    bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
+    bedBounceHitCeiling = false;
+    bedCeilingHits = 0;
     jumpHeld = false;
     bedCeilingTimer = 0;
     crouchRequested = isCrouching = false;
@@ -2491,6 +2726,7 @@ let previousRenderedTimestamp;
 function animate(timestamp = performance.now()) {
     requestAnimationFrame(animate);
     if (timestamp + 0.1 < nextFrame) return;
+    const frameStart = performancePanel ? performance.now() : 0;
     nextFrame += FRAME_INTERVAL;
     if (nextFrame <= timestamp) nextFrame = timestamp + FRAME_INTERVAL;
     // Tiempo propio de la cámara: el reloj del agua y el límite de física no lo alteran.
@@ -2499,6 +2735,7 @@ function animate(timestamp = performance.now()) {
     previousRenderedTimestamp = timestamp;
 
     const controlObj = controls.getObject();
+    touchControls?.syncDialogue(controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active));
     let vegetationDelta = 0;
 
     if (grahamSprite) {
@@ -2514,6 +2751,7 @@ function animate(timestamp = performance.now()) {
         const rawDelta = clock.getDelta();
         const delta = Math.min(rawDelta, 0.1);
         vegetationDelta = delta;
+        grahamDap.update(delta);
         underwaterViewTime.value += delta;
         if (seaHeartLight && seaHeart?.next) {
             const fragment = seaHeartSprites.get(seaHeart.next.id);
@@ -2529,12 +2767,21 @@ function animate(timestamp = performance.now()) {
         boatFloatTime += delta;
         for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
         musicEvents.update(delta);
+        if (mapChestSoundSource) {
+            if (musicEvents.isChestUnlockPlaying()) musicEvents.updateChestUnlockPosition(getMapChestSoundPosition());
+            else mapChestSoundSource = null;
+        }
+        if (forestHeartShrine && heartQuest.stage === 'searching') {
+            // Coordenadas relativas al oído: no alterar el listener compartido de la música.
+            forestHeartShrine.userData.heartLight.getWorldPosition(heartBeaconPosition);
+            heartBeaconPosition.sub(camera.getWorldPosition(frameCameraDirection));
+            heartBeaconPosition.applyQuaternion(camera.getWorldQuaternion(heartBeaconCameraRotation).invert());
+            musicEvents.updateForestHeartBeacon(heartBeaconPosition);
+        } else musicEvents.updateForestHeartBeacon(null);
         const running = isRunning && !musicEvents.isEventActive('forest');
         heartVision.update(delta, musicEvents.isEventActive('forest'), musicEvents.getForestEnergy(),
             musicEvents.getEventTimeRemaining('forest'));
-        heartLevitationHeight = heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
-            musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'));
-        heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE));
+
         heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
         const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
         updateDoorAnimations(doors, delta, () => {
@@ -2618,30 +2865,72 @@ function animate(timestamp = performance.now()) {
                             blending: THREE.AdditiveBlending 
                         });
                         
-                        // Rotación: La cola apunta hacia atrás de la dirección de movimiento
-                        // Movimiento: -Y (abajo), +Z (derecha)
-                        const angleRad = 28 * Math.PI / 180;
-                        // Math.atan2(Y_cola, Z_cola) => Math.atan2(cos(28), -sin(28))
-                        starMat.rotation = Math.atan2(Math.cos(angleRad), -Math.sin(angleRad)); 
-                        
                         starSprite = new THREE.Sprite(starMat);
-                        starSprite.scale.set(120, 80, 1); 
+                        starSprite.scale.set(32, 8, 1);
                         starSprite.renderOrder = -0.4;
                         skyMesh.add(starSprite);
                     }
                     
-                    // Calcular posición inicial para que pase exactamente a la derecha de la luna (Z=80) 
-                    // en el punto medio de su animación (t=0.15s)
-                    const angleRad = 28 * Math.PI / 180;
-                    const speed = 4000;
-                    const halfTime = 0.15;
-                    
-                    const startY = 250 + (halfTime * speed * Math.cos(angleRad));
-                    const startZ = 80 - (halfTime * speed * Math.sin(angleRad));
-                    
-                    starSprite.position.set(400, startY, startZ);
-                    starSprite.material.opacity = 1.0;
+                    // Recorrido corto dentro del encuadre, un poco por encima de la luna.
+                    camera.updateMatrixWorld(true);
+                    const moonScreen = moonSprite.getWorldPosition(new THREE.Vector3()).project(camera);
+                    const centerX = THREE.MathUtils.clamp(moonScreen.x, -0.45, 0.45);
+                    const centerY = THREE.MathUtils.clamp(moonScreen.y + 0.20, -0.35, 0.65);
+                    const cameraPosition = camera.getWorldPosition(new THREE.Vector3());
+                    const distance = moonSprite.getWorldPosition(new THREE.Vector3()).distanceTo(cameraPosition);
+                    const placeInSky = (target, x, y) => {
+                        target.set(x, y, 0.5).unproject(camera).sub(cameraPosition).normalize()
+                            .multiplyScalar(distance).add(cameraPosition);
+                        skyMesh.worldToLocal(target);
+                    };
+                    placeInSky(starStart, centerX - 0.16, centerY + 0.06);
+                    placeInSky(starEnd, centerX + 0.16, centerY - 0.06);
+                    const viewWidth = 2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+                    const starWidth = Math.min(32, viewWidth * 0.10);
+                    starSprite.scale.set(starWidth, starWidth / 4, 1);
+                    starSprite.material.rotation = Math.atan2(0.12, -0.32 * camera.aspect);
+                    starSprite.material.fog = false;
+                    starSprite.position.copy(starStart);
+                    starSprite.material.opacity = 0;
                     starSprite.visible = true;
+
+                    // La primera conserva exactamente su recorrido; las otras cambian en cada tanda.
+                    starSprite.material.color.setHex(0xffffff);
+                    starFlights.length = 0;
+                    starFlights.push({ sprite: starSprite, start: starStart, end: starEnd, delay: 0 });
+                    const secondTime = 1.6 + Math.random() * 1.8;
+                    const delays = [secondTime, secondTime + 0.28 + Math.random() * 0.36, 7.2 + Math.random() * 0.46];
+                    const colors = [0x8adfff, 0xc39aff, 0xff91c9, 0x98ffc7, 0xffad78];
+                    const thirdColor = Math.floor(Math.random() * colors.length);
+                    const fourthColor = (thirdColor + 1 + Math.floor(Math.random() * (colors.length - 1))) % colors.length;
+                    const tints = [0xffedbc, colors[thirdColor], colors[fourthColor]];
+                    const rows = [-0.06, 0.12, 0.28];
+                    const columns = [-0.13, 0.12, -0.25];
+                    const rowBase = THREE.MathUtils.clamp(moonScreen.y + 0.20, -0.25, 0.35);
+                    for (let i = 0; i < 3; i++) {
+                        if (!extraStarSprites[i]) {
+                            const sprite = new THREE.Sprite(starSprite.material.clone());
+                            sprite.renderOrder = starSprite.renderOrder;
+                            skyMesh.add(sprite);
+                            extraStarSprites.push(sprite);
+                        }
+                        const sprite = extraStarSprites[i];
+                        const x = THREE.MathUtils.clamp(centerX + columns[i] + (Math.random() - 0.5) * 0.08, -0.42, 0.42);
+                        const y = rowBase + rows[i] + (Math.random() - 0.5) * 0.07;
+                        const span = 0.28 + Math.random() * 0.08;
+                        const drop = 0.055 + Math.random() * 0.075;
+                        const start = new THREE.Vector3(), end = new THREE.Vector3();
+                        placeInSky(start, x - span / 2, y + drop / 2);
+                        placeInSky(end, x + span / 2, y - drop / 2);
+                        sprite.scale.copy(starSprite.scale);
+                        sprite.material.rotation = Math.atan2(drop, -span * camera.aspect);
+                        sprite.material.color.setHex(tints[i]);
+                        sprite.material.opacity = 0;
+                        sprite.visible = false;
+                        starFlights.push({ sprite, start, end, delay: delays[i] });
+                    }
+                    starSequenceActive = true;
+
                 }
             } else {
                 moonLookTimer = 0; 
@@ -2699,23 +2988,23 @@ function animate(timestamp = performance.now()) {
                 }
             }
             
-            // Animación de la estrella fugaz
-            if (starSprite && starSprite.visible) {
+            // Una tanda de cuatro destellos breves, repartidos en unos ocho segundos.
+            if (starSequenceActive) {
                 starTimer += delta;
-                
-                const angleRad = 28 * Math.PI / 180;
-                const speed = 4000;
-                
-                // Cae hacia abajo (-Y) y hacia la derecha (+Z) 
-                starSprite.position.y -= delta * speed * Math.cos(angleRad);
-                starSprite.position.z += delta * speed * Math.sin(angleRad);
-                
-                starSprite.material.opacity = 1.0 - (starTimer / 0.3);
-                
-                if (starTimer >= 0.3) {
-                    starSprite.visible = false;
+                const duration = 0.34;
+                for (const flight of starFlights) {
+                    const time = starTimer - flight.delay;
+                    flight.sprite.visible = time >= 0 && time < duration;
+                    if (!flight.sprite.visible) continue;
+                    const progress = Math.min(1, time / duration);
+                    flight.sprite.position.lerpVectors(flight.start, flight.end, progress);
+                    const fadeIn = THREE.MathUtils.smoothstep(time, 0, 0.065);
+                    const fadeOut = 1 - THREE.MathUtils.smoothstep(time, 0.20, duration);
+                    flight.sprite.material.opacity = fadeIn * fadeOut;
                 }
+                if (starTimer >= starFlights[starFlights.length - 1].delay + duration) starSequenceActive = false;
             }
+
         }
 
         // La misión controla las pausas iniciales; luego el reloj funciona normalmente.
@@ -2753,13 +3042,13 @@ function animate(timestamp = performance.now()) {
 
         // Raycaster para Interacciones
         interactionHits.length = 0;
-        if (!spawnGreeting.active && !heartPull.active) {
+        if (!spawnGreeting.active && !heartPull.active && !grahamDap.active) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
         }
         const intersects = interactionHits;
         
-        if (spawnGreeting.active || heartPull.active) {
+        if (spawnGreeting.active || heartPull.active || grahamDap.active) {
             targetInteractable = null;
             hud.hideInteraction();
         } else if (intersects.length > 0 && intersects[0].distance < 3.5
@@ -2772,9 +3061,15 @@ function animate(timestamp = performance.now()) {
                     hud.setInteractionColor("#75d7ff");
                 } else {
                     const mapLocked = targetInteractable.userData.item === 'map' && !heartQuest.canOpenMapChest;
-                    hud.setInteractionText(mapLocked ? "Cofre bloqueado: habla con Graham" : "Presiona E para abrir Cofre");
+                    hud.setInteractionText(targetInteractable.userData.item === 'map' ? "Cerrado" : "Presiona E para abrir Cofre");
                     hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
                 }
+            } else if (targetInteractable.userData.type === 'MAP_PICKUP') {
+                hud.setInteractionText("Presiona E para tomar Mapa");
+                hud.setInteractionColor("#ffeb3b");
+            } else if (targetInteractable.userData.type === 'MATE_SET') {
+                hud.setInteractionText("Presiona E para pedir mate");
+                hud.setInteractionColor("#ffeb3b");
             } else if (targetInteractable.userData.type === 'SEA_HEART_FRAGMENT') {
                 hud.setInteractionText(helmetEquipped && !helmetBroken ? `Camina sobre el fragmento ${targetInteractable.userData.number}/10 del Corazón del Mar` : `Fragmento ${targetInteractable.userData.number}/10 — equipa la escafandra`);
                 hud.setInteractionColor('#75d7ff');
@@ -2807,12 +3102,13 @@ function animate(timestamp = performance.now()) {
             if (isDialogOpen) {
                 isDialogOpen = false;
                 menus.hideDialog();
+
             }
         }
 
         const pullingHeart = heartPull.active;
         heartPull.update(delta);
-        if (!spawnGreeting.active && !pullingHeart) {
+        if (!spawnGreeting.active && !pullingHeart && !grahamDap.active) {
             updatePlayerPosture();
             velocity.x -= velocity.x * FRICTION * delta;
             velocity.z -= velocity.z * FRICTION * delta;
@@ -2898,6 +3194,14 @@ function animate(timestamp = performance.now()) {
                 hud.updateStamina(stamina, STAMINA_MAX);
             }
 
+            camera.getWorldDirection(frameCameraDirection);
+            heartLevitationHeight = heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
+                musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'), {
+                    forward: moveState.forward && !moveState.backward && !isFlying && !isRidingBoat,
+                    lookY: frameCameraDirection.y,
+                    distance: Math.hypot(controlObj.position.x - startX, controlObj.position.z - startZ)
+                });
+            heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE));
             // Reintentar incorporarse al despejar la cabeza durante este mismo desplazamiento.
             updatePlayerPosture();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -2909,7 +3213,10 @@ function animate(timestamp = performance.now()) {
                 bedSupport, ceilingSupport);
             const onBed = Number.isFinite(bedSupport) && bedSupport >= currentTerrainHeight;
             const onAttic = Number.isFinite(ceilingSupport) && ceilingSupport >= currentTerrainHeight;
-            if ((!onBed && bedBounceIndex > 0) || isFlying || isRidingBoat || inWater) bedBounceIndex = -1;
+            if (!onBed || isFlying || isRidingBoat || inWater) {
+                bedBounceActive = false;
+                bedCeilingHits = 0;
+            }
             let targetEyesHeight = (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) + currentTerrainHeight;
         
             if (isRidingBoat && boatReference) {
@@ -2924,8 +3231,9 @@ function animate(timestamp = performance.now()) {
             }
 
             if (!isRidingBoat && heartLevitationHeight > 0) {
+                const groundEyesHeight = targetEyesHeight;
                 targetEyesHeight += heartLevitationHeight;
-                controlObj.position.y = targetEyesHeight;
+                controlObj.position.y = Math.max(groundEyesHeight, controlObj.position.y + (targetEyesHeight - controlObj.position.y) * (1 - Math.exp(-delta * 5)));
                 velocityY = 0;
                 canJump = false;
             } else if (!isFlying && bedCeilingTimer > 0) {
@@ -2933,6 +3241,9 @@ function animate(timestamp = performance.now()) {
                 velocityY = 0;
                 if (bedCeilingTimer <= 0) {
                     bedCeilingTimer = 0;
+                    // Soltar al jugador antes de revelar la rotura en este mismo fotograma.
+                    velocityY = -1;
+                    controlObj.position.y += velocityY * delta;
                     bedCeilingHoleOpen = true;
                     // Se rompe solo el cielo falso; la cubierta superior queda intacta.
                     for (const piece of bedFalseCeilingPieces.values()) {
@@ -2943,7 +3254,6 @@ function animate(timestamp = performance.now()) {
                         bedHoleRim.userData.visibilityEnabled = true;
                         bedHoleRim.visible = true;
                     }
-                    velocityY = -1;
                 }
             } else if (!isFlying) {
                 // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
@@ -2951,23 +3261,54 @@ function animate(timestamp = performance.now()) {
                     controlObj.position.y = targetEyesHeight;
                 }
                 if (canJump && controlObj.position.y > targetEyesHeight + 0.15) canJump = false;
-                velocityY -= GRAVITY * delta;
-                controlObj.position.y += velocityY * delta;
+                // Primeros rebotes más pausados; recuperar el ritmo normal al tomar vuelo.
+                const bedBuild = Math.min(1, Math.max(0, (bedBounceImpulse - BED_BOUNCE_BASE_IMPULSE) / 6));
+                const bedTempo = onBed && bedBounceActive
+                    ? BED_BOUNCE_INITIAL_TIME_SCALE + (1 - BED_BOUNCE_INITIAL_TIME_SCALE) * bedBuild * bedBuild * (3 - 2 * bedBuild)
+                    : 1;
+                // Dar algo más de aire al salto normal sin aumentar su impulso ni tocar la cama.
+                const airTempo = !onBed && !inWater && !isRidingBoat ? NORMAL_JUMP_TIME_SCALE : bedTempo;
+                const verticalDelta = delta * airTempo;
+                // Flotar más al saltar o caer en el agua; los botes conservan su gravedad.
+                const waterGravityScale = velocityY < 0 ? WATER_FALL_GRAVITY_SCALE : WATER_GRAVITY_SCALE;
+                const verticalGravity = inWater && !isRidingBoat ? GRAVITY * waterGravityScale : GRAVITY;
+                velocityY -= verticalGravity * verticalDelta;
+                controlObj.position.y += velocityY * verticalDelta;
 
                 if (controlObj.position.y < targetEyesHeight) {
-                    if (onBed && jumpHeld && !canJump && bedBounceIndex >= 0) {
+                    if (onBed && jumpHeld) {
+                        // Mantener salto inicia/reanuda la cadena al apoyar sobre el colchón.
+                        if (!bedBounceActive) {
+                            bedBounceActive = true;
+                            bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
+                            bedBounceHitCeiling = false;
+                        }
                         controlObj.position.y = targetEyesHeight;
-                        velocityY = BED_BOUNCE_IMPULSES[Math.min(bedBounceIndex++, BED_BOUNCE_IMPULSES.length - 1)];
+                        // El colchón añade fuerza al siguiente salto; nunca se carga impulso contra el techo.
+                        if (!bedBounceHitCeiling) {
+                            const gain = 0.35 + Math.max(0, bedBounceImpulse - BED_BOUNCE_BASE_IMPULSE) * 0.35;
+                            bedBounceImpulse = Math.min(BED_BOUNCE_MAX_IMPULSE, bedBounceImpulse + gain);
+                        }
+                        else if (!bedCeilingHoleOpen && bedCeilingHits > 0) {
+                            bedBounceImpulse = Math.min(BED_BOUNCE_MAX_IMPULSE, bedBounceImpulse + BED_BOUNCE_AFTER_IMPACT_GAIN);
+                        }
+                        velocityY = bedBounceImpulse;
+                        bedBounceHitCeiling = false;
                         canJump = false;
-                    } else if (!inWater && !onBed && !onAttic && controlObj.position.y < targetEyesHeight - 0.2) {
-                        controlObj.position.y += (targetEyesHeight - controlObj.position.y) * 15 * delta;
-                        velocityY = 0;
-                        canJump = false;
+
                     } else {
+                        const justLanded = !canJump;
                         controlObj.position.y = targetEyesHeight;
                         velocityY = 0;
                         canJump = true;
-                        bedBounceIndex = -1;
+                        bedBounceActive = false;
+                        bedCeilingHits = 0;
+                        // Una breve pausa al apoyar separa los saltos automáticos de A.
+                        if (isTouchMode && jumpHeld) {
+                            touchJumpRepeatWait = justLanded ? TOUCH_JUMP_REPEAT_PAUSE
+                                : Math.max(0, touchJumpRepeatWait - delta);
+                            if (touchJumpRepeatWait <= 0) gameActions.jump();
+                        }
                     }
                 }
             }
@@ -2987,13 +3328,27 @@ function animate(timestamp = performance.now()) {
                     const aboveFalseCeiling = bedCeilingHoleOpen && atticCell && controlObj.position.y - eyeHeight >= atticCell.top - 0.08;
                     const inAttic = aboveFalseCeiling || throughOpening || (atBedOpening && bedCeilingTimer > 0);
                     if (!inAttic && controlObj.position.y > ceilingMaxHeight) {
+                        const risingCeilingImpact = velocityY > 0;
                         controlObj.position.y = ceilingMaxHeight;
-                        if (velocityY > 0) velocityY = 0;
-                        if (onBed && jumpHeld && bedBounceIndex >= 4 && !bedCeilingHoleOpen && bedCeilingTimer <= 0 && bedRoofPieces.has(`${roofGX},${roofGZ}`)) {
-                            bedCeilingTimer = 0.7;
-                            bedCeilingHoleTile = { x: roofGX, z: roofGZ };
-                            controlObj.position.y = ceilingMaxHeight + 0.35;
-                            canJump = false;
+                        if (velocityY > 0) {
+                            velocityY = 0;
+                            if (bedBounceActive) {
+                                bedBounceImpulse = Math.max(BED_BOUNCE_BASE_IMPULSE, bedBounceImpulse * 0.8);
+                                bedBounceHitCeiling = true;
+                            }
+                        }
+                        if (risingCeilingImpact && onBed && jumpHeld && bedBounceActive && !bedCeilingHoleOpen && bedCeilingTimer <= 0
+                            && bedRoofPieces.has(`${roofGX},${roofGZ}`)) {
+                            if (++bedCeilingHits >= BED_CEILING_HITS_TO_BREAK) {
+                                bedCeilingTimer = 0.7;
+                                bedCeilingHoleTile = { x: roofGX, z: roofGZ };
+                                // Ojos sobre las tablas intactas, fuera del recorte cercano de la cámara.
+                                const ceilingTop = atticCell?.top ?? ceilingMaxHeight + 0.35;
+                                const heldEyesHeight = ceilingTop + Math.max(0.2, camera.near * 2);
+                                const atticLimit = atticSupport?.upperLimit(controlObj.position.x, controlObj.position.z) ?? Infinity;
+                                controlObj.position.y = Math.min(heldEyesHeight, atticLimit);
+                                canJump = false;
+                            }
                         }
                     }
                     // El hueco permite entrar al entretecho, sin atravesar la cubierta exterior.
@@ -3001,7 +3356,13 @@ function animate(timestamp = performance.now()) {
                         const upperLimit = atticSupport.upperLimit(controlObj.position.x, controlObj.position.z);
                         if (Number.isFinite(upperLimit) && controlObj.position.y > upperLimit) {
                             controlObj.position.y = upperLimit;
-                            if (velocityY > 0) velocityY = 0;
+                            if (velocityY > 0) {
+                                velocityY = 0;
+                                if (bedBounceActive) {
+                                    bedBounceImpulse = Math.max(BED_BOUNCE_BASE_IMPULSE, bedBounceImpulse * 0.8);
+                                    bedBounceHitCeiling = true;
+                                }
+                            }
                         }
                     }
                 }
@@ -3126,6 +3487,9 @@ function animate(timestamp = performance.now()) {
     underwaterBackdrop.material.opacity = underwaterBlend;
     underwaterBackdrop.material.color.copy(underwaterCurrentColor);
     skyMesh.visible = underwaterBlend < 0.995;
+    daySkyMesh.visible = dayMaterials.some(material => material.opacity !== 0);
+    dawnSkyMesh.visible = dawnSkyMesh.material.opacity !== 0;
+    duskSkyMesh.visible = duskSkyMesh.material.opacity !== 0;
     hud.setUnderwaterTint(gameStarted && controls.isLocked && !isDead ? underwaterBlend * underwaterLightLevel : 0);
     const fogPlane = fogCulling?.update(camera);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
@@ -3145,6 +3509,7 @@ function animate(timestamp = performance.now()) {
                 renderer.initTexture(mesh.material.map);
             }
             plants.update(camera,fogPlane,UNDERWATER_PLANT_DISTANCE);
+            prepareInactiveLights(THREE, plants.group);
             scene.add(plants.group);
             // Usar la escena real conserva las variantes de niebla y luces del juego.
             await renderer.compileAsync(scene,camera);
@@ -3174,15 +3539,19 @@ function animate(timestamp = performance.now()) {
     sunFlare.update();
     if (!controls.isLocked || isDead) hud.hideDivingAir();
     hud.updateCoordinates(controlObj.position, UNIT_SIZE, gameStarted && controls.isLocked && !isDead);
-    heldItemSprite.visible = !!heldItem && gameStarted && controls.isLocked && !isDead;
+    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && gameStarted && controls.isLocked && !isDead;
+    heldMate.update(controls.isLocked ? vegetationDelta : 0, canDrinkMate());
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && controls.isLocked && !isDead);
     underwaterStrength.value = underwaterBlend;
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();
+    grahamDap.apply();
     try {
         underwaterView.render(scene, camera);
     } finally {
+        grahamDap.restore();
         heartPull.restoreCameraShake();
+        performancePanel?.record(timestamp, frameStart);
     }
 }
 

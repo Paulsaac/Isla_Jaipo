@@ -3,7 +3,7 @@ import { getClosestType } from './map-decoder.js';
 import { validateGridPosition } from './coordinates.js';
 
 // Prepara datos y minimapa; no crea objetos Three.js ni modifica el estado del juego.
-export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions = []) {
+export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions = [], cellOverrides = []) {
     const mapWidth = mapData.width;
     const mapHeight = mapData.height;
     const relocations = new Map();
@@ -27,6 +27,16 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
         }
         relocations.set(from.x + ',' + from.z, decode(target));
         relocations.set(to.x + ',' + to.z, entity.type);
+    }
+    for (const override of cellOverrides) {
+        validateGridPosition(override.position, mapWidth, mapHeight);
+        const { x, z } = override.position;
+        const pixel = (z * mapWidth + x) * 4;
+        const original = getClosestType(...mapData.basePixels.slice(pixel, pixel + 4));
+        if (original !== override.expectedType || !Object.prototype.hasOwnProperty.call(FLOOR_COLORS, override.type)) {
+            throw new Error('No se puede ajustar la celda ' + override.id + ': revisar tipo original y destino.');
+        }
+        relocations.set(x + ',' + z, override.type);
     }
     const imgData = mapData.basePixels;
     const roofImgData = mapData.roofPixels;

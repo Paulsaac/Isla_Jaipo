@@ -90,8 +90,11 @@ export function createHeartPull(THREE, {scene, camera, input, isWall, groundHeig
             extension+=(target-extension)*(1-Math.exp(-dt*12));
             lateral=THREE.MathUtils.clamp(lateral+(Number(input.right)-Number(input.left))*dt*.35,-.4,.4);
             moveTo(origin.x+away.x*extension+side.x*lateral,origin.z+away.z*extension+side.z*lateral);
-            axis.set(camera.position.z-vine.position.z,0,-(camera.position.x-vine.position.x)).normalize();
-            tilt.setFromAxisAngle(axis,extension*.65);
+            // Inclinar desde el anclaje hacia el desplazamiento real, también al tirar de costado.
+            axis.set(camera.position.z-origin.z,0,-(camera.position.x-origin.x));
+            const bendDistance=axis.length();
+            if(bendDistance>1e-8) tilt.setFromAxisAngle(axis.multiplyScalar(1/bendDistance),bendDistance*.65);
+            else tilt.identity();
             vine.quaternion.copy(base).premultiply(tilt);
             if(elapsed>=1.5) {
                 vine.userData.heartMesh.getWorldPosition(burstOrigin);

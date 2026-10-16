@@ -73,18 +73,24 @@ export function createHeartVision() {
             if (!terrain && !celestial && !water) shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment);
             // Sustituir solo consultas de textura, conservando UV base y transparencia.
             if (!celestial && !water) shader.fragmentShader = shader.fragmentShader.replaceAll('texture2D( map, vMapUv )', 'texture2D( map, heartWarpUv )')
-                .replace(/texture2D\((t\w+), vMapUv\)/g, 'texture2D($1, heartWarpUv)');
+                .replace(/texture2D\((t\w+), vMapUv\)/g, 'texture2D($1, heartWarpUv)')
+                .replace(/textureGrad\((t\w+), vMapUv, terrainDx, terrainDy\)/g, 'textureGrad($1, heartWarpUv, terrainDx, terrainDy)')
+                .replace('dFdx(vMapUv)', 'dFdx(heartWarpUv)')
+                .replace('dFdy(vMapUv)', 'dFdy(heartWarpUv)');
             shader.fragmentShader = shader.fragmentShader.replace(/void main\s*\(\s*\)\s*\{/, `
                 void main() {
                 float heartAmount = ${tree || mode === 'vegetation' ? 'heartVegetationStrength' : 'heartStrength'} * (${mask});
                 ${celestial || water ? '' : `#ifdef USE_MAP
-                    vec2 heartWarpUv = vMapUv + vec2(
+                    vec2 heartWarpUv = vMapUv;
+                    // Condición uniforme: conserva las derivadas de textura en los bordes.
+                    if (${tree || mode === 'vegetation' ? 'heartVegetationStrength' : 'heartStrength'} > 0.0) heartWarpUv += vec2(
                         sin(vMapUv.y * 7.0 + heartTime * 0.55),
                         cos(vMapUv.x * 6.0 - heartTime * 0.45)
                     ) * heartAmount * (${terrain ? '0.012 + heartBass * 0.018' : '0.010 + heartBass * 0.025'});
                 #endif`}
             `);
             shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+                if (heartAmount > 0.0) {
                 ${celestial ? `
                 vec3 heartHsv = heartRgbToHsv(outgoingLight);
                 heartHsv.x = ${moon ? 'fract(0.6667 + heartColorTime * 0.035 + 0.4 + sin(heartColorTime * 0.13) * 0.12 + heartTreble * 0.02)' : 'fract(heartHsv.x + heartColorTime * 0.035 + heartBass * 0.03)'};
@@ -107,6 +113,7 @@ export function createHeartVision() {
                 outgoingLight = mix(outgoingLight, heartShift, heartAmount * ${terrain ? '0.42' : water ? '0.55' : '0.50'});
                 outgoingLight *= 1.0 + heartAmount * heartTreble * ${terrain ? '0.02' : '0.05'};
                 `}
+                }
                 #include <opaque_fragment>
             `);
             if (celestial) shader.fragmentShader = `
@@ -129,7 +136,7 @@ export function createHeartVision() {
                 }
             ` + shader.fragmentShader;
         };
-        material.customProgramCacheKey = () => key + '-heart-vision-v9-' + mode;
+        material.customProgramCacheKey = () => key + '-heart-vision-v10-' + mode;
     }
     return { uniforms, update, apply };
 }

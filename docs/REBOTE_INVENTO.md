@@ -1,0 +1,7 @@
+# Rebote invento (idea reservada)
+
+AxByZ pidió conservar para más adelante el rebote progresivo de la cama, pero desactivarlo en la versión de prueba actual. El salto inicial sobre la cama usaba impulso 5.5; al mantener salto, los aterrizajes siguientes usaban sucesivamente `[7, 8.5, 10, 12, 14, 16, 18, 20]`. El índice avanzaba al aterrizar, incluso después de chocar con el techo. Tras abrir el cielo falso, esa cadena podía lanzar al personaje hacia arriba por el hueco.
+
+La implementación completa anterior al cambio se conserva en `.coordination/rebote-invento-game-before-20261015.js`. Este documento registra la idea para diseñarla y probarla por separado cuando se solicite; no activa el comportamiento. Si se retoma, definir cuándo se acumula energía, cómo se consume al chocar con el techo y qué ocurre al abrirse el hueco, sin heredar automáticamente el lanzamiento accidental.
+
+Ajuste posterior solicitado por AxByZ (2026-10-16): la cama vuelve a acumular fuerza después de cada rebote libre (+1.5 de impulso, máximo20). Chocar con el techo cancela la velocidad ascendente, reduce la fuerza acumulada un20% (mínimo5.5) y el siguiente rebote no añade fuerza. Se conserva la ruptura tras cuatro impactos. Mientras se mantenga Espacio, la cadena continúa al volver a la cama, también después de abrirse el hueco; soltar la tecla o salir de la cama corta la cadena. El lanzamiento acumulado accidental de la implementación original sigue reservado como referencia, sin activarlo.

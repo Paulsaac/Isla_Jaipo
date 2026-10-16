@@ -32,13 +32,20 @@ export const heartSearchDialogs = [
 ];
 
 export const heartDeliveryDialogs = [
-    "¡Encontraste el Corazón del Bosque! Muchas gracias por traerlo de vuelta.",
-    "Sigo buscando la llave del puente. Todavía no la tengo, pero te avisaré cuando la encuentre."
+    "Naaaaaaahhh que grandeee",
+    "Eres increible, muchas gracias por encontrarlo!",
+    { action: 'dap' },
+    "Está bastante maltratado, pero lo voy a dejar en un lugar especial.",
+    "Gracias de nuevo. Te dejé un mapa en el cofre del otro cuarto para que puedas orientarte por la isla.",
+    "Para agradecerte, voy a darte las llaves del puente. El único problema es que tengo que encontrarlas... La verdad no voy hace mucho tiempo al pueblo y no tengo idea donde estarán.",
+    "A penas las encuentre, te haré saber.",
+    "Mientras taaanto, te recomiendo explorar el lugar, es muy bonito. Solía caminar horas por el bosque. Siempre me sorprendía.",
+    "Sobre todo cuando miraba la luna tomando mate.... Pasaban cosas interesantes."
 ];
 
 export const heartDeliveredDialogs = [
-    "Gracias de nuevo por recuperar el Corazón del Bosque.",
-    "Todavía estoy buscando la llave del puente. Te avisaré cuando la tenga."
+    "Gracias de nuevo. Aún no encuentro la llave, pero te haré saber cuando la encuentre... Mientras tanto, siéntete libre de salir a conocer los alrededores y volver cuando quieras.",
+    "Siempre habrá un techo y un mate para ti."
 ];
 
 // La entrega de la llave queda habilitada mediante el parámetro de configuración.
@@ -52,3 +59,8 @@ export const bridgeKeyReceivedDialogs = [
     "Ya te entregué la llave del puente. ¡Disfruta tu viaje por la isla!",
     "Recuerda el regalo que te dejé en el cofre del otro cuarto: un mapa para orientarte mejor."
 ];
+
+// Habitante del rincón izquierdo del entretecho.
+export const atticAntDialogs = ['no le digas a nadie que vivo aqui'];
+
+export const mateOfferDialogs = ['Quieres mate?'];

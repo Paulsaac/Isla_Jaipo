@@ -13,11 +13,35 @@
     -webkit-tap-highlight-color: transparent;
 }
 #touch-controls button.pressed { filter: brightness(1.4); box-shadow: 0 1px 0 #2d2934; transform: translateY(3px); }
+.touch-utilities {
+    position: fixed; top: max(12px, env(safe-area-inset-top));
+    right: max(14px, env(safe-area-inset-right)); display: flex; gap: 8px;
+}
+#touch-controls .touch-heart-shortcut {
+    width: 44px; height: 44px; border-radius: 8px; background: #36323ee6; color: #80dfff;
+}
+#touch-controls .touch-heart-grant { color: #ffd078; }
+#touch-controls .touch-fullscreen {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    height: 44px; width: 44px; padding: 6px;
+    background: #36323ee6; border-radius: 8px; font-size: 12px;
+}
+.touch-fullscreen > [aria-hidden] { font-size: 24px; line-height: 1; }
+.touch-fullscreen-status {
+    position: fixed; top: calc(max(12px, env(safe-area-inset-top)) + 54px);
+    right: max(14px, env(safe-area-inset-right)); max-width: min(260px, 80vw);
+    padding: 10px; border-radius: 6px; background: #24212cf2;
+    color: white; font: 13px/1.5 Arial, sans-serif;
+}
 #touch-controls.touch-paused { z-index: 701; }
-.snes-dpad { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); pointer-events: auto; touch-action: none; }
+.snes-dpad { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); margin-left: clamp(0px, calc(50vw - 180px), 18px); pointer-events: auto; touch-action: none; }
 .snes-dpad button { background: #36323e; border-radius: 5px; }
 .snes-dpad [data-direction="forward"] { grid-area: 1 / 2; }
-.snes-dpad [data-direction="left"] { grid-area: 2 / 1; }
+.snes-dpad [data-direction="left"] { grid-area: 2 / 1; position: relative; }
+/* Recibir también los apoyos próximos al borde izquierdo sin agrandar el dibujo. */
+.snes-dpad [data-direction="left"]::before {
+    content: ""; position: absolute; inset: -8px 0 -8px -12px;
+}
 .snes-dpad [data-direction="right"] { grid-area: 2 / 3; }
 .snes-dpad [data-direction="backward"] { grid-area: 3 / 2; }
 .snes-dpad-center { grid-area: 2 / 2; background: #36323e; }
@@ -25,12 +49,13 @@
 #touch-controls .snes-menu button { background: #57515f; border-radius: 18px; font-size: 11px; width: 62px; height: 36px; }
 .snes-buttons { display: grid; grid-template: repeat(3, 46px) / repeat(3, 46px); }
 .snes-buttons button { border-radius: 50%; }
+.snes-y { grid-area: 2 / 1; background: #6553a1; }
 .snes-a { grid-area: 2 / 3; background: #b23b4a; }
 .snes-b { grid-area: 3 / 2; background: #b08b21; }
 .touch-paused .snes-dpad, .touch-paused .snes-buttons { opacity: 0.35; }
 .touch-mode #interaction-msg { top: 45%; font-size: 16px; }
 .touch-mode #dialog-box { bottom: 175px !important; left: 5% !important; width: 90% !important; box-sizing: border-box; padding: 12px !important; border-width: 3px !important; }
-.touch-mode #dialog-text { font-size: 14px !important; line-height: 1.5; margin-bottom: 10px !important; }
+.touch-mode #dialog-text { font-size: 16px !important; line-height: 1.5; margin-bottom: 10px !important; }
 .touch-mode #dialog-name { font-size: 18px !important; margin-bottom: 8px; }
 .touch-mode #stamina-container { bottom: 180px; }
 .touch-mode #pause-menu, .touch-mode #inventory-menu { align-items: center; justify-content: flex-start; padding-top: max(16px, env(safe-area-inset-top)); box-sizing: border-box; }
@@ -58,4 +83,34 @@
 @media (max-width: 340px) {
     .snes-dpad, .snes-buttons { grid-template: repeat(3, 36px) / repeat(3, 36px); }
     #touch-controls .snes-menu button { width: 42px; }
+}
+
+/* Mapa compacto en celular, debajo del botón de pantalla completa. */
+.touch-mode #minimap {
+    width: 128px !important; height: 128px !important;
+    top: calc(max(12px, env(safe-area-inset-top)) + 54px) !important;
+    right: max(14px, env(safe-area-inset-right)) !important;
+    border-width: 2px !important; pointer-events: auto; touch-action: manipulation; cursor: zoom-in;
+}
+.touch-mode #minimap .minimap-player { width: 14px !important; height: 18px !important; }
+.touch-mode #minimap .minimap-player svg { width: 100%; height: 100%; }
+@media (orientation: landscape) and (max-height: 500px) {
+    .touch-mode #minimap { width: 104px !important; height: 104px !important; }
+}
+
+#touch-controls.touch-dialogue-hidden { display: none; }
+#touch-dialog-continue {
+    position: fixed; inset: 0; z-index: 610; border: 0; padding: 0;
+    background: transparent; touch-action: none; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.touch-mode.touch-dialogue #dialog-box {
+    bottom: max(20px, env(safe-area-inset-bottom)) !important;
+}
+
+.touch-mode #minimap.map-expanded {
+    position: fixed !important; width: min(78vw, 65dvh, 420px) !important;
+    height: min(78vw, 65dvh, 420px) !important;
+    left: 50% !important; top: 50% !important; right: auto !important;
+    transform: translate(-50%, -50%); z-index: 110 !important; cursor: zoom-out;
 }

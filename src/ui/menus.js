@@ -87,8 +87,10 @@ export function createMenus({ onResume, onUseItem }) {
             dialogText.append(document.createTextNode(part));
         });
     }
-    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false } = {}) {
+    function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false, speaker = 'Graham' } = {}) {
         const version = ++dialogVersion;
+        const waitForControls = !anonymous && document.body.classList.contains('touch-mode')
+            && dialogBox.style.display !== 'block';
         dialogAnimation?.cancel();
         dialogAnimation = null;
         function reveal() {
@@ -96,8 +98,11 @@ export function createMenus({ onResume, onUseItem }) {
             // Preparar contenido, nombre y formato antes del primer fotograma visible.
             setDialogText(text);
             document.getElementById('dialog-name').hidden = anonymous;
+            document.getElementById('dialog-name').textContent = speaker;
             dialogBox.style.textAlign = anonymous ? 'center' : '';
             dialogHint.hidden = automatic;
+            if (document.body.classList.contains('touch-mode'))
+                dialogHint.textContent = anonymous ? '[B] Continuar' : '(Tocar para continuar)';
             dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
             dialogBox.style.display = 'block';
             if (smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -110,6 +115,13 @@ export function createMenus({ onResume, onUseItem }) {
                     if (dialogAnimation === animation) dialogAnimation = null;
                 }).catch(() => {});
             }
+        }
+        if (waitForControls) {
+            dialogBox.style.display = 'none';
+            // Dejar un fotograma pintado con controles ocultos antes de mostrar la conversación.
+            return dialogFontReady.then(() => new Promise(resolve => {
+                requestAnimationFrame(() => requestAnimationFrame(() => { reveal(); resolve(); }));
+            }));
         }
         if (smooth) {
             dialogBox.style.display = 'none';
@@ -131,6 +143,7 @@ export function createMenus({ onResume, onUseItem }) {
     }
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; itemButtons.heart.style.display = visible ? 'block' : 'none'; }
     function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; itemButtons.torch.style.display = visible ? 'block' : 'none'; }
+    function setMateVisible(visible) { itemButtons.mate.style.display = visible ? 'block' : 'none'; }
     function setMapVisible(visible) { mapIcon.style.display = visible ? 'block' : 'none'; itemButtons.map.style.display = visible ? 'block' : 'none'; }
     function setItemActive(item, active) { itemButtons[item]?.setAttribute('aria-pressed', String(active)); }
     function setItemDescription(text) { description.textContent = text; }
@@ -150,5 +163,5 @@ export function createMenus({ onResume, onUseItem }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

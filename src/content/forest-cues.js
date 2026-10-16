@@ -1,0 +1,2 @@
+// Marcas de AxByZ sobre el archivo original Bosque, registradas el 2026-10-15.
+export const FOREST_CUES = Object.freeze([0, 22.248, 43.320, 64.029, 84.859, 105.939, 126.848, 147.699, 168.549, 189.127]);
