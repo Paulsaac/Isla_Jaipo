@@ -13,6 +13,10 @@ export function createMusicEvents() {
     const musicOutputs = new Map();
     let underwaterOutput = null;
     let underwaterFilter = null;
+    let underwaterPanner = null;
+    let underwaterStereo = null;
+    let underwaterPerspectiveGain = null;
+    const underwaterPosition = { x: 0, y: 0, z: -1 };
     const forestEnergy = { bass: 0, treble: 0 };
     let forestAnalyser = null;
     let forestSpectrum = null;
@@ -203,11 +207,21 @@ export function createMusicEvents() {
         underwaterFilter.type = 'lowpass';
         underwaterFilter.frequency.value = 4000;
         underwaterFilter.Q.value = 0.707;
+        underwaterPanner = context.createPanner();
+        underwaterPanner.panningModel = 'HRTF';
+        // Atenuación y paneo reforzados por perspectiva, calculados debajo.
+        underwaterPanner.rolloffFactor = 0;
+        underwaterStereo = context.createStereoPanner();
+        underwaterPerspectiveGain = context.createGain();
+        underwaterPanner.connect(underwaterStereo);
+        underwaterStereo.connect(underwaterPerspectiveGain);
+        underwaterPerspectiveGain.connect(context.destination);
+        setUnderwaterPosition(underwaterPosition.x, underwaterPosition.y, underwaterPosition.z);
         underwaterOutput.connect(underwaterFilter);
         const dry = context.createGain();
         dry.gain.value = 0.2;
         underwaterFilter.connect(dry);
-        dry.connect(context.destination);
+        dry.connect(underwaterPanner);
         const delay = context.createDelay();
         delay.delayTime.value = 0.02;
         const reverb = context.createConvolver();
@@ -226,8 +240,29 @@ export function createMusicEvents() {
         delay.connect(reverb);
         reverb.connect(damp);
         damp.connect(wet);
-        wet.connect(context.destination);
+        wet.connect(underwaterPanner);
         return underwaterOutput;
+    }
+
+    // Coordenadas del objetivo relativas a la cámara; el listener permanece en el origen.
+    function setUnderwaterPosition(x, y, z) {
+        underwaterPosition.x = x; underwaterPosition.y = y; underwaterPosition.z = z;
+        if (!underwaterPanner) return;
+        const now = context.currentTime;
+        underwaterPanner.positionX.setTargetAtTime(x, now, 0.05);
+        underwaterPanner.positionY.setTargetAtTime(y, now, 0.05);
+        underwaterPanner.positionZ.setTargetAtTime(z, now, 0.05);
+        const distance = Math.hypot(x, y, z);
+        const horizontalDistance = Math.hypot(x, z);
+        const side = horizontalDistance > 0.001 ? x / horizontalDistance : 0;
+        // Amplificar direcciones diagonales para que el objetivo se distinga al girar.
+        const pan = Math.sign(side) * Math.pow(Math.abs(side), 0.65) * 0.95;
+        const facing = distance > 0.001 ? (1 - z / distance) / 2 : 1;
+        const directionGain = 0.25 + 0.75 * Math.pow(facing, 1.4);
+        // Volumen completo cerca; a 48 unidades queda a la mitad. Nunca desaparece.
+        const distanceGain = Math.max(0.3, 1 / (1 + Math.max(0, distance - 8) / 40));
+        underwaterStereo.pan.setTargetAtTime(pan, now, 0.05);
+        underwaterPerspectiveGain.gain.setTargetAtTime(directionGain * distanceGain, now, 0.05);
     }
 
     function prepare(name) {
@@ -464,7 +499,7 @@ export function createMusicEvents() {
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {unlock,setPaused,playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();
