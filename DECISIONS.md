@@ -1,5 +1,8 @@
 # Decisiones del proyecto
 
+## 2026-10-16 — Forma de montaña según nieve vigente
+- Por pedido posterior de Clawshoot, la nieve pintada en capa1 define la cima y el color marrón define las laderas; sustituye el criterio previo de nieve adicional solo como textura sobre pendientes. Conservar el trazado del camino, cuya altura sigue la misma superficie de ladera y cima, sin rampa independiente. Desnivel de referencia aumentado10% (cima129.02256, pie1). Mantener las colisiones anteriores al repintado; la referencia histórica de colores no gobierna alturas. Verificaciones y límites en la entrada de diseño estético de HANDOFF.md.
+
 ## 2026-10-16 — Integración de PR #2 con la progresión vigente
 - `GRAHAM_BRIDGE_KEY_AVAILABLE=true`: Graham termina primero la entrega y el agradecimiento del Corazón del Bosque. En una interacción posterior entrega la llave del puente; solo entonces se abre el cofre del mapa y permite recogerlo. Los apuntes de la instantánea del PR que indiquen llave pendiente o cofre abierto antes quedan sustituidos por esta decisión.
 

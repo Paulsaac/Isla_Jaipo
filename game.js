@@ -152,6 +152,10 @@ let helmetEquipped = false;
 let helmetBroken = false;
 let seaHeart = null;
 const seaHeartSprites = new Map();
+const seaHeartSoundPosition = new THREE.Vector3();
+const seaHeartSoundRelative = new THREE.Vector3();
+const seaHeartListenerPosition = new THREE.Vector3();
+const seaHeartListenerRotation = new THREE.Quaternion();
 let seaHeartLight = null;
 let altarWaterHeight = null;
 
@@ -171,6 +175,8 @@ function revealNextSeaHeartFragment() {
         else if (!active && index >= 0) interactables.splice(index,1);
     }
     const activeSprite = next && seaHeartSprites.get(next.id);
+    // Al completar la ruta conserva la posición del último fragmento (altar).
+    if (activeSprite) seaHeartSoundPosition.copy(activeSprite.position);
     if (seaHeartLight) {
         seaHeartLight.intensity = activeSprite ? 2.4 : 0;
         if (activeSprite) {
@@ -2884,6 +2890,11 @@ function animate(timestamp = performance.now()) {
         }
         boatFloatTime += delta;
         for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
+        camera.getWorldPosition(seaHeartListenerPosition);
+        camera.getWorldQuaternion(seaHeartListenerRotation).invert();
+        seaHeartSoundRelative.copy(seaHeartSoundPosition).sub(seaHeartListenerPosition)
+            .applyQuaternion(seaHeartListenerRotation);
+        musicEvents.setUnderwaterPosition(seaHeartSoundRelative.x, seaHeartSoundRelative.y, seaHeartSoundRelative.z);
         musicEvents.update(delta);
         if (mapChestSoundSource) {
             if (musicEvents.isChestUnlockPlaying()) musicEvents.updateChestUnlockPosition(getMapChestSoundPosition());
