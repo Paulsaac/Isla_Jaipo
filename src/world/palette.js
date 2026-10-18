@@ -16,6 +16,7 @@ export const PALETTE = {
     SAND: {r:255, g:201, b:14},
     WET_SAND: {r:125, g:98, b:7}, // #7D6207: mismas reglas costeras que la arena.
     DIRT: {r:237, g:28, b:36},
+    FENCE: {r:201, g:57, b:18}, // #C93912: valla de madera sobre terreno exterior.
     MOUNTAIN: {r:185, g:122, b:87},
     PEAK: {r:200, g:191, b:231},
     WOOD: {r:255, g:242, b:0},
@@ -43,6 +44,7 @@ export const FLOOR_COLORS = {
     SAND: '#A58B6B',
     WET_SAND: '#7D6207',
     DIRT: '#826D54',
+    FENCE: '#60452E',
     MOUNTAIN: '#655E55',
     PEAK: '#84817B',
     WOOD: '#73553D',

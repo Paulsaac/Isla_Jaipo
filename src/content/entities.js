@@ -14,25 +14,24 @@ export const entities = [
     {
         id: 'island-map-chest',
         type: 'CHEST',
-        position: { x: 231, z: 425 },
-        sourcePosition: { x: 229, z: 429 },
+        position: { x: 231, z: 444 },
+        sourcePosition: { x: 229, z: 448 },
         item: 'map',
         rotationY: Math.PI / 2
     }
 ];
 
 // Celda de referencia y ajuste fino en unidades del mundo.
-export const grahamPosition = { x: 230, z: 421, offset: { x: 1.3, z: 1.0 } };
+export const grahamPosition = { x: 230, z: 440, offset: { x: 1.3, z: 1.0 } };
 
-export const spawnRoomExit = { x: 235, z: 423 };
+export const spawnRoomExit = { x: 235, z: 442 };
 
-export const kitchenGardenPosition = { x: 237, z: 433 };
+export const kitchenGardenPosition = { x: 237, z: 452 };
 
 // Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
-// La antorcha interior estaba apoyada en el muro sur, hacia el mar.
+// La puerta posterior ocupa un muro pintado; el cambio queda localizado aquí.
 export const mapCellOverrides = [
-    { id: 'kitchen-rear-torch-floor', position: { x: 229, z: 430 }, expectedType: 'TORCH', type: 'INDOOR_FLOOR' },
-    { id: 'kitchen-rear-door', position: { x: 229, z: 431 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' }
+    { id: 'kitchen-rear-door', position: { x: 229, z: 450 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' }
 ];
 
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
@@ -68,9 +67,9 @@ export const divingHelmet = {
 };
 
 export const doorOverrides = [
-    { position: { x: 228, z: 423 }, openDirection: 'south', hinge: 'left' },
-    { position: { x: 235, z: 423 }, openDirection: 'north' },
-    { position: { x: 229, z: 431 }, openDirection: 'south' }
+    { position: { x: 228, z: 442 }, openDirection: 'south', hinge: 'left' },
+    { position: { x: 235, z: 442 }, openDirection: 'north' },
+    { position: { x: 229, z: 450 }, openDirection: 'south' }
 ];
 
 export const furniture = [
@@ -78,26 +77,26 @@ export const furniture = [
     { id: 'shore-rustic-chair', type: 'RUSTIC_BEACH_CHAIR', position: { x: 261, z: 443 }, size: { x: 1, z: 1 }, offset: { z: 0.1 }, rotationY: Math.PI / 2 },
     { id: 'shore-plank-table', type: 'BEACH_PLANK_TABLE', position: { x: 261, z: 442 }, size: { x: 1, z: 1 }, offset: { z: 0.45 }, rotationY: 0 },
     // Esquina noroeste de la sala, entre librero y entrada: frente hacia el interior.
-    { id: 'graham-living-room-wood-stove', type: 'WOOD_STOVE', position: { x: 228, z: 419 }, size: { x: 1, z: 1 }, offset: { x: 0.1, z: 0.15 }, rotationY: Math.PI / 4 },
-    { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },
-    { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 430 }, size: { x: 1, z: 1 }, offset: { z: 0.28 }, rotationY: Math.PI },
-    { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 419 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },
-    { id: 'graham-workbench', type: 'WORKBENCH', position: { x: 237, z: 420 }, size: { x: 1, z: 2 }, rotationY: 0 },
-    { id: 'graham-log-stack', type: 'LOG_STACK', position: { x: 238, z: 422 }, size: { x: 2, z: 1 }, rotationY: Math.PI / 2 },
-    { id: 'graham-bed', type: 'BED', position: { x: 237, z: 427 }, size: { x: 1, z: 2 }, rotationY: Math.PI },
-    { id: 'graham-side-table', type: 'SIDE_TABLE', position: { x: 238, z: 428 }, size: { x: 1, z: 1 }, offset: { z: 0.525 }, rotationY: Math.PI },
-    { id: 'graham-barrel-1', type: 'BARREL', position: { x: 235, z: 419 }, size: { x: 1, z: 1 }, offset: { z: -0.5 } },
-    { id: 'graham-barrel-2', type: 'BARREL', position: { x: 235, z: 419 }, size: { x: 1, z: 1 }, offset: { z: 0.75 } },
-    { id: 'graham-barrel-3', type: 'BARREL', position: { x: 235, z: 420 }, size: { x: 1, z: 1 } },
-    { id: 'graham-bookshelf', type: 'BOOKSHELF', position: { x: 228, z: 420 }, size: { x: 1, z: 2 }, offset: { x: -0.625 }, rotationY: Math.PI / 2 },
-    { id: 'graham-table', type: 'TABLE', position: { x: 231, z: 422 }, size: { x: 2, z: 1 } },
-    { id: 'graham-chair-left', type: 'CHAIR', position: { x: 230, z: 422 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: Math.PI / 2 },
-    { id: 'graham-chair-right', type: 'CHAIR', position: { x: 233, z: 422 }, size: { x: 1, z: 1 }, offset: { x: -0.65 }, rotationY: -Math.PI / 2 },
-    { id: 'graham-wardrobe', type: 'WARDROBE', position: { x: 236, z: 424 }, size: { x: 2, z: 1 }, offset: { z: -0.45 } },
-    { id: 'graham-desk', type: 'DESK', position: { x: 234, z: 428 }, size: { x: 2, z: 1 }, offset: { z: 0.35 } },
-    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 427 }, size: { x: 1, z: 1 }, offset: { z: 1.3 } },
-    { id: 'graham-crate-stack', type: 'CRATE_STACK', position: { x: 230, z: 429 }, size: { x: 2, z: 2 }, rotationY: Math.PI / 8 },
-    { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 426 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: -Math.PI / 2 },
-    { id: 'graham-dresser', type: 'DRESSER', position: { x: 227, z: 425 }, size: { x: 1, z: 2 }, offset: { x: -0.45 }, rotationY: Math.PI / 2 },
-    { id: 'graham-barrel-pyramid', type: 'BARREL_STACK', position: { x: 227, z: 428 }, size: { x: 2, z: 1 }, offset: { x: -1.39 }, rotationY: Math.PI / 2 }
+    { id: 'graham-living-room-wood-stove', type: 'WOOD_STOVE', position: { x: 228, z: 438 }, size: { x: 1, z: 1 }, offset: { x: 0.1, z: 0.15 }, rotationY: Math.PI / 4 },
+    { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 449 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },
+    { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 449 }, size: { x: 1, z: 1 }, offset: { z: 0.28 }, rotationY: Math.PI },
+    { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 438 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },
+    { id: 'graham-workbench', type: 'WORKBENCH', position: { x: 237, z: 439 }, size: { x: 1, z: 2 }, rotationY: 0 },
+    { id: 'graham-log-stack', type: 'LOG_STACK', position: { x: 238, z: 441 }, size: { x: 2, z: 1 }, rotationY: Math.PI / 2 },
+    { id: 'graham-bed', type: 'BED', position: { x: 237, z: 446 }, size: { x: 1, z: 2 }, rotationY: Math.PI },
+    { id: 'graham-side-table', type: 'SIDE_TABLE', position: { x: 238, z: 447 }, size: { x: 1, z: 1 }, offset: { z: 0.525 }, rotationY: Math.PI },
+    { id: 'graham-barrel-1', type: 'BARREL', position: { x: 235, z: 438 }, size: { x: 1, z: 1 }, offset: { z: -0.5 } },
+    { id: 'graham-barrel-2', type: 'BARREL', position: { x: 235, z: 438 }, size: { x: 1, z: 1 }, offset: { z: 0.75 } },
+    { id: 'graham-barrel-3', type: 'BARREL', position: { x: 235, z: 439 }, size: { x: 1, z: 1 } },
+    { id: 'graham-bookshelf', type: 'BOOKSHELF', position: { x: 228, z: 439 }, size: { x: 1, z: 2 }, offset: { x: -0.625 }, rotationY: Math.PI / 2 },
+    { id: 'graham-table', type: 'TABLE', position: { x: 231, z: 441 }, size: { x: 2, z: 1 } },
+    { id: 'graham-chair-left', type: 'CHAIR', position: { x: 230, z: 441 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: Math.PI / 2 },
+    { id: 'graham-chair-right', type: 'CHAIR', position: { x: 233, z: 441 }, size: { x: 1, z: 1 }, offset: { x: -0.65 }, rotationY: -Math.PI / 2 },
+    { id: 'graham-wardrobe', type: 'WARDROBE', position: { x: 236, z: 443 }, size: { x: 2, z: 1 }, offset: { z: -0.45 } },
+    { id: 'graham-desk', type: 'DESK', position: { x: 234, z: 447 }, size: { x: 2, z: 1 }, offset: { z: 0.35 } },
+    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 446 }, size: { x: 1, z: 1 }, offset: { z: 1.3 } },
+    { id: 'graham-crate-stack', type: 'CRATE_STACK', position: { x: 230, z: 448 }, size: { x: 2, z: 2 }, rotationY: Math.PI / 8 },
+    { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 445 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: -Math.PI / 2 },
+    { id: 'graham-dresser', type: 'DRESSER', position: { x: 227, z: 444 }, size: { x: 1, z: 2 }, offset: { x: -0.45 }, rotationY: Math.PI / 2 },
+    { id: 'graham-barrel-pyramid', type: 'BARREL_STACK', position: { x: 227, z: 447 }, size: { x: 2, z: 1 }, offset: { x: -1.39 }, rotationY: Math.PI / 2 }
 ];

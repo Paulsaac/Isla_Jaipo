@@ -18,7 +18,7 @@ export function bindKeyboard(actions, target = document) {
 
         if (code === 'Enter') actions.start();
         if (code === 'KeyE') {
-            if (event.repeat || actions.interact()) return;
+            if (event.repeat || actions.holdInteract?.(true) || actions.interact()) return;
         }
         if (directions[code]) actions.move(directions[code], true);
         switch (code) {
@@ -38,6 +38,7 @@ export function bindKeyboard(actions, target = document) {
         const code = event.code;
         if (directions[code]) actions.move(directions[code], false);
         switch (code) {
+            case 'KeyE': actions.holdInteract?.(false); break;
             case 'Space': actions.holdJump?.(false); actions.move('up', false); break;
             case 'KeyC': actions.crouch(false); actions.move('down', false); break;
             case 'ShiftLeft': case 'ShiftRight': actions.run(false); break;
