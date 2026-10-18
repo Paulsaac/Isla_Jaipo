@@ -1,5 +1,7 @@
 import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
 import { createHeldMate } from './src/player/held-mate.js';
+import { createWoodcutting } from './src/systems/woodcutting.js';
+import { createWoodcuttingHud } from './src/ui/woodcutting.js';
 import { createAtticAnt, findAtticAntHome } from './src/world/attic-ant.js';
 import { createGrahamDap } from './src/systems/graham-dap.js';
 import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/world/wood-stove-geometry.js';
@@ -80,6 +82,7 @@ import { createMateSet } from './src/world/mate-set.js';
 import { createAntiqueStoveGeometry } from './src/world/antique-stove-geometry.js';
 import { createSpiceShelfGeometry } from './src/world/spice-shelf-geometry.js';
 import { createKitchenGarden } from './src/world/kitchen-garden.js';
+import { createWoodFenceGeometry } from './src/world/wood-fence.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
 import { createCrateStackGeometry } from './src/world/crate-stack-geometry.js';
@@ -501,6 +504,7 @@ function showGreetingPhase() {
 }
 
 function updateSpawnGreeting(delta) {
+    if (woodcutting.active) return;
     if (!spawnGreeting.active) {
         if (spawnGreeting.played || isDead || isFlying || isRidingBoat || isDialogOpen || !grahamSprite) return;
         const door = solidInteractables.find(object => object.userData.type === 'DOOR'
@@ -602,11 +606,13 @@ controls.addEventListener('lock', () => {
     menus.hideForGameplay();
     if (spawnGreeting.active) showGreetingPhase();
     heartPull.show();
+    woodcutting.setVisible(true);
     if (isDialogOpen) showActiveDialog();
     touchControls?.show();
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    woodcutting.setVisible(false);
     jumpHeld = false;
     hud.hideInteraction();
     menus.hideDialog();
@@ -675,8 +681,15 @@ function canReachForestHeart() {
 }
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    if (woodcutting.active) {
+        if (isTouchMode) woodcutting.interact();
+        return true;
+    }
     if (grahamDap.active) return true;
-    if (caveMap?.active) { leaveCaveTestMap(); return true; }
+    if (caveMap?.active) {
+        if (caveMap.nearExit(controls.getObject().position)) leaveCaveTestMap();
+        return true;
+    }
     if (heartPull.active) { heartPull.interact(); return true; }
     if (spawnGreeting.active) {
         if (spawnGreeting.dismiss()) {
@@ -735,6 +748,11 @@ function interact() {
             boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
+            if (targetInteractable.userData.id === 'graham-stump') {
+                if (!isFlying && !isRidingBoat && canJump && !isDialogOpen && heartLevitationHeight <= 0
+                    && !musicEvents.isEventActive('forest')) woodcutting.begin(targetInteractable);
+                return true;
+            }
             if (targetInteractable.userData.type === 'MAP_PICKUP') {
                 if (hasMap || !heartQuest.canOpenMapChest) return true;
                 hasMap = true;
@@ -871,6 +889,11 @@ const gameActions = {
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
     start() { if (mapLoaded && !gameStarted) resumeGame(); },
     interact,
+    holdInteract(pressed) {
+        if (!woodcutting.active || !controls.isLocked || isDead) return false;
+        woodcutting.holdExit(pressed);
+        return true;
+    },
     grantForestHeartForTesting() {
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isInventoryOpen || isRidingBoat) return;
         if (!heartQuest.collect()) return;
@@ -982,10 +1005,30 @@ const heartPull = createHeartPull(THREE, {
         hud.showReceivedItem('el Corazón del Bosque');musicEvents.trigger('forest');
     }
 });
+let woodcuttingTorchWasEnabled = false;
+const woodcutting = createWoodcutting(THREE, {
+    scene, camera, controls, hud: createWoodcuttingHud(isTouchMode),
+    onBegin() {
+        clearGreetingInput(); heldMate?.cancel();
+        hud.hideStamina();
+        woodcuttingTorchWasEnabled = handTorchEnabled;
+        setHandTorchEnabled(false);
+        targetInteractable = null; hud.hideInteraction();
+    },
+    onEnd() {
+        clearGreetingInput();
+        if (woodcuttingTorchWasEnabled && !isPlayerUnderwater()) setHandTorchEnabled(true);
+    }
+});
 // Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
 for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'grantForestHeartForTesting', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
-    gameActions[name] = (...args) => { if (!spawnGreeting.active && !grahamDap.active && (!heartPull.active || name === 'move')) return action(...args); };
+    gameActions[name] = (...args) => {
+        if (woodcutting.active) {
+            return;
+        }
+        if (!spawnGreeting.active && !grahamDap.active && (!heartPull.active || name === 'move')) return action(...args);
+    };
 }
 const keyboardBinding = bindKeyboard(gameActions);
 
@@ -1022,7 +1065,7 @@ const touchControls = isTouchMode ? bindTouchControls({
         || (spawnGreeting.active && spawnGreeting.phase === 'invitation')),
     pause: pauseGame,
     look(dx, dy) {
-        if (spawnGreeting.active || grahamDap.active || isDialogOpen) return;
+        if (woodcutting.active || spawnGreeting.active || grahamDap.active || isDialogOpen) return;
         touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
         touchLook.y -= dx * TOUCH_LOOK_SENSITIVITY;
         touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * TOUCH_LOOK_SENSITIVITY, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
@@ -1052,7 +1095,9 @@ async function enterCaveTestMap() {
     hud.showInteraction();hud.setInteractionText('Entrando a la cueva…');
     try {
         if (!caveMap) {
-            caveMap = await loadCaveTestMap(THREE,UNIT_SIZE,PLAYER_HEIGHT);
+            caveMap = await loadCaveTestMap(THREE,UNIT_SIZE,PLAYER_HEIGHT,{
+                rockTexture:fondoTex, floorTexture:tierraTex, waterMaterial:aguaFloorMat
+            });
             scene.add(caveMap.group);
             await renderer.compileAsync(scene,camera);
         }
@@ -1060,6 +1105,7 @@ async function enterCaveTestMap() {
         if (minimap.enabled) minimap.toggle();
         menus.setItemActive('map',false);
         controls.getObject().position.copy(caveMap.spawn);
+        camera.rotation.set(0,0,0);
         velocityY=0;isFlying=false;targetInteractable=null;
     } catch(error) {
         console.error('No se pudo entrar a mapa_cueva.png:',error);
@@ -1135,13 +1181,18 @@ function updateHeldItemLayout() {
 updateHeldItemLayout();
 heldMate = createHeldMate(THREE,camera);
 const canDrinkMate = () => heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
-    && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
+    && !woodcutting.active && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
 document.addEventListener('mousedown', event => {
+    if (event.button === 0 && woodcutting.active && controls.isLocked && !isDead) {
+        event.preventDefault(); woodcutting.interact(); return;
+    }
     if (event.button === 2 && canDrinkMate()) { event.preventDefault(); heldMate.press(); }
 });
 document.addEventListener('mouseup', event => { if (event.button === 2) heldMate.release(); });
-window.addEventListener('blur', () => heldMate.cancel());
-renderer.domElement.addEventListener('contextmenu', event => { if (canDrinkMate()) event.preventDefault(); });
+window.addEventListener('blur', () => { heldMate.cancel(); woodcutting.holdExit(false); });
+renderer.domElement.addEventListener('contextmenu', event => {
+    if ((woodcutting.active && controls.isLocked) || canDrinkMate()) event.preventDefault();
+});
 const torchFrames = [];
 const blueFireFrames = [1,2,3].map(frame => {
     const texture = texLoader.load(`./imagenes/Sprites/fuego-azul-${frame}.svg`);
@@ -2589,6 +2640,7 @@ function buildWorld(prepared) {
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
+        if (definition.id === 'graham-stump') interactables.push(model);
     }
 
     const garden = createKitchenGarden(THREE, {
@@ -2598,6 +2650,20 @@ function buildWorld(prepared) {
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
+    }
+
+    const fenceMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0 });
+    const fenceLocations = new Set(prepared.fenceCells.map(({ x, z }) => `${x},${z}`));
+    for (const { x, z } of prepared.fenceCells) {
+        const east = fenceLocations.has(`${x + 1},${z}`);
+        const south = fenceLocations.has(`${x},${z + 1}`);
+        const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south), fenceMaterial);
+        fence.name = `wood-fence:${x},${z}`;
+        fence.position.set(x * UNIT_SIZE, getTerrainHeight(x * UNIT_SIZE, z * UNIT_SIZE), z * UNIT_SIZE);
+        fence.userData = { type: 'FENCE', gx: x, gz: z };
+        scene.add(fence);
+        fence.updateMatrixWorld(true);
+        solidInteractables.push(fence);
     }
 
     // Buscar punto de spawn seguro si POI no fue válido o se omitió
@@ -2752,6 +2818,7 @@ const walkingRhythm = createWalkingRhythm();
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
+    woodcutting.finish();
     if (grahamDap.active) { grahamDap.cancel(); controls.pointerSpeed = dapPointerSpeed; }
     bedBounceActive = false;
     bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
@@ -2842,7 +2909,7 @@ function animate(timestamp = performance.now()) {
             // Comprobar todas las hojas, también después de un primer empuje.
             for (let attempt = 0; attempt <= doors.length; attempt++) {
                 const result = pushPlayerFromMovingDoors(position, backward, doors, isWall);
-                if (result.blocked || (result.moved && attempt === doors.length)) {
+                if (result.blocked || (result.moved && (woodcutting.active || attempt === doors.length))) {
                     position.x = beforeX; position.z = beforeZ;
                     return false;
                 }
@@ -3093,20 +3160,23 @@ function animate(timestamp = performance.now()) {
 
         // Raycaster para Interacciones
         interactionHits.length = 0;
-        if (!spawnGreeting.active && !heartPull.active && !grahamDap.active) {
+        if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
         }
         const intersects = interactionHits;
         
-        if (spawnGreeting.active || heartPull.active || grahamDap.active) {
+        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active) {
             targetInteractable = null;
             hud.hideInteraction();
         } else if (intersects.length > 0 && intersects[0].distance < 3.5
             && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
-            if (targetInteractable.userData.type === 'CHEST') {
+            if (targetInteractable.userData.id === 'graham-stump') {
+                hud.setInteractionText('Presiona E para cortar madera');
+                hud.setInteractionColor('#a6ed90');
+            } else if (targetInteractable.userData.type === 'CHEST') {
                 if (targetInteractable.userData.item === 'forest-heart') {
                     hud.setInteractionText("Presiona E para tomar el Corazón del Bosque");
                     hud.setInteractionColor("#75d7ff");
@@ -3158,13 +3228,18 @@ function animate(timestamp = performance.now()) {
         }
 
         if (caveMap?.active) {
-            targetInteractable=null;hud.showInteraction();
-            hud.setInteractionText('Mapa de prueba de la cueva — Presiona E para volver a la playa');
-            hud.setInteractionColor('#d8e4eb');
+            targetInteractable = null;
+            if (caveMap.nearExit(controlObj.position)) {
+                hud.showInteraction();
+                hud.setInteractionText('Presiona E para volver a la isla');
+                hud.setInteractionColor('#d8e4eb');
+            } else hud.hideInteraction();
         }
         const pullingHeart = heartPull.active;
         heartPull.update(delta);
-        if (!spawnGreeting.active && !pullingHeart && !grahamDap.active) {
+        const cuttingWood = woodcutting.active;
+        woodcutting.update(delta, rawDelta);
+        if (!cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active) {
             updatePlayerPosture();
             velocity.x -= velocity.x * FRICTION * delta;
             velocity.z -= velocity.z * FRICTION * delta;
@@ -3502,7 +3577,9 @@ function animate(timestamp = performance.now()) {
         } else hud.hideDivingAir();
         frameCameraHeading.setFromQuaternion(camera.quaternion, 'YXZ');
         minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE, -frameCameraHeading.y);
-        if (!caveMap?.active && !isFlying && !isRidingBoat && !isDialogOpen && caveEntrance?.triggered(controlObj.position)) {
+        if (caveMap?.active && caveMap.exiting(controlObj.position)) {
+            leaveCaveTestMap();
+        } else if (!caveMap?.active && !isFlying && !isRidingBoat && !isDialogOpen && caveEntrance?.triggered(controlObj.position)) {
             enterCaveTestMap();
         }
         
@@ -3599,17 +3676,41 @@ function animate(timestamp = performance.now()) {
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
     if (!controls.isLocked || isDead) hud.hideDivingAir();
-    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, gameStarted && controls.isLocked && !isDead);
-    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && gameStarted && controls.isLocked && !isDead;
+    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, !woodcutting.active && gameStarted && controls.isLocked && !isDead);
+    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && !woodcutting.active && gameStarted && controls.isLocked && !isDead;
     heldMate.update(controls.isLocked ? vegetationDelta : 0, canDrinkMate());
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && controls.isLocked && !isDead);
     underwaterStrength.value = underwaterBlend;
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();
     grahamDap.apply();
+    const caveLighting = caveMap?.active ? {
+        ambient: ambientLight.intensity,
+        directional: dirLight.intensity,
+        skyVisible: skyMesh.visible,
+        flareVisible: sunFlare.object.visible,
+        background: scene.background.clone(),
+        fogColor: scene.fog.color.clone()
+    } : null;
+    if (caveLighting) {
+        ambientLight.intensity = 0;
+        dirLight.intensity = 0;
+        skyMesh.visible = false;
+        sunFlare.object.visible = false;
+        scene.background.set(0x000000);
+        scene.fog.color.set(0x000000);
+    }
     try {
         underwaterView.render(scene, camera);
     } finally {
+        if (caveLighting) {
+            ambientLight.intensity = caveLighting.ambient;
+            dirLight.intensity = caveLighting.directional;
+            skyMesh.visible = caveLighting.skyVisible;
+            sunFlare.object.visible = caveLighting.flareVisible;
+            scene.background.copy(caveLighting.background);
+            scene.fog.color.copy(caveLighting.fogColor);
+        }
         grahamDap.restore();
         heartPull.restoreCameraShake();
         performancePanel?.record(timestamp, frameStart);

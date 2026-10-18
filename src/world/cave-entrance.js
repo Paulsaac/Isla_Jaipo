@@ -1,11 +1,11 @@
 export const CAVE_ENTRY = { x: 28, z: 138 };
 
 // Entrada hacia el norte: giro antihorario de 90° respecto al acceso hacia el este.
-export function createCaveEntrance(THREE, unitSize, baseY, rockTexture) {
+export function createCaveEntrance(THREE, unitSize, baseY, rockTexture, location = CAVE_ENTRY, rotation = 0) {
     const group = new THREE.Group();
     group.name = 'beach-cave-entrance';
-    group.position.set(CAVE_ENTRY.x * unitSize, baseY, CAVE_ENTRY.z * unitSize);
-    group.rotation.y = 0;
+    group.position.set(location.x * unitSize, baseY, location.z * unitSize);
+    group.rotation.y = rotation;
     const material = new THREE.MeshPhongMaterial({map:rockTexture,color:0x777b7c,flatShading:true,shininess:0});
     const solids = [];
     function addRock(x,y,z,sx,sy,sz,rx,ry,rz,side=0) {

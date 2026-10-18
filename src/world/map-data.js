@@ -42,6 +42,7 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
     const roofImgData = mapData.roofPixels;
     const seaHeartFragments = [];
     const underwaterPlants = [];
+    const fenceCells = [];
 
     const floorCanvas = document.createElement('canvas');
     floorCanvas.width = mapWidth;
@@ -76,6 +77,11 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
             }
 
             type = relocations.get(x + ',' + z) ?? type;
+            const isFence = type === 'FENCE';
+            if (isFence) {
+                fenceCells.push({ x, z });
+                type = 'GRASS'; // La pintura coloca la valla; el terreno debajo sigue siendo pasto.
+            }
 
             let rType = getClosestType(roofImgData[idx], roofImgData[idx+1], roofImgData[idx+2], roofImgData[idx+3]);
             // Conservar el carácter exterior: la antorcha no crea un piso interior.
@@ -90,7 +96,7 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
             if (rType === 'OTHER') counts.OTHER = (counts.OTHER || 0) + 1;
 
             floorMap[z][x] = type;
-            floorCtx.fillStyle = FLOOR_COLORS[type] || '#000000';
+            floorCtx.fillStyle = isFence ? FLOOR_COLORS.FENCE : FLOOR_COLORS[type] || '#000000';
             floorCtx.fillRect(x, z, 1, 1);
 
             if (type === 'TREE') {
@@ -144,5 +150,5 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
             }
         }
     }
-    return { mapWidth, mapHeight, collisionMap, floorMap, roofMap, externalTorchMap, counts, playerStartX, playerStartZ, floorCanvas, seaHeartFragments, underwaterPlants };
+    return { mapWidth, mapHeight, collisionMap, floorMap, roofMap, externalTorchMap, fenceCells, counts, playerStartX, playerStartZ, floorCanvas, seaHeartFragments, underwaterPlants };
 }
