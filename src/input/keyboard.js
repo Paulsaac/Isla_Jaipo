@@ -27,6 +27,7 @@ export function bindKeyboard(actions, target = document) {
             case 'ShiftLeft': case 'ShiftRight': actions.run(true); break;
             case 'KeyN': if (!event.repeat) actions.toggleDayNight(); break;
             case 'KeyP': if (!event.repeat) actions.stopMusic?.(); break;
+            case 'KeyV': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.cycleLensView?.(); break;
             case 'KeyK': if (!event.repeat) actions.teleportToForestHeart?.(); break;
             case 'KeyL': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.grantForestHeartForTesting?.(); break;
             case 'KeyT': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.torch(); break;

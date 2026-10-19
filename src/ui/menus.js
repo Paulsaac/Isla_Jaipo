@@ -144,6 +144,12 @@ export function createMenus({ onResume, onUseItem }) {
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; itemButtons.heart.style.display = visible ? 'block' : 'none'; }
     function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; itemButtons.torch.style.display = visible ? 'block' : 'none'; }
     function setMateVisible(visible) { itemButtons.mate.style.display = visible ? 'block' : 'none'; }
+    function setPinkSunglassesState(owned, equipped) {
+        const button = itemButtons['pink-sunglasses'];
+        button.style.display = owned ? 'block' : 'none';
+        button.setAttribute('aria-pressed', String(equipped));
+        button.setAttribute('aria-label', equipped ? 'Quitar lentes de sol rosados' : 'Equipar lentes de sol rosados');
+    }
     function setMapVisible(visible) { mapIcon.style.display = visible ? 'block' : 'none'; itemButtons.map.style.display = visible ? 'block' : 'none'; }
     function setItemActive(item, active) { itemButtons[item]?.setAttribute('aria-pressed', String(active)); }
     function setItemDescription(text) { description.textContent = text; }
@@ -163,5 +169,5 @@ export function createMenus({ onResume, onUseItem }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

@@ -1,7 +1,7 @@
 import { UNIT_SIZE } from '../config.js';
 
 // Un poste por celda pintada y travesaños solo hacia vecinos positivos: sin piezas duplicadas.
-export function createWoodFenceGeometry(THREE, east, south) {
+export function createWoodFenceGeometry(THREE, east, south, wallConnections = []) {
     const pieces = [];
     function add(source, tint, x, y, z) {
         const geometry = source.index ? source.toNonIndexed() : source;
@@ -32,6 +32,14 @@ export function createWoodFenceGeometry(THREE, east, south) {
         if (south) {
             box(0.13, 0.17, UNIT_SIZE, 0, height, UNIT_SIZE / 2, 0x99683d);
             box(0.14, 0.025, UNIT_SIZE - 0.22, 0, height + 0.095, UNIT_SIZE / 2, 0xb48250);
+        }
+        // Alcanzar la cara del muro vecino con un pequeño solape, sin otro poste.
+        for (const [dx, dz] of wallConnections) {
+            const length = UNIT_SIZE / 2 + 0.04;
+            box(dx ? length : 0.13, 0.17, dz ? length : 0.13,
+                dx * length / 2, height, dz * length / 2, 0x99683d);
+            box(dx ? length : 0.14, 0.025, dz ? length : 0.14,
+                dx * length / 2, height + 0.095, dz * length / 2, 0xb48250);
         }
     }
 

@@ -10,10 +10,16 @@ export function getForestHeartBeaconGain(distance) {
 export function createForestHeartBeacon(context) {
     const volume = context.createGain();
     volume.gain.value = 0;
+    // Atenuar armónicos altos y el ataque para dar más peso al pulso grave.
+    const lowpass = context.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 140;
+    lowpass.Q.value = Math.SQRT1_2;
     const panner = context.createPanner();
     panner.panningModel = 'HRTF';
     panner.rolloffFactor = 0; // La curva anterior controla toda la atenuación.
-    volume.connect(panner);
+    volume.connect(lowpass);
+    lowpass.connect(panner);
     panner.connect(context.destination);
 
     // Dos pulsos graves con armónicos suaves para que también se lean en altavoz móvil.

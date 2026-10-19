@@ -11,7 +11,8 @@ export function createBoatGeometry(THREE, width, height = 0.4, length = width * 
     const outline=new THREE.Shape();
     [...points,...points.slice().reverse().map(([x,z])=>[-x,z])].forEach(([x,z],i)=>i?outline.lineTo(x,-z):outline.moveTo(x,-z));
     outline.closePath();
-    const floor=new THREE.ExtrudeGeometry(outline,{depth:height*0.20,bevelEnabled:false,steps:1});
+    // Mantener la quilla y elevar el piso interior por encima del peor balanceo.
+    const floor=new THREE.ExtrudeGeometry(outline,{depth:height*0.40,bevelEnabled:false,steps:1});
     floor.rotateX(-Math.PI/2);floor.translate(0,-height/2,0);add(floor);
     // Hiladas de tablones, borda reforzada y costillas interiores.
     for(const side of [-1,1]) {

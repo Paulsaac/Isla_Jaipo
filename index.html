@@ -230,6 +230,11 @@
             position: fixed; inset: 0; z-index: 3; pointer-events: none;
             background: rgba(20, 105, 205, 0.22); opacity: 0;
         }
+        #lens-mode-name {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            z-index: 50; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+            color: #fff; font-size: 10px; text-align: center; text-shadow: 2px 2px #000;
+        }
         #diving-air-container {
             display: none; position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
             width: min(300px, 80vw); z-index: 50; pointer-events: none;
@@ -263,6 +268,16 @@
         }
         
         /* HUD IN-GAME */
+        #game-version {
+            position: fixed;
+            bottom: max(4px, env(safe-area-inset-bottom));
+            left: max(12px, env(safe-area-inset-left));
+            color: #fff;
+            font: 12px/1 monospace;
+            text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+            z-index: 10000;
+            pointer-events: none;
+        }
         #position-coordinates {
             position: fixed;
             top: max(12px, env(safe-area-inset-top));
@@ -340,6 +355,7 @@
     </style>
 </head>
 <body>
+    <div id="game-version">Isla 0.4.1 (Version de prueba)</div>
     <!-- <div id="hud">Llaves: <span id="key-count">0</span></div> -->
     <div id="hud"></div>
     <div id="position-coordinates"></div>
@@ -381,6 +397,7 @@
     <!-- Pantallas de UI -->
     <div id="diving-helmet-view" aria-hidden="true"></div>
     <div id="underwater-tint" aria-hidden="true"></div>
+    <div id="lens-mode-name" role="status" aria-live="polite"></div>
     <div id="loading-screen" role="status" aria-label="Cargando mundo">
         <img id="loading-map" src="./imagenes/Mapa/mapa_menu.png?v=6" alt="">
         <div class="loading-label" aria-hidden="true">CARGANDO MUNDO<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>
@@ -448,7 +465,11 @@
                         </svg>
                     </button>
                 </div>
-                <div class="inv-slot" aria-hidden="true"></div>
+                <div class="inv-slot">
+                    <button id="pink-sunglasses-item" class="inventory-item" type="button" data-item="pink-sunglasses" aria-pressed="false" aria-label="Equipar lentes de sol rosados" style="display:none;">
+                        <img src="./imagenes/Sprites/lentes-rosados.svg" alt="Lentes de sol redondos rosados" style="width:64px;height:48px;">
+                    </button>
+                </div>
                 <div class="inv-slot">
                     <button id="torch-item" class="inventory-item" type="button" data-item="torch" aria-pressed="false" aria-label="Encender o apagar antorcha">
                         <img id="torch-icon" src="./imagenes/Sprites/antorcha/torch1.png" alt="Antorcha" title="Antorcha — pulsa para encender o apagar" style="display:none; image-rendering:pixelated;">

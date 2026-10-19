@@ -58,7 +58,7 @@ export function splitWoodGeometry(THREE, source, normal, offset) {
     });
 }
 
-export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin, onEnd, random = Math.random }) {
+export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin, onEnd, onImpact, random = Math.random }) {
     const group = new THREE.Group(); group.name = 'stump-woodcutting'; group.visible = false; scene.add(group);
     const bark = new THREE.MeshPhongMaterial({ color: 0x64442d, flatShading: true, shininess: 0 });
     const endgrain = new THREE.MeshPhongMaterial({ color: 0xc7a06b, flatShading: true, shininess: 0 });
@@ -153,6 +153,7 @@ export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin
     function cut() {
         const damage = woodHitDamage(hitPower);
         hp = Math.max(0, hp - damage); hits++;
+        onImpact?.(hp === 0);
         impactTime = 0; impactStrength = .009 + .006 * hitPower;
         feedbackTime = 0; feedbackText = woodHitLabel(hitPower).replace(/[¡!]/g, '');
         feedbackColor = hitPower >= WOOD_PERFECT_POWER ? '#62e178' : hitPower >= .35 ? '#f2d34d' : '#df4134';

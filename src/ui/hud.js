@@ -11,6 +11,14 @@ export function createHud() {
     const pendingItems = [];
     const helmetView = document.getElementById('diving-helmet-view');
     const underwaterTint = document.getElementById('underwater-tint');
+    const lensModeName = document.getElementById('lens-mode-name');
+    let lensModeTimer = null;
+    function showLensMode(name) {
+        if (lensModeTimer !== null) clearTimeout(lensModeTimer);
+        lensModeName.textContent = `Lentes: ${name} · V para cambiar`;
+        lensModeName.style.opacity = '1';
+        lensModeTimer = setTimeout(() => { lensModeTimer = null; lensModeName.style.opacity = '0'; }, 2000);
+    }
     let underwaterTintOpacity = -1;
     const airContainer = document.getElementById('diving-air-container');
     const airBar = document.getElementById('diving-air-bar');
@@ -26,13 +34,17 @@ export function createHud() {
             itemTimer = null;
             return;
         }
-        itemNotification.textContent = `Has recibido ${pendingItems.shift()}`;
+        itemNotification.textContent = pendingItems.shift();
         itemNotification.style.display = 'block';
         itemTimer = setTimeout(showNextItem, 3500);
     }
 
     function showReceivedItem(name) {
-        pendingItems.push(name);
+        showNotification(`Has recibido ${name}`);
+    }
+
+    function showNotification(text) {
+        pendingItems.push(text);
         if (itemTimer === null) showNextItem();
     }
 
@@ -89,5 +101,5 @@ export function createHud() {
         coordinates.textContent = text;
     }
 
-    return { showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, setHelmetViewVisible, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
+    return { showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
 }

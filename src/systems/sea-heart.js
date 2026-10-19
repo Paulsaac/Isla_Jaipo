@@ -1,7 +1,7 @@
 // Tiempos conservadores por celdas transitables, sin cruzar obstáculos.
 export function createSeaHeart(fragments, floorMap, start, unitSize, walkingSpeed, finish) {
     const width = floorMap[0].length, height = floorMap.length;
-    const blocked = new Set(['BUILDING','DOOR_LOCKED','DOOR_UNLOCKED','CHEST','TREE','MOUNTAIN','PEAK','SNOW_PEAK']);
+    const blocked = new Set(['BUILDING','DOOR_LOCKED','DOOR_UNLOCKED','CHEST','TREE','MOUNTAIN','PEAK','SNOW_PEAK','SNOW_SLOPE']);
     const all = [start, ...fragments];
     const distances = all.map(origin => {
         const steps = new Int32Array(width*height).fill(-1);

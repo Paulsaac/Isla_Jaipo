@@ -1,12 +1,30 @@
 import { createForestHeartBeacon, FOREST_HEART_BEACON_RANGE } from './forest-heart-beacon.js';
+import { createWaterAudio } from './water-audio.js';
+import { createForestAmbience } from './forest-ambience.js';
+import { createRiverAmbience } from './river-ambience.js';
+import { createAltarFireAudio } from './altar-fire-audio.js';
 // Audio de la partida: música única, pisadas y ambiente.
 export function createMusicEvents() {
     let context = null;
+    let waterAudio = null;
+    let forestAmbience = null;
+    let riverAmbience = null;
+    let altarFireAudio = null;
     let forestHeartBeacon = null;
     let grassFootstep = null;
     let grassFootstepLoad = null;
+    let sandFootstep = null, sandFootstepB = null, sandFootstepLoad = null;
+    let grassFootstepB = null, woodFootstep = null, extraFootstepLoad = null;
+    const dirtFootsteps = [null, null];
+    const footstepVariant = { grass: 0, dirt: 0, sand: 0 };
+    const woodcuttingBuffers = [null, null, null];
+    let woodcuttingLoad = null, woodcuttingVariant = 0;
     let indoorFootstepOutput = null;
     let windStarted = false;
+    let windOutput = null;
+    let windSheltered = false;
+    let windUnderwater = false;
+    let windFade = { from: 0, to: 0, start: 0, duration: 0 };
     let paused = false;
     let dapBuffer = null, dapLoad = null, dapSource = null, dapOffset = 0;
     let chestUnlockBuffer = null, chestUnlockSound = null;
@@ -29,20 +47,80 @@ export function createMusicEvents() {
 
     function unlock() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
+        if (!waterAudio) waterAudio = createWaterAudio(context);
+        if (!forestAmbience) forestAmbience = createForestAmbience(context);
+        if (!riverAmbience) riverAmbience = createRiverAmbience(context);
+        if (!altarFireAudio) altarFireAudio = createAltarFireAudio(context);
+        altarFireAudio.prepare();
         prepareGrassFootstep();
+        prepareSandFootstep();
+        prepareExtraFootsteps();
+        prepareWoodcutting();
         prepareDap();
         getIndoorFootstepOutput();
         if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
+        waterAudio.unlock();
+        forestAmbience.unlock();
+        riverAmbience.unlock();
     }
 
     function prepareGrassFootstep() {
         if (grassFootstepLoad) return;
-        grassFootstepLoad = fetch('./sonidos/fx/pasto.mpeg').then(response => {
-            if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/pasto.mpeg');
+        grassFootstepLoad = fetch('./sonidos/fx/pasto_a.mp3').then(response => {
+            if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/pasto_a.mp3');
             return response.arrayBuffer();
         }).then(data => context.decodeAudioData(data)).then(buffer => {
             grassFootstep = buffer;
         }).catch(error => console.warn('Error al cargar la pisada de pasto:', error));
+    }
+
+    function prepareSandFootstep() {
+        if (sandFootstepLoad) return;
+        sandFootstepLoad = fetch('./sonidos/fx/arena_a.mp3').then(response => {
+            if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/arena_a.mp3');
+            return response.arrayBuffer();
+        }).then(data => context.decodeAudioData(data)).then(buffer => {
+            sandFootstep = buffer;
+        }).catch(error => console.warn('Error al cargar la pisada de arena/nieve:', error));
+    }
+
+    function prepareExtraFootsteps() {
+        if (extraFootstepLoad) return;
+        const files = [
+            ['pasto_b.mp3', buffer => { grassFootstepB = buffer; }],
+            ['arena_b.mp3', buffer => { sandFootstepB = buffer; }],
+            ['madera.mp3', buffer => { woodFootstep = buffer; }],
+            ['tierra_a.ogg', buffer => { dirtFootsteps[0] = buffer; }],
+            ['tierra_b.ogg', buffer => { dirtFootsteps[1] = buffer; }]
+        ];
+        extraFootstepLoad = Promise.all(files.map(([file, receive]) =>
+            fetch('./sonidos/fx/' + file).then(response => {
+                if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/' + file);
+                return response.arrayBuffer();
+            }).then(data => context.decodeAudioData(data)).then(receive)
+                .catch(error => console.warn('Error al cargar la pisada ' + file + ':', error))));
+    }
+
+    function prepareWoodcutting() {
+        if (woodcuttingLoad) return;
+        woodcuttingLoad = Promise.all(['a','b','c'].map((variant, index) =>
+            fetch('./sonidos/fx/tronco_' + variant + '.wav').then(response => {
+                if (!response.ok) throw new Error('No se pudo cargar tronco_' + variant);
+                return response.arrayBuffer();
+            }).then(data => context.decodeAudioData(data)).then(buffer => { woodcuttingBuffers[index] = buffer; })
+                .catch(error => console.warn('Error al cargar golpe de madera:', error))));
+    }
+
+    function playWoodcuttingHit(broken) {
+        if (!context || paused || context.state !== 'running') return;
+        const buffer = woodcuttingBuffers[broken ? 2 : woodcuttingVariant];
+        if (!buffer) return;
+        const source = context.createBufferSource(); source.buffer = buffer;
+        const gain = context.createGain(); gain.gain.value = 0.4;
+        source.connect(gain); gain.connect(context.destination);
+        source.onended = () => { source.disconnect(); gain.disconnect(); };
+        source.start(context.currentTime);
+        if (!broken) woodcuttingVariant = 1 - woodcuttingVariant;
     }
 
     function prepareDap() {
@@ -134,6 +212,9 @@ export function createMusicEvents() {
 
     function setPaused(value) {
         paused = value;
+        waterAudio?.setPaused(value);
+        forestAmbience?.setPaused(value);
+        riverAmbience?.setPaused(value);
         if (!context) return;
         // Suspender el reloj de audio conserva la posición de música, ráfagas y efectos.
         const operation = paused ? context.suspend() : context.resume();
@@ -363,6 +444,7 @@ export function createMusicEvents() {
     function getIndoorFootstepOutput() {
         if (indoorFootstepOutput) return indoorFootstepOutput;
         indoorFootstepOutput = context.createGain();
+        indoorFootstepOutput.gain.value = 1.2;
         const dry = context.createGain();
         dry.gain.value = 0.6;
         indoorFootstepOutput.connect(dry);
@@ -386,20 +468,26 @@ export function createMusicEvents() {
         return indoorFootstepOutput;
     }
 
-    function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true) {
+    function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true, surface = outdoor ? 'grass' : 'indoor') {
         if (!context || paused || context.state !== 'running') return;
         const now = context.currentTime;
-        if (outdoor) {
-            if (!grassFootstep) return;
+        if (outdoor || ['sand','dirt','wood'].includes(surface)) {
+            const variants = surface === 'dirt' ? dirtFootsteps : surface === 'grass' ? [grassFootstep,grassFootstepB] : surface === 'sand' ? [sandFootstep,sandFootstepB] : null;
+            const index = variants ? footstepVariant[surface] : 0;
+            const buffer = variants ? variants[index] || variants[1-index] : surface === 'wood' ? woodFootstep : sandFootstep;
+            if (!buffer) return;
             const source = context.createBufferSource();
-            source.buffer = grassFootstep;
+            source.buffer = buffer;
             const gain = context.createGain();
-            const volume = running ? 0.14 : 0.14 * (0.0816 / 0.1122);
+            const outdoorVolume = running ? 0.0952 : 0.0952 * (0.0816 / 0.1122);
+            // La salida interior multiplica por 1.2: compensarla para duplicar el pasto.
+            const volume = surface === 'wood' ? outdoorVolume * 2 / 1.2 : outdoorVolume;
             gain.gain.value = volume * accent;
             source.connect(gain);
-            gain.connect(context.destination);
+            gain.connect(surface === 'wood' ? getIndoorFootstepOutput() : context.destination);
             source.onended = () => { source.disconnect(); gain.disconnect(); };
             source.start(now);
+            if (variants) footstepVariant[surface] = 1-index;
             return;
         }
         const oscillator = context.createOscillator();
@@ -416,6 +504,23 @@ export function createMusicEvents() {
         oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
         oscillator.start(now);
         oscillator.stop(now + 0.195);
+    }
+
+    function updateWind(sheltered, underwater = false) {
+        if (windSheltered === sheltered && windUnderwater === underwater) return;
+        windSheltered = sheltered;
+        windUnderwater = underwater;
+        if (!windOutput) return;
+        const now = context.currentTime;
+        const progress = windFade.duration ? Math.min(1, Math.max(0, (now - windFade.start) / windFade.duration)) : 1;
+        const current = windFade.from + (windFade.to - windFade.from) * progress;
+        const target = underwater ? 0 : sheltered ? 0.075 : 0.75;
+        const duration = underwater ? 0 : sheltered ? 2 : 5;
+        windOutput.gain.cancelScheduledValues(now);
+        // Conservar el nivel actual si se cruza la puerta durante un fundido.
+        windOutput.gain.setValueAtTime(duration ? current : target, now);
+        if (duration) windOutput.gain.linearRampToValueAtTime(target, now + duration);
+        windFade = { from: current, to: target, start: now, duration };
     }
 
     function startWind() {
@@ -439,18 +544,23 @@ export function createMusicEvents() {
         highpass.frequency.value = 100;
         const volume = context.createGain();
         volume.gain.setValueAtTime(0, now);
-        volume.gain.linearRampToValueAtTime(0.04, now + 4);
+        // Ráfagas entre el 50% y el 90% de la base anterior (centro 70%, amplitud 20%).
+        volume.gain.linearRampToValueAtTime(0.01904, now + 4);
         noise.connect(lowpass);
         lowpass.connect(highpass);
         highpass.connect(volume);
-        volume.connect(context.destination);
+        windOutput = context.createGain();
+        windOutput.gain.value = windUnderwater ? 0 : windSheltered ? 0.075 : 0.75;
+        windFade = { from: windOutput.gain.value, to: windOutput.gain.value, start: now, duration: 0 };
+        volume.connect(windOutput);
+        windOutput.connect(context.destination);
         // Dos ritmos lentos distintos evitan una ráfaga repetitiva de metrónomo.
         for (const [rate, intensity, tone] of [[0.07,0.012,250],[0.113,0.008,150]]) {
             const gust = context.createOscillator();
             gust.type = 'sine';
             gust.frequency.value = rate;
             const intensityGain = context.createGain();
-            intensityGain.gain.value = intensity;
+            intensityGain.gain.value = intensity * 0.272;
             const toneGain = context.createGain();
             toneGain.gain.value = tone;
             gust.connect(intensityGain);
@@ -499,7 +609,7 @@ export function createMusicEvents() {
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,updateWind,updateForestAmbience: state => forestAmbience?.update(state),resetForestAmbience: () => forestAmbience?.reset(),updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

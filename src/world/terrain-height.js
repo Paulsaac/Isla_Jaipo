@@ -29,6 +29,24 @@ function getSmoothNoise(x, z, scale) {
 }
 
 export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile) {
+    let platformHeight = 0, platformWeight = 0;
+    for (const platform of elevationMap.buildingPlatforms ?? []) {
+        if (colF < platform.minX - 1 || colF > platform.maxX + 1
+            || rowF < platform.minZ - 1 || rowF > platform.maxZ + 1) continue;
+        let distance = Infinity;
+        for (let z = Math.max(0, Math.floor(rowF) - 1); z <= Math.min(mapHeight - 1, Math.ceil(rowF) + 1); z++) {
+            for (let x = Math.max(0, Math.floor(colF) - 1); x <= Math.min(mapWidth - 1, Math.ceil(colF) + 1); x++) {
+                if (!platform.cells.has(z * mapWidth + x)) continue;
+                distance = Math.min(distance, Math.hypot(Math.max(0, Math.abs(colF-x)-0.5), Math.max(0, Math.abs(rowF-z)-0.5)));
+            }
+        }
+        if (distance >= 0.5) continue;
+        const t = distance / 0.5;
+        platformHeight = platform.base - 0.02; // Tierra justo debajo del piso de madera.
+        platformWeight = 1 - t*t*(3-2*t);
+        if (distance === 0) return platformHeight;
+        break;
+    }
     const c0 = Math.floor(colF);
     const c1 = Math.min(c0 + 1, mapWidth - 1);
     const r0 = Math.floor(rowF);
@@ -70,7 +88,9 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     }
     const road=sampleMountainPath(mountainPathProfile,colF,rowF);
     if(road) {
-        const t=Math.max(0,Math.min(1,(road.distance-0.6)/0.9));
+        const core=mountainPathProfile.coreRadius ?? 0.6;
+        const radius=mountainPathProfile.blendRadius ?? 1.5;
+        const t=Math.max(0,Math.min(1,(road.distance-core)/(radius-core)));
         const blend=t*t*(3-2*t);
         y=road.height*(1-blend)+y*blend;
     }
@@ -92,7 +112,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
             y = (floorHeight - 0.02) * (1 - blend) + y * blend;
         }
     }
-    return y;
+    return y * (1 - platformWeight) + platformHeight * platformWeight;
 }
 
 export function getTerrainHeight(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile, renderedSurface) {

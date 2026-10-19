@@ -138,8 +138,8 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
             if (!['WATER', 'WATER_ROCK', 'BOAT', 'POI'].includes(type)) counts.BASE_FLOOR++;
 
             // Solid obstacles
-            if (['BUILDING', 'CHEST', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK'].includes(type)) {
-                collisionMap[z][x] = type;
+            if (['BUILDING', 'CHEST', 'DOOR_UNLOCKED', 'DOOR_LOCKED', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK', 'SNOW_SLOPE'].includes(type)) {
+                collisionMap[z][x] = type === 'SNOW_SLOPE' ? 'MOUNTAIN' : type;
             } else if (type === 'TREE') {
                 collisionMap[z][x] = 'TREE';
             }

@@ -317,6 +317,10 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
             return nearExit(local) && exitDepth(local) >= .4 && Math.abs(local.y) < 3;
         },
         contains(x, z) { const p = grid(x, z); return p.x >= 0 && p.z >= 0 && p.x < width - 1 && p.z < height - 1; },
+        isWater(x, z) {
+            const p = grid(x, z);
+            return WET.has(types[Math.round(p.z)]?.[Math.round(p.x)]);
+        },
         isWall(x, z) {
             for (const dx of [-.3, .3]) for (const dz of [-.3, .3]) {
                 const p = grid(x + dx, z + dz), gx = Math.round(p.x), gz = Math.round(p.z);

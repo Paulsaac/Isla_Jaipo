@@ -23,6 +23,7 @@ export const PALETTE = {
     CHEST: {r:255, g:174, b:201},
     INDOOR_FLOOR: {r:136, g:0, b:21},
     SNOW_PEAK: {r:255, g:255, b:255},
+    SNOW_SLOPE: {r:167, g:236, b:255}, // #A7ECFF: nieve visual sobre la ladera, no meseta.
     BUILDING: {r:163, g:73, b:164},
     POI: {r:63, g:72, b:204},
     BOAT: {r:210, g:20, b:90},
@@ -52,6 +53,7 @@ export const FLOOR_COLORS = {
     INDOOR_FLOOR: '#73553D',
     BUSH: '#405333',
     SNOW_PEAK: '#DFE7E9',
+    SNOW_SLOPE: '#DFE7E9',
     BUILDING: '#514235',
     POI: '#73553D', // Color de madera para el spawn
     BOAT: '#967657',

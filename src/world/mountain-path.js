@@ -65,9 +65,24 @@ export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight
 
 // Proyectar sobre segmentos evita bultos transversales y escalones de celda en celda.
 export function sampleMountainPath(profile, x, z) {
-    if(!profile || profile.followsTerrain) return null;
+    if(!profile || (profile.followsTerrain && !profile.carved)) return null;
     const rows=profile.surface,cx=Math.round(x),cz=Math.round(z);
     if(!profile.nearby[cz]?.[cx]) return null;
+    if (profile.carved) {
+        const x0=Math.floor(x),z0=Math.floor(z),tx=x-x0,tz=z-z0;
+        const corners=[[0,0],[1,0],[0,1],[1,1]].map(([dx,dz])=>({x:dx,z:dz,y:rows[z0+dz]?.[x0+dx]}));
+        const valid=corners.filter(point=>Number.isFinite(point.y));
+        // Los ensanches de 2x2 no deben cruzar dos diagonales a alturas distintas.
+        if (valid.length===4) return {distance:0,height:
+            (corners[0].y*(1-tx)+corners[1].y*tx)*(1-tz)+(corners[2].y*(1-tx)+corners[3].y*tx)*tz};
+        if (valid.length===3) {
+            const [a,b,c]=valid;
+            const denominator=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z);
+            const wa=((b.z-c.z)*(tx-c.x)+(c.x-b.x)*(tz-c.z))/denominator;
+            const wb=((c.z-a.z)*(tx-c.x)+(a.x-c.x)*(tz-c.z))/denominator,wc=1-wa-wb;
+            if (Math.min(wa,wb,wc)>=-1e-7) return {distance:0,height:a.y*wa+b.y*wb+c.y*wc};
+        }
+    }
     let bestDistance=Infinity,bestHeight=0;
     for(let rz=cz-2;rz<=cz+2;rz++) for(let rx=cx-2;rx<=cx+2;rx++) {
         const a=rows[rz]?.[rx];
@@ -81,5 +96,5 @@ export function sampleMountainPath(profile, x, z) {
             if(distance<bestDistance) {bestDistance=distance;bestHeight=a+(b-a)*t;}
         }
     }
-    return bestDistance<1.5?{height:bestHeight,distance:bestDistance}:null;
+    return bestDistance<(profile.blendRadius ?? 1.5)?{height:bestHeight,distance:bestDistance}:null;
 }

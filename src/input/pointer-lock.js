@@ -8,8 +8,8 @@ export async function requestGamePointerLock(element) {
     }
 }
 
-// Un delta grande aislado puede ser una recolocación del cursor, no una intención
-// de giro. Confirmarlo con otra muestra permite conservar barridos rápidos.
+// Reservar la confirmación para saltos extremos. Un evento puede acumular cientos
+// de unidades legítimas; filtrarlo desde 100 producía zonas muertas al girar.
 export function createMouseMovementFilter(apply) {
     let pending = null, previousMagnitude = 0, previousTime = null;
     function reset() { pending=null; previousMagnitude=0; previousTime=null; }
@@ -34,7 +34,7 @@ export function createMouseMovementFilter(apply) {
             pending=null;
         }
         const recent=previousTime!==null && time-previousTime>=0 && time-previousTime<=120;
-        const threshold=Math.max(100,recent?previousMagnitude*12:0);
+        const threshold=Math.max(1024,recent?previousMagnitude*12:0);
         if (magnitude>threshold) {
             pending={x,y,time,magnitude};
             return;
@@ -51,9 +51,12 @@ export function createMouseMovementFilter(apply) {
 export function guardPointerLockMouse(controls) {
     const original=controls._onMouseMove;
     const filter=createMouseMovementFilter(original);
+    let previousSpeed=controls.pointerSpeed;
     controls.disconnect();
     controls._onMouseMove=event=>{
-        if (!controls.isLocked) { filter.reset(); return; }
+        // No conservar muestras durante una mirada bloqueada por una interacción.
+        if (controls.pointerSpeed!==previousSpeed) { filter.reset(); previousSpeed=controls.pointerSpeed; }
+        if (!controls.isLocked || controls.pointerSpeed===0) { filter.reset(); return; }
         filter.move(event);
     };
     controls.connect();

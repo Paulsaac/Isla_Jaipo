@@ -2,6 +2,8 @@ import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from '.
 import { createHeldMate } from './src/player/held-mate.js';
 import { createWoodcutting } from './src/systems/woodcutting.js';
 import { createWoodcuttingHud } from './src/ui/woodcutting.js';
+import { sampleForestSurroundings } from './src/systems/forest-ambience.js';
+import { sampleRiverSound } from './src/systems/river-ambience.js';
 import { createAtticAnt, findAtticAntHome } from './src/world/attic-ant.js';
 import { createGrahamDap } from './src/systems/graham-dap.js';
 import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/world/wood-stove-geometry.js';
@@ -48,8 +50,10 @@ import { smoothMountainPath } from './src/world/mountain-path.js';
 import { createRoofBaseMap } from './src/world/roof-height.js';
 import { getDoorOpening } from './src/world/door-opening.js';
 import { smoothMountainSlope } from './src/world/mountain-slope.js';
+import { carveMountainTrail } from './src/world/mountain-trail.js';
 import { createBoatGeometry } from './src/world/boat-geometry.js';
 import { updateBoatFloating } from './src/world/boat-floating.js';
+import { placeBoatFacingWest } from './src/world/boat-placement.js';
 import { steerBoat } from './src/world/boat-steering.js';
 import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { createHeartVision } from './src/world/heart-vision.js';
@@ -79,10 +83,14 @@ import { createBarrelGeometry } from './src/world/barrel-geometry.js';
 import { createBookshelfGeometry } from './src/world/bookshelf-geometry.js';
 import { createTableGeometry, createChairGeometry } from './src/world/table-chair-geometry.js';
 import { createMateSet } from './src/world/mate-set.js';
+import { createDeskWritingSet } from './src/world/desk-writing-set.js';
 import { createAntiqueStoveGeometry } from './src/world/antique-stove-geometry.js';
 import { createSpiceShelfGeometry } from './src/world/spice-shelf-geometry.js';
 import { createKitchenGarden } from './src/world/kitchen-garden.js';
 import { createWoodFenceGeometry } from './src/world/wood-fence.js';
+import { createPinkSunglasses } from './src/world/pink-sunglasses.js';
+import { createAltarBlueFire, updateAltarBlueFire } from './src/world/altar-blue-fire.js';
+import { LENS_VIEWS } from './src/content/lens-views.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
 import { createCrateStackGeometry } from './src/world/crate-stack-geometry.js';
@@ -147,6 +155,8 @@ let heldItemTextures = null;
 let hasTorch = false;
 let hasMap = false;
 let hasMate = false, heldMate = null;
+let hasPinkSunglasses = false, pinkSunglassesEquipped = false;
+let lensViewIndex = 0;
 let hasDivingHelmet = false;
 let helmetEquipped = false;
 let helmetBroken = false;
@@ -156,6 +166,12 @@ const seaHeartSoundPosition = new THREE.Vector3();
 const seaHeartSoundRelative = new THREE.Vector3();
 const seaHeartListenerPosition = new THREE.Vector3();
 const seaHeartListenerRotation = new THREE.Quaternion();
+let forestAmbienceSample = null, forestAmbienceSampleTime = 0;
+let riverSoundField = null, riverSoundSample = null, riverSoundSampleTime = 0;
+const riverSoundRelative = new THREE.Vector3(), riverSoundRotation = new THREE.Quaternion();
+const forestAmbienceRelative = new THREE.Vector3();
+const forestAmbienceRotation = new THREE.Quaternion();
+const forestAmbienceSources = Array.from({length:4},()=>({x:0,y:0,z:0,weight:0}));
 let seaHeartLight = null;
 let altarWaterHeight = null;
 
@@ -208,13 +224,16 @@ function collectSeaHeartFragment(fragment) {
             flame.visible = true;
         }
         for (const torch of altarFireTorches) torch.enabled = true;
+        musicEvents.igniteAltarFire();
         helmetBroken = true;
         helmetEquipped = false;
         menus.setHelmetState(true,false,true);
         hud.hideDivingAir();
-        hud.showReceivedItem('el Corazón del Mar. La escafandra se ha roto');
+        hud.showNotification('¡Al unir los diez fragmentos en el altar has conseguido el corazón del mar!');
     } else {
-        hud.showReceivedItem(`un fragmento del Corazón del Mar (${reward.count}/10). Aire renovado: ${reward.airSeconds} s`);
+        hud.showNotification(reward.count === 1
+            ? '¡Has encontrado un fragmento bajo el mar!'
+            : '¡Has encontrado otro fragmento bajo el mar!');
     }
 }
 const divingAir = createDivingAir(DIVING_AIR_SECONDS);
@@ -233,6 +252,7 @@ let torchLighting = null;
 const torchSprites = [];
 const altarFlames = [];
 const altarFireTorches = [];
+const altarFireSoundRelative = new THREE.Vector3();
 let underwaterVegetation = null;
 let underwaterVegetationPreparation = null;
 let underwaterPlantDefinitions = [];
@@ -256,6 +276,8 @@ let grahamSprite = null;
 let targetInteractable = null;
 let isRidingBoat = false;
 let boatReference = null;
+let seatedChair = null;
+let chairEntryPosition = null;
 const boats = [];
 let boatFloatTime = 0;
 const BOAT_EYE_OFFSET = 0.70;
@@ -264,7 +286,7 @@ const boatSeatOffset = new THREE.Vector3();
 
 function getBoatEyesHeight(boat) {
     return boat.position.y + boat.geometry.parameters.height / 2
-        + (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT) - BOAT_EYE_OFFSET;
+        + PLAYER_HEIGHT * 0.6 - BOAT_EYE_OFFSET;
 }
 
 let isDialogOpen = false;
@@ -282,6 +304,9 @@ const FOG_RESIDUAL = 0.0001;
 let underwaterBlend = 0;
 let playerWasSubmerged = false;
 const underwaterStrength = {value:0};
+const pinkSunglassesTint = {value:0};
+const sunglassesViewColor = {value:new THREE.Vector3(...LENS_VIEWS[0].tint)};
+const sunglassesNegativeView = {value:0};
 const underwaterViewTime = {value:0};
 const underwaterFogColor = new THREE.Color(0x0979b0);
 const underwaterCurrentColor = underwaterFogColor.clone();
@@ -388,7 +413,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(0.5); 
 document.body.appendChild(renderer.domElement);
 const performancePanel = createPerformancePanel(renderer);
-const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime);
+const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime,pinkSunglassesTint,sunglassesViewColor,sunglassesNegativeView);
 
 const controls = new PointerLockControls(camera, document.body);
 if (isTouchMode) controls.disconnect();
@@ -510,7 +535,7 @@ function showGreetingPhase() {
 }
 
 function updateSpawnGreeting(delta) {
-    if (woodcutting.active) return;
+    if (woodcutting.active || seatedChair) return;
     if (!spawnGreeting.active) {
         if (spawnGreeting.played || isDead || isFlying || isRidingBoat || isDialogOpen || !grahamSprite) return;
         const door = solidInteractables.find(object => object.userData.type === 'DOOR'
@@ -573,6 +598,10 @@ function useInventoryItem(item) {
     } else if (item === 'helmet' && hasDivingHelmet) {
         toggleDivingHelmet();
         menus.setItemDescription(helmetEquipped ? 'Escafandra equipada.' : 'Escafandra guardada.');
+    } else if (item === 'pink-sunglasses' && hasPinkSunglasses) {
+        pinkSunglassesEquipped = !pinkSunglassesEquipped;
+        menus.setPinkSunglassesState(true, pinkSunglassesEquipped);
+        menus.setItemDescription(pinkSunglassesEquipped ? `Lentes equipados: ${LENS_VIEWS[lensViewIndex].name}. V cambia la vista al jugar; pulsa aquí para quitarlos.` : 'Lentes guardados.');
     } else if (item === 'torch' && hasTorch) {
         const before = handTorchEnabled;
         gameActions.torch();
@@ -648,7 +677,7 @@ const direction = new THREE.Vector3();
 let isFlying = false;
 
 function toggleFlight() {
-    if (isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
+    if (seatedChair || isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
     isFlying = !isFlying;
 
     let m = document.getElementById('system-msg');
@@ -685,8 +714,50 @@ function canReachForestHeart() {
     return forestHeartShrine && Math.hypot(camera.position.x-forestHeartShrine.position.x,
         camera.position.z-forestHeartShrine.position.z) <= 1.65;
 }
+function sitOnChair(chair) {
+    if (isFlying || isRidingBoat || !canJump || heartLevitationHeight > 0
+        || musicEvents.isEventActive('forest')) return;
+    const player = controls.getObject();
+    chairEntryPosition = player.position.clone();
+    clearGreetingInput();
+    isCrouching = crouchRequested = false;
+    seatedChair = chair;
+    canJump = false;
+    bobTimer = 0;
+    player.position.set(chair.position.x, chair.position.y + chair.userData.seatHeight + PLAYER_HEIGHT * 0.5, chair.position.z);
+    camera.lookAt(player.position.x + Math.sin(chair.rotation.y), player.position.y,
+        player.position.z + Math.cos(chair.rotation.y));
+    targetInteractable = null;
+}
+
+function standFromChair() {
+    const chair = seatedChair;
+    if (!chair) return;
+    const candidates = [chairEntryPosition];
+    for (const radius of [1, 1.5, 2]) for (let i = 0; i < 8; i++) {
+        const angle = chair.rotation.y + i * Math.PI / 4;
+        candidates.push({x: chair.position.x + Math.sin(angle) * radius,
+            z: chair.position.z + Math.cos(angle) * radius});
+    }
+    const exit = candidates.find(point => {
+        if (!point) return false;
+        const height = getTerrainHeight(point.x, point.z);
+        return Math.abs(height - chair.position.y) < 0.75
+            && !hasObstacle(point.x, point.z, mapWidth, mapHeight, collisionMap, floorMap,
+                false, solidInteractables, null, height);
+    });
+    if (!exit) return;
+    seatedChair = null;
+    chairEntryPosition = null;
+    clearGreetingInput();
+    controls.getObject().position.set(exit.x, getTerrainHeight(exit.x, exit.z) + PLAYER_HEIGHT, exit.z);
+    canJump = true;
+    targetInteractable = null;
+}
+
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    if (seatedChair) { standFromChair(); return true; }
     if (woodcutting.active) {
         if (isTouchMode) woodcutting.interact();
         return true;
@@ -754,9 +825,26 @@ function interact() {
             boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
+            if (targetInteractable.userData.type === 'CHAIR') {
+                sitOnChair(targetInteractable);
+                return true;
+            }
             if (targetInteractable.userData.id === 'graham-stump') {
                 if (!isFlying && !isRidingBoat && canJump && !isDialogOpen && heartLevitationHeight <= 0
                     && !musicEvents.isEventActive('forest')) woodcutting.begin(targetInteractable);
+                return true;
+            }
+            if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
+                if (hasPinkSunglasses) return true;
+                hasPinkSunglasses = true;
+                menus.setPinkSunglassesState(true, false);
+                hud.showReceivedItem('unos lentes de sol rosados');
+                const pickup = targetInteractable;
+                pickup.visible = false; pickup.userData.visibilityEnabled = false;
+                interactables.splice(interactables.indexOf(pickup), 1);
+                fogCulling?.unregister(pickup); pickup.removeFromParent();
+                pickup.geometry.dispose(); pickup.material.dispose();
+                targetInteractable = null; hud.hideInteraction();
                 return true;
             }
             if (targetInteractable.userData.type === 'MAP_PICKUP') {
@@ -798,6 +886,17 @@ function interact() {
                     hasMap = true;
                     menus.setMapVisible(true);
                     hud.showReceivedItem('un mapa');
+                } else if (targetInteractable.userData.item === 'pink-sunglasses') {
+                    const chest = targetInteractable, opening = chest.userData.opening;
+                    const pickup = chest.userData.sunglassesPickup;
+                    chest.userData.opening = { update(delta) {
+                        const done = opening.update(delta);
+                        if (done && !hasPinkSunglasses) {
+                            pickup.visible = true; pickup.userData.visibilityEnabled = true;
+                            if (!interactables.includes(pickup)) interactables.push(pickup);
+                        }
+                        return done;
+                    } };
                 } else {
                     keyInventory.add(targetInteractable.userData.id);
                     updateKeyInventory();
@@ -889,6 +988,17 @@ function interact() {
 }
 
 const gameActions = {
+    cycleLensView() {
+        if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
+            || !hasPinkSunglasses || !pinkSunglassesEquipped || woodcutting.active || grahamDap.active
+            || heartPull.active || spawnGreeting.active) return;
+        lensViewIndex = (lensViewIndex+1) % LENS_VIEWS.length;
+        const view = LENS_VIEWS[lensViewIndex];
+        sunglassesViewColor.value.fromArray(view.tint);
+        sunglassesNegativeView.value = view.negative ? 1 : 0;
+        menus.setItemDescription(`Lentes equipados: ${view.name}. V cambia la vista al jugar; pulsa aquí para quitarlos.`);
+        hud.showLensMode(view.name);
+    },
     isPaused: () => gameStarted && !isDead && !controls.isLocked && !isInventoryOpen,
     toggleFlight,
     toggleDayNight,
@@ -907,6 +1017,7 @@ const gameActions = {
         hud.showReceivedItem('el Corazón del Bosque');
     },
     teleportToForestHeart() {
+        if (seatedChair) return;
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isRidingBoat || !forestHeartShrine) return;
         const shrine=forestHeartShrine;
         for (const radius of [3.5,4.5,5.5,6.5]) for (let step=0;step<12;step++) {
@@ -934,6 +1045,7 @@ const gameActions = {
         }
     },
     jump() {
+        if (seatedChair) return;
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
             const player = controls.getObject();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -949,6 +1061,7 @@ const gameActions = {
         }
     },
     crouch(pressed) {
+        if (seatedChair) return;
         crouchRequested = pressed;
         updatePlayerPosture();
     },
@@ -1014,6 +1127,7 @@ const heartPull = createHeartPull(THREE, {
 let woodcuttingTorchWasEnabled = false;
 const woodcutting = createWoodcutting(THREE, {
     scene, camera, controls, hud: createWoodcuttingHud(isTouchMode),
+    onImpact: broken => musicEvents.playWoodcuttingHit(broken),
     onBegin() {
         clearGreetingInput(); heldMate?.cancel();
         hud.hideStamina();
@@ -1200,12 +1314,10 @@ renderer.domElement.addEventListener('contextmenu', event => {
     if ((woodcutting.active && controls.isLocked) || canDrinkMate()) event.preventDefault();
 });
 const torchFrames = [];
-const blueFireFrames = [1,2,3].map(frame => {
-    const texture = texLoader.load(`./imagenes/Sprites/fuego-azul-${frame}.svg`);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.magFilter = texture.minFilter = THREE.NearestFilter;
-    return texture;
-});
+const blueFireAtlas = texLoader.load('./imagenes/Sprites/fuego-azul-altar-atlas.png');
+blueFireAtlas.colorSpace = THREE.SRGBColorSpace;
+blueFireAtlas.magFilter = blueFireAtlas.minFilter = THREE.NearestFilter;
+blueFireAtlas.generateMipmaps = false;
 for (let i = 1; i <= 5; i++) {
     const tTex = texLoader.load(`./imagenes/Sprites/antorcha/torch${i}.png`);
     tTex.magFilter = THREE.NearestFilter;
@@ -1279,7 +1391,7 @@ puertaFlippedTex.repeat.x = -1;
 puertaFlippedTex.needsUpdate = true;
 
 // Cielos independientes para conservar la transición y la luna fija.
-const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Noche.jpeg?v=' + Date.now(), {
+const nightAtlas = createSkyAtlas(THREE, texLoader, './imagenes/Texturas/Cielo/Ciclo/Noche.jpg?v=' + Date.now(), {
     faceQuarterTurns: [0,1,2,3,1,3],
     mirroredFaces: [false,false,false,false,true,true]
 });
@@ -1507,8 +1619,9 @@ function buildWorld(prepared) {
     const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
     aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 1, shininess: 60, side: THREE.DoubleSide });
+    riverSoundField = createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight);
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
-        createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight), UNIT_SIZE, underwaterStrength, raisedWaterCell);
+        riverSoundField, UNIT_SIZE, underwaterStrength, raisedWaterCell);
     heartVision.apply(THREE, aguaFloorMat, 'water');
     const maderaFloorMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0 }); 
 
@@ -1720,6 +1833,7 @@ function buildWorld(prepared) {
     }
 
     smoothMountainSlope(mountainReliefMap, elevationMap, mountainMask, mountainPathProfile?.summitHeight, mountainPathProfile?.followsTerrain);
+    mountainPathProfile = carveMountainTrail(floorMap, elevationMap, mountainMask, mountainPathProfile);
     // Elevar cada puente cubierto al terreno de sus accesos, antes de construir sus piezas.
     for (const bridge of waterDeckMap.coveredBridges) {
         const midX = (bridge.minX + bridge.maxX) / 2, midZ = (bridge.minZ + bridge.maxZ) / 2;
@@ -1846,7 +1960,7 @@ function buildWorld(prepared) {
             if (prepared.externalTorchMap[z][x] || rType === 'TORCH' || rType === 'OTHER2' || type === 'TORCH' || type === 'OTHER2') {
                 const isBlueTorch = type === 'OTHER2' || rType === 'OTHER2';
                 let wallX = posX, wallZ = posZ;
-                const solid = value => ['BUILDING', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK'].includes(value);
+                const solid = value => ['BUILDING', 'MOUNTAIN', 'PEAK', 'SNOW_PEAK', 'SNOW_SLOPE'].includes(value);
                 const neighbors = [[-1,0],[1,0],[0,-1],[0,1]];
                 const support = neighbors.find(([dx,dz])=>floorMap[z+dz]?.[x+dx]==='BUILDING')
                     ?? neighbors.find(([dx,dz])=>solid(floorMap[z+dz]?.[x+dx]));
@@ -1890,14 +2004,11 @@ function buildWorld(prepared) {
                     dummy.position.y = baseH - WALL_HEIGHT / 2;
                     dummy.updateMatrix();
                     bldgMesh.setMatrixAt(idxBldg++, dummy.matrix);
-                    const flame = new THREE.Sprite(new THREE.SpriteMaterial({
-                        map:blueFireFrames[0],transparent:true,alphaTest:0.05,depthWrite:false,fog:true
-                    }));
+                    const flame = createAltarBlueFire(THREE,blueFireAtlas,UNIT_SIZE,altarFlames.length);
                     flame.name = `altar-blue-fire:${x},${z}`;
                     flame.userData.visibilityEnabled = false;
                     flame.visible = false;
-                    flame.position.set(posX,baseH+WALL_HEIGHT+0.73,posZ);
-                    flame.scale.set(1.1,1.6,1);
+                    flame.position.set(posX,baseH+WALL_HEIGHT+0.005,posZ);
                     scene.add(flame);
                     altarFlames.push(flame);
                     const altarTorch = {x:posX,z:posZ,y:baseH+WALL_HEIGHT+0.45,isBlue:true,isIndoor:false,
@@ -1979,6 +2090,14 @@ function buildWorld(prepared) {
                     chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
                     // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
                     chestMesh.userData.opening = createChestOpening(THREE, chestMesh);
+                    if (chestMesh.userData.item === 'pink-sunglasses') {
+                        const pickup = createPinkSunglasses(THREE);
+                        pickup.position.set(0,-.22,-.015);
+                        pickup.rotation.x = -Math.PI/2 + .2;
+                        pickup.userData = {type:'PINK_SUNGLASSES_PICKUP',visibilityEnabled:false};
+                        pickup.visible = false;
+                        chestMesh.add(pickup); chestMesh.userData.sunglassesPickup = pickup;
+                    }
                     if (chestMesh.userData.item === 'map') {
                         // SVG sin dimensiones intrínsecas: rasterizar una vez para WebGL.
                         const canvas = document.createElement('canvas');
@@ -2019,7 +2138,8 @@ function buildWorld(prepared) {
                 const boatMesh = new THREE.Mesh(boatGeo, boatMat);
                 boatMesh.position.set(posX, BOAT_FLOAT_HEIGHT, posZ);
                 if (pairedBoat) boatMesh.position[horizontalBoat ? 'x' : 'z'] += UNIT_SIZE / 2;
-                boatMesh.rotation.y = (horizontalBoat ? Math.PI / 2 : 0) + Math.PI / 2;
+                placeBoatFacingWest(boatMesh, (bx,bz) =>
+                    hasObstacle(bx,bz,mapWidth,mapHeight,collisionMap,floorMap,true,solidInteractables,boatMesh));
                 boatMesh.userData = { type: 'BOAT', gx: x, gz: z, floatPhase: (x * 0.73 + z * 0.41) % (Math.PI * 2) };
                 boats.push(boatMesh);
                 updateBoatFloating(boatMesh, boatFloatTime, BOAT_FLOAT_HEIGHT);
@@ -2213,7 +2333,7 @@ function buildWorld(prepared) {
     const { floorMap: terrainFloorMap, elevations: terrainElevations, woodMap: terrainWoodMap } =
         createWaterDeckTerrain(floorMap, elevationMap, woodFloorMap, waterDeckMap, seaFloorHeights);
     const mountainWeights = new Float32Array(positions.length / 3 * 4);
-    const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6 };
+    const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6, SNOW_SLOPE: 6 };
     const wetSandShoreMap = createWetSandShoreMap(terrainFloorMap, mapWidth, mapHeight);
     const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
     const naturalShrineGround = new Uint8Array(mapWidth * mapHeight);
@@ -2443,6 +2563,8 @@ function buildWorld(prepared) {
         .filter(height=>height!==undefined).sort((a,b)=>a-b);
     const altarCenterTop = altarNeighborTops[Math.floor(altarNeighborTops.length/2)] ?? altarTop;
     altarWaterHeight = altarCenterTop;
+    // La celda central conserva el agua visible, pero sostiene al jugador a su nivel.
+    slabTops.set(seaHeartAltar.center.z*mapWidth+seaHeartAltar.center.x,altarCenterTop);
     const altarWaterGeometry = new THREE.PlaneGeometry(UNIT_SIZE,UNIT_SIZE);
     const altarWaterUv = altarWaterGeometry.attributes.uv;
     for(let i=0;i<altarWaterUv.count;i++) altarWaterUv.setXY(i,
@@ -2625,6 +2747,10 @@ function buildWorld(prepared) {
         model.rotation.y = definition.rotationY ?? 0;
         model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
         model.userData = { type: definition.type, id: definition.id, gx: position.x, gz: position.z };
+        if (definition.type === 'CHAIR') {
+            model.userData.seatHeight = 0.72 * furnitureScale;
+            interactables.push(model);
+        }
         if (definition.type === 'WOOD_STOVE') {
             const pipeAt = new THREE.Vector3(0,0,-0.14).multiplyScalar(furnitureScale).applyEuler(model.rotation).add(model.position);
             const roofLimit = atticSupport?.upperLimit(pipeAt.x, pipeAt.z);
@@ -2636,6 +2762,11 @@ function buildWorld(prepared) {
             pipe.name = definition.id + '-pipe';
             pipe.scale.setScalar(furnitureScale);
             model.add(pipe);
+        }
+        if (definition.id === 'graham-desk') {
+            const writingSet = createDeskWritingSet(THREE);
+            writingSet.scale.setScalar(furnitureScale);
+            model.add(writingSet);
         }
         if (definition.id === 'graham-table') {
             const mateSet = createMateSet(THREE);
@@ -2663,7 +2794,8 @@ function buildWorld(prepared) {
     for (const { x, z } of prepared.fenceCells) {
         const east = fenceLocations.has(`${x + 1},${z}`);
         const south = fenceLocations.has(`${x},${z + 1}`);
-        const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south), fenceMaterial);
+        const wallConnections = [[-1,0],[1,0],[0,-1],[0,1]].filter(([dx,dz]) => floorMap[z+dz]?.[x+dx] === 'BUILDING');
+        const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south, wallConnections), fenceMaterial);
         fence.name = `wood-fence:${x},${z}`;
         fence.position.set(x * UNIT_SIZE, getTerrainHeight(x * UNIT_SIZE, z * UNIT_SIZE), z * UNIT_SIZE);
         fence.userData = { type: 'FENCE', gx: x, gz: z };
@@ -2824,6 +2956,10 @@ const walkingRhythm = createWalkingRhythm();
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
+    seatedChair = chairEntryPosition = null;
+    musicEvents.resetWaterAudio();
+    musicEvents.resetForestAmbience();forestAmbienceSample=null;forestAmbienceSampleTime=0;
+    musicEvents.resetRiverAmbience();riverSoundSample=null;riverSoundSampleTime=0;
     woodcutting.finish();
     if (grahamDap.active) { grahamDap.cancel(); controls.pointerSpeed = dapPointerSpeed; }
     bedBounceActive = false;
@@ -2895,6 +3031,10 @@ function animate(timestamp = performance.now()) {
         seaHeartSoundRelative.copy(seaHeartSoundPosition).sub(seaHeartListenerPosition)
             .applyQuaternion(seaHeartListenerRotation);
         musicEvents.setUnderwaterPosition(seaHeartSoundRelative.x, seaHeartSoundRelative.y, seaHeartSoundRelative.z);
+        altarFireSoundRelative.set(seaHeartAltar.center.x*UNIT_SIZE,altarFlames[0]?.position.y ?? 0,seaHeartAltar.center.z*UNIT_SIZE)
+            .sub(seaHeartListenerPosition).applyQuaternion(seaHeartListenerRotation);
+        musicEvents.updateAltarFirePosition({x:altarFireSoundRelative.x,y:altarFireSoundRelative.y,z:altarFireSoundRelative.z,
+            enabled:!caveMap?.active && !isDead});
         musicEvents.update(delta);
         if (mapChestSoundSource) {
             if (musicEvents.isChestUnlockPlaying()) musicEvents.updateChestUnlockPosition(getMapChestSoundPosition());
@@ -2920,7 +3060,7 @@ function animate(timestamp = performance.now()) {
             // Comprobar todas las hojas, también después de un primer empuje.
             for (let attempt = 0; attempt <= doors.length; attempt++) {
                 const result = pushPlayerFromMovingDoors(position, backward, doors, isWall);
-                if (result.blocked || (result.moved && (woodcutting.active || attempt === doors.length))) {
+                if (result.blocked || (result.moved && (seatedChair || woodcutting.active || attempt === doors.length))) {
                     position.x = beforeX; position.z = beforeZ;
                     return false;
                 }
@@ -3180,11 +3320,19 @@ function animate(timestamp = performance.now()) {
         if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active) {
             targetInteractable = null;
             hud.hideInteraction();
+        } else if (seatedChair) {
+            targetInteractable = null;
+            hud.showInteraction();
+            hud.setInteractionText('Presiona E para levantarte');
+            hud.setInteractionColor('#ffeb3b');
         } else if (intersects.length > 0 && intersects[0].distance < 3.5
             && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
-            if (targetInteractable.userData.id === 'graham-stump') {
+            if (targetInteractable.userData.type === 'CHAIR') {
+                hud.setInteractionText('Presiona E para sentarte');
+                hud.setInteractionColor('#ffeb3b');
+            } else if (targetInteractable.userData.id === 'graham-stump') {
                 hud.setInteractionText('Presiona E para cortar madera');
                 hud.setInteractionColor('#a6ed90');
             } else if (targetInteractable.userData.type === 'CHEST') {
@@ -3196,6 +3344,9 @@ function animate(timestamp = performance.now()) {
                     hud.setInteractionText(targetInteractable.userData.item === 'map' ? "Cerrado" : "Presiona E para abrir Cofre");
                     hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
                 }
+            } else if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
+                hud.setInteractionText('Presiona E para tomar lentes de sol rosados');
+                hud.setInteractionColor('#f384b8');
             } else if (targetInteractable.userData.type === 'MAP_PICKUP') {
                 hud.setInteractionText("Presiona E para tomar Mapa");
                 hud.setInteractionColor("#ffeb3b");
@@ -3250,7 +3401,7 @@ function animate(timestamp = performance.now()) {
         heartPull.update(delta);
         const cuttingWood = woodcutting.active;
         woodcutting.update(delta, rawDelta);
-        if (!cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active) {
+        if (!seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active) {
             updatePlayerPosture();
             velocity.x -= velocity.x * FRICTION * delta;
             velocity.z -= velocity.z * FRICTION * delta;
@@ -3522,16 +3673,24 @@ function animate(timestamp = performance.now()) {
                     const previousStep = Math.floor((previousBob - trough) / (Math.PI * 2));
                     const currentStep = Math.floor((bobTimer - trough) / (Math.PI * 2));
                     const moved = Math.hypot(controlObj.position.x-startX,controlObj.position.z-startZ)>0.0001;
-                    if (currentStep > previousStep && moved && !inWater) {
+                    if (currentStep > previousStep && moved && !inWater
+                        && !(caveMap?.active && caveMap.isWater(controlObj.position.x,controlObj.position.z))) {
                         const accented = footstepIndex % 2 === 0;
                         const stepX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
                         const stepZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-                        const outdoorStep = OUTDOOR_STEP_FLOORS.has(floorMap[stepZ]?.[stepX])
-                            && !woodFloorMap[stepZ]?.[stepX] && !slabTops.has(stepZ * mapWidth + stepX);
+                        const stepFloor = caveMap?.active ? 'DIRT' : floorMap[stepZ]?.[stepX];
+                        const slabStep = slabTops.has(stepZ * mapWidth + stepX);
+                        const woodStep = !slabStep && (woodFloorMap[stepZ]?.[stepX]
+                            || ['INDOOR_FLOOR','WOOD','DOOR_UNLOCKED','DOOR_LOCKED'].includes(stepFloor));
+                        const hardSurface = woodStep || slabStep;
+                        const sandStep = !hardSurface && ['SAND','WET_SAND','SNOW_PEAK','SNOW_SLOPE'].includes(stepFloor);
+                        const dirtStep = !hardSurface && stepFloor === 'DIRT';
+                        const outdoorStep = !hardSurface && (OUTDOOR_STEP_FLOORS.has(stepFloor) || sandStep);
                         const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
                         const accent = running ? (accented ? 1 : outdoorStep ? 0.72 : 0.92) : walkingAccent;
                         const rhythm = walkingRhythm.next(running);
-                        musicEvents.playFootstep(running, accent * rhythm.variation, outdoorStep, accented);
+                        musicEvents.playFootstep(running, accent * rhythm.variation, outdoorStep, accented,
+                            woodStep ? 'wood' : sandStep ? 'sand' : dirtStep ? 'dirt' : undefined);
                         footstepIndex++;
                         bobCadence = rhythm.cadence;
                     }
@@ -3563,6 +3722,46 @@ function animate(timestamp = performance.now()) {
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const localWaterHeight = getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z);
         const visuallySubmerged = waterUnderfoot && !isRidingBoat && controlObj.position.y < localWaterHeight - 0.03;
+        const windSheltered = visuallySubmerged || !!caveMap?.active
+            || ['INDOOR_FLOOR','BUILDING'].includes(floorMap[airGZ]?.[airGX])
+            || (!!woodFloorMap[airGZ]?.[airGX] && roofMap[airGZ]?.[airGX] === 'ROOF');
+        musicEvents.updateWind(windSheltered, visuallySubmerged);
+        musicEvents.updateWaterAudio({
+            waterPresent: caveMap?.active ? caveMap.isWater(controlObj.position.x,controlObj.position.z) : waterUnderfoot,
+            feetY: controlObj.position.y - (isCrouching ? PLAYER_HEIGHT*.6 : PLAYER_HEIGHT),
+            eyeY: controlObj.position.y,
+            waterHeight: caveMap?.active ? -.05 : localWaterHeight,
+            enabled: !isDead && !isRidingBoat && !isFlying
+        });
+        forestAmbienceSampleTime -= rawDelta;
+        riverSoundSampleTime -= rawDelta;
+        if (!caveMap?.active && (riverSoundSampleTime <= 0 || !riverSoundSample)) {
+            riverSoundSample = sampleRiverSound(riverSoundField, UNIT_SIZE,
+                controlObj.position.x, controlObj.position.y, controlObj.position.z, WATER_SURFACE_HEIGHT);
+            riverSoundSampleTime = 0.2;
+        }
+        if (riverSoundSample) {
+            riverSoundRotation.copy(camera.quaternion).invert();
+            riverSoundRelative.set(riverSoundSample.x, riverSoundSample.y, riverSoundSample.z)
+                .sub(controlObj.position).applyQuaternion(riverSoundRotation);
+            musicEvents.updateRiverAmbience({ x: riverSoundRelative.x, y: riverSoundRelative.y, z: riverSoundRelative.z,
+                gain: !caveMap?.active && !visuallySubmerged && !isDead ? riverSoundSample.gain : 0 });
+        }
+        if(!caveMap?.active && (forestAmbienceSampleTime<=0 || !forestAmbienceSample)) {
+            forestAmbienceSample=sampleForestSurroundings(floorMap,UNIT_SIZE,controlObj.position.x,controlObj.position.z);
+            for(const source of forestAmbienceSample.sources) source.y=getTerrainHeight(source.x,source.z)+2.5;
+            forestAmbienceSampleTime=.25;
+        }
+        if(forestAmbienceSample) {
+            forestAmbienceRotation.copy(camera.quaternion).invert();
+            for(let i=0;i<4;i++) {
+                const source=forestAmbienceSample.sources[i],target=forestAmbienceSources[i];
+                forestAmbienceRelative.set(source.x,source.y,source.z).sub(controlObj.position).applyQuaternion(forestAmbienceRotation);
+                target.x=forestAmbienceRelative.x;target.y=forestAmbienceRelative.y;target.z=forestAmbienceRelative.z;target.weight=source.weight;
+            }
+            const indoors=['INDOOR_FLOOR','WOOD','BUILDING'].includes(floorMap[airGZ]?.[airGX]);
+            musicEvents.updateForestAmbience({gain:!caveMap?.active&&!visuallySubmerged&&!indoors&&!isDead?forestAmbienceSample.gain:0,sources:forestAmbienceSources});
+        }
         if (seaHeart?.next?.number === 1) {
             const first = seaHeartSprites.get(seaHeart.next.id);
             if (visuallySubmerged && !playerWasSubmerged) {
@@ -3601,9 +3800,7 @@ function animate(timestamp = performance.now()) {
         
         // Animar las antorchas del mundo
         altarFlameTime += delta;
-        altarFlames.forEach((flame,index) => {
-            flame.material.map = blueFireFrames[Math.floor(altarFlameTime*7+index)%blueFireFrames.length];
-        });
+        altarFlames.forEach(flame => updateAltarBlueFire(flame,altarFlameTime));
         const frameIndex = Math.floor(Date.now() / 150) % 5;
         if (torchFrames.length === 5) {
             for (let i = 0; i < torchSprites.length; i++) {
@@ -3693,6 +3890,7 @@ function animate(timestamp = performance.now()) {
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && controls.isLocked && !isDead);
     underwaterStrength.value = underwaterBlend;
+    pinkSunglassesTint.value = pinkSunglassesEquipped && gameStarted && !isDead ? 1 : 0;
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();
     grahamDap.apply();
     const caveLighting = caveMap?.active ? {

@@ -13,7 +13,10 @@ export function createBedGeometry(THREE) {
     add(1.6, 1.18, 0.14, 0, 0.8, -1.75, 0);
     add(1.6, 0.45, 0.12, 0, 0.55, 1.75, 0);
     add(1.45, 0.26, 3.35, 0, 0.7, 0, 1);
-    add(1.46, 0.04, 2.35, 0, 0.85, 0.4, 2);
+    // La manta envuelve el colchón hasta la estructura, dejando libre la almohada.
+    add(1.5, 0.04, 2.475, 0, 0.85, 0.4625, 2);
+    for (const x of [-0.7375, 0.7375]) add(0.025, 0.26, 2.475, x, 0.7, 0.4625, 2);
+    add(1.45, 0.26, 0.025, 0, 0.7, 1.6875, 2);
     add(1.05, 0.18, 0.6, 0, 0.92, -1.12, 1);
     const result = new THREE.BufferGeometry();
     for (const name of ['position', 'normal', 'uv']) {

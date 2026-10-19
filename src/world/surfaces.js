@@ -127,9 +127,10 @@ export function createWaterDeckTerrain(floorMap, elevationMap, woodFloorMap, wat
     return {
         floorMap: floorMap.map((row, z) => row.map((type, x) =>
             shoreDeck[z][x] || waterDeckMap[z][x] || type)),
-        elevations: elevationMap.map((row, z) => row.map((height, x) =>
+        elevations: Object.assign(elevationMap.map((row, z) => row.map((height, x) =>
             shoreDeck[z][x] ? height - 0.02 : waterDeckMap[z][x] ?
                 waterDeckMap[z][x]==='WATER' ? seaFloorHeights?.[z]?.[x] ?? -2.5 : -2.5 : height)),
+            { buildingPlatforms: elevationMap.buildingPlatforms }),
         woodMap: woodFloorMap.map((row, z) => row.map((wood, x) => wood && (!waterDeckMap[z][x] || !!shoreDeck[z][x])))
     };
 }
@@ -162,6 +163,11 @@ export function levelBuildingAtTerrain(position, floorMap, roofMap, elevationMap
     if (!accesses.length) return null;
     const base = Math.max(...accesses.map(([x, z]) => sampleHeight(x, z)));
     for (const [x, z] of cells) elevationMap[z][x] = base;
+    // Conservar la huella exacta de la cubierta para quitar también el ruido del terreno.
+    const platforms = elevationMap.buildingPlatforms ??= [];
+    platforms.push({ base, cells: visited,
+        minX: Math.min(...cells.map(([x]) => x)), maxX: Math.max(...cells.map(([x]) => x)),
+        minZ: Math.min(...cells.map(([, z]) => z)), maxZ: Math.max(...cells.map(([, z]) => z)) });
     return { base, cells, accesses };
 }
 
