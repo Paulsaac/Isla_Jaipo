@@ -95,7 +95,7 @@ export const furniture = [
     { id: 'graham-chair-right', type: 'CHAIR', position: { x: 233, z: 441 }, size: { x: 1, z: 1 }, offset: { x: -0.65 }, rotationY: -Math.PI / 2 },
     { id: 'graham-wardrobe', type: 'WARDROBE', position: { x: 236, z: 443 }, size: { x: 2, z: 1 }, offset: { z: -0.45 } },
     { id: 'graham-desk', type: 'DESK', position: { x: 234, z: 447 }, size: { x: 2, z: 1 }, offset: { z: 0.35 } },
-    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 446 }, size: { x: 1, z: 1 }, offset: { x: 1.25, z: 1.3 } },
+    { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 446 }, size: { x: 1, z: 1 }, offset: { x: 0.75, z: 1.3 } },
     { id: 'graham-crate-stack', type: 'CRATE_STACK', position: { x: 230, z: 448 }, size: { x: 2, z: 2 }, rotationY: Math.PI / 8 },
     { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 445 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: -Math.PI / 2 },
     { id: 'graham-dresser', type: 'DRESSER', position: { x: 227, z: 444 }, size: { x: 1, z: 2 }, offset: { x: -0.45 }, rotationY: Math.PI / 2 },

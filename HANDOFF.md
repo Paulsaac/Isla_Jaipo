@@ -1,3 +1,11 @@
+# Diseño estético: silla y escritura de Graham — 2026-10-20
+
+Clawshoot confirmó «camino libre» y autorizó recuperar turno: finish del bloqueo Codexeb5a2d21-f561-44d0-bf06-e464021b402c y start propioe53f7556-3c1b-4ca6-9231-a972d9a0d834, activo entre pedidos. En main/a256350, silla graham-desk-chair desplazada−0.5u enX (offset1.25→0.75) y set de escritura−0.5u enX local del escritorio, equivalente a derecha en la captura mirando hacia+Z. Escritorio fijo; posición al sentarse y colisión siguen al modelo de silla existente. Archivos propios: src/content/entities.js y una línea en game.js. Sintaxis de ambos módulos y git diff --check correctos; comprobación visual en juego pendiente. Entrada de servidor ajena preservada debajo.
+
+# Servidor LAN vigente — copia principal sincronizada — 2026-10-20
+
+La copia `G:\Isla Jaipo` (`main`, `a256350`) está servida con `node tools/serve.cjs --lan --port=8001`, PID `40860`, escuchando en `0.0.0.0:8001`. Verificados HTTP 200 en `http://127.0.0.1:8001/` y `http://127.0.0.1:8001/game.js` (219871 bytes). IP Wi-Fi: `192.168.1.100`; URL para móvil: `http://192.168.1.100:8001/?touch=1`. Mantener activo hasta orden expresa de apagarlo. No se verificó en un dispositivo móvil físico.
+
 # Integración de copia local posterior al PR #2 — 2026-10-16
 
 La rama para este PR parte del merge commit `deb6edcc0567da30e491714dca25f58c166663ae`. Recoge la versión local confirmada por Clawshoot: relieve de montaña definido por la pintura vigente y camino integrado en la ladera (+10% de desnivel), ajustes de transparencia/textura del agua y acceso con mapa provisional de cueva. La cueva sigue documentada como prueba, no como nivel final.

@@ -2766,6 +2766,7 @@ function buildWorld(prepared) {
         if (definition.id === 'graham-desk') {
             const writingSet = createDeskWritingSet(THREE);
             writingSet.scale.setScalar(furnitureScale);
+            writingSet.position.x = -0.5; // Derecha en la vista desde la silla, junto a su desplazamiento.
             model.add(writingSet);
         }
         if (definition.id === 'graham-table') {
