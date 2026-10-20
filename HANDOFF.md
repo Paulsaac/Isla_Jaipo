@@ -4,7 +4,7 @@ Clawshoot confirmó «camino libre» y autorizó recuperar turno: finish del blo
 
 # Servidor LAN vigente — copia principal sincronizada — 2026-10-20
 
-La copia `G:\Isla Jaipo` (`main`, `a256350`) está servida con `node tools/serve.cjs --lan --port=8001`, PID `40860`, escuchando en `0.0.0.0:8001`. Verificados HTTP 200 en `http://127.0.0.1:8001/` y `http://127.0.0.1:8001/game.js` (219871 bytes). IP Wi-Fi: `192.168.1.100`; URL para móvil: `http://192.168.1.100:8001/?touch=1`. Mantener activo hasta orden expresa de apagarlo. No se verificó en un dispositivo móvil físico.
+La copia `G:\Isla Jaipo` (`main`, merge local `97d7873`; `origin/main` integrado desde `b4ed6f6`) está servida con `node tools/serve.cjs --lan --port=8001`, PID `40860`, escuchando en `0.0.0.0:8001`. Tras la integración respondieron HTTP 200 `http://127.0.0.1:8001/` y `http://127.0.0.1:8001/game.js` (233474 bytes). IP Wi-Fi: `192.168.1.100`; URL para móvil: `http://192.168.1.100:8001/?touch=1`. Mantener activo hasta orden expresa de apagarlo. No se verificó en un dispositivo móvil físico.
 
 # Integración de copia local posterior al PR #2 — 2026-10-16
 
