@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs } from './src/content/dialogues.js';
-import { entities, grahamPosition, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
 import { DOOR_SIDE_MARGIN } from './src/config.js';
@@ -59,6 +59,7 @@ import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { createHeartVision } from './src/world/heart-vision.js';
 import { createHeartHalos } from './src/world/heart-halos.js';
 import { createHeartLevitation, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
+import { FOREST_CUES } from './src/content/forest-cues.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { CAVE_ENTRY, createCaveEntrance } from './src/world/cave-entrance.js';
 import { loadCaveTestMap } from './src/world/cave-test-map.js';
@@ -94,6 +95,7 @@ import { LENS_VIEWS } from './src/content/lens-views.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
 import { createCrateStackGeometry } from './src/world/crate-stack-geometry.js';
+import { createBurlapSack } from './src/world/burlap-sack.js';
 import { createShelfGeometry } from './src/world/shelf-geometry.js';
 import { createDresserGeometry } from './src/world/dresser-geometry.js';
 import { createBarrelStackGeometry } from './src/world/barrel-stack-geometry.js';
@@ -126,6 +128,9 @@ const BED_BOUNCE_MAX_IMPULSE = 20;
 const BED_BOUNCE_AFTER_IMPACT_GAIN = 4;
 const BED_BOUNCE_INITIAL_TIME_SCALE = 0.45;
 const BED_CEILING_HITS_TO_BREAK = 6;
+const BED_CEILING_STUCK_SECONDS = 1.2;
+const BED_CEILING_OPEN_SECONDS = 0.36;
+const BED_CEILING_CHIP_COUNT = 18;
 let bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
 let bedBounceHitCeiling = false;
 let bedBounceActive = false;
@@ -139,6 +144,14 @@ let bedCeilingHoleTile = null;
 const bedRoofPieces = new Map();
 const bedFalseCeilingPieces = new Map();
 let bedHoleRim = null;
+let makeBedHoleMesh = null;
+let bedHoleStages = [];
+let bedHoleOpeningTime = -1;
+let bedWoodChips = null;
+const bedWoodChipMotion = [];
+const bedWoodChipDummy = new THREE.Object3D();
+let bedWoodChipTime = -1;
+const bedCeilingImpact = new THREE.Vector2();
 let atticSupport = null;
 const bedDefinition = furniture.find(item => item.id === 'graham-bed');
 let isCrouching = false;
@@ -274,6 +287,7 @@ let structureSectors = null;
 let fogCulling = null;
 let grahamSprite = null;
 let targetInteractable = null;
+let divingHelmetMesh = null;
 let isRidingBoat = false;
 let boatReference = null;
 let seatedChair = null;
@@ -403,6 +417,8 @@ function toggleDayNight() {
 const raycaster = new THREE.Raycaster();
 raycaster.far = 3.5;
 const interactionHits = [];
+const helmetInteractionCenter = new THREE.Vector3();
+const helmetInteractionOffset = new THREE.Vector3();
 const frameCameraDirection = new THREE.Vector3();
 const frameCameraHeading = new THREE.Euler(0, 0, 0, 'YXZ');
 const frameMoonPosition = new THREE.Vector3();
@@ -430,7 +446,16 @@ function resumeGame() {
     } else controls.lock();
 }
 function pauseGame() {
-    if (!controls.isLocked) return;
+    if (!controls.isLocked) {
+        if (inventoryRunning) {
+            inventoryRunning = false;
+            isInventoryOpen = false;
+            menus.hideInventory();
+            musicEvents.setPaused(true);
+            touchControls?.sync(false);
+        }
+        return;
+    }
     if (isTouchMode) {
         controls.isLocked = false;
         controls.dispatchEvent({ type: 'unlock' });
@@ -631,10 +656,29 @@ function useInventoryItem(item) {
 let gameStarted = false;
 let isDead = false;
 let isInventoryOpen = false;
+let inventoryRunning = false; // Bosque sigue avanzando detrás del inventario.
+const forestCueIndicator = document.getElementById('forest-cue-indicator');
+function updateForestCueIndicator(playbackTime, active) {
+    forestCueIndicator.hidden = !active;
+    if (!active) {
+        forestCueIndicator.textContent = '0';
+        forestCueIndicator.setAttribute('aria-label', 'Marca 0');
+        return;
+    }
+    // La marca 0 también se ve durante la breve espera previa al audio.
+    if (playbackTime === null) return;
+    let mark = 0;
+    while (mark < FOREST_CUES.length - 1 && playbackTime >= FOREST_CUES[mark + 1]) mark++;
+    if (forestCueIndicator.textContent !== String(mark)) {
+        forestCueIndicator.textContent = String(mark);
+        forestCueIndicator.setAttribute('aria-label', `Marca ${mark}`);
+    }
+}
 
 controls.addEventListener('lock', () => {
     if (isDead || !mapLoaded) return;
     gameStarted = true;
+    inventoryRunning = false;
     musicEvents.setPaused(false);
     musicEvents.startWind();
     isInventoryOpen = false; // Siempre cerramos inventario al clickear para volver
@@ -651,7 +695,7 @@ controls.addEventListener('unlock', () => {
     jumpHeld = false;
     hud.hideInteraction();
     menus.hideDialog();
-    musicEvents.setPaused(true);
+    musicEvents.setPaused(!inventoryRunning);
     for (const direction of Object.keys(moveState)) moveState[direction] = false;
     velocity.set(0, 0, 0);
     isRunning = false;
@@ -924,6 +968,7 @@ function interact() {
             } else if (targetInteractable.userData.type === 'DIVING_HELMET') {
                 if (hasDivingHelmet || !controls.isLocked || isDead) return true;
                 const helmet = targetInteractable;
+                divingHelmetMesh = null;
                 hasDivingHelmet = true;
                 helmetEquipped = true;
                 interactables.splice(interactables.indexOf(helmet), 1);
@@ -999,7 +1044,8 @@ const gameActions = {
         menus.setItemDescription(`Lentes equipados: ${view.name}. V cambia la vista al jugar; pulsa aquí para quitarlos.`);
         hud.showLensMode(view.name);
     },
-    isPaused: () => gameStarted && !isDead && !controls.isLocked && !isInventoryOpen,
+    isPaused: () => gameStarted && !isDead && !controls.isLocked,
+    isInventoryOpen: () => isInventoryOpen,
     toggleFlight,
     toggleDayNight,
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
@@ -1062,7 +1108,8 @@ const gameActions = {
     },
     crouch(pressed) {
         if (seatedChair) return;
-        crouchRequested = pressed;
+        // Durante Bosque no se permite agacharse; si ya lo estaba, intentar incorporarse.
+        crouchRequested = musicEvents.isEventActive('forest') ? false : pressed;
         updatePlayerPosture();
     },
     run(pressed) { isRunning = pressed; },
@@ -1078,20 +1125,29 @@ const gameActions = {
             setHandTorchEnabled(!handTorchEnabled);
     },
     inventory() {
-        if (gameStarted && !isDead) {
-            isInventoryOpen = !isInventoryOpen;
-            if (isInventoryOpen) {
-                pauseGame();
-                menus.showInventory();
-            } else {
-                menus.hideInventory();
-                resumeGame();
-            }
+        if (!gameStarted || isDead) return;
+        if (isInventoryOpen) {
+            isInventoryOpen = false;
+            inventoryRunning = false;
+            menus.hideInventory();
+            resumeGame();
+        } else {
+            inventoryRunning = controls.isLocked && musicEvents.isEventActive('forest');
+            isInventoryOpen = true;
+            pauseGame(); // Libera el cursor; solo el inventario de Bosque mantiene el mundo activo.
+            menus.showInventory();
         }
     },
     pause() {
         if (!gameStarted || isDead) return;
-        if (controls.isLocked) { isInventoryOpen = false; pauseGame(); }
+        if (isInventoryOpen) {
+            isInventoryOpen = false;
+            inventoryRunning = false;
+            menus.hideInventory();
+            musicEvents.setPaused(true);
+            menus.showPause();
+            touchControls?.sync(false);
+        } else if (controls.isLocked) pauseGame();
         else resumeGame();
     }
 };
@@ -1153,7 +1209,7 @@ for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToFo
 const keyboardBinding = bindKeyboard(gameActions);
 
 const touchLook = new THREE.Euler(0, 0, 0, 'YXZ');
-const TOUCH_LOOK_SENSITIVITY = 0.0045;
+const TOUCH_LOOK_SENSITIVITY = 0.0052;
 let touchMateHeld = false;
 const touchActions = {
     ...gameActions,
@@ -2085,7 +2141,9 @@ function buildWorld(prepared) {
                     const chestMat = new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8B4513, shininess: 0 });
                     const chestMetalMat = new THREE.MeshPhongMaterial({ color: 0x42464b, shininess: 18 });
                     const chestMesh = new THREE.Mesh(chestGeo, [chestMat, chestMetalMat]);
-                    chestMesh.position.set(posX, getTerrainHeight(posX, posZ) - chestGeo.boundingBox.min.y, posZ);
+                    const chestX = posX + (definition?.offset?.x ?? 0);
+                    const chestZ = posZ + (definition?.offset?.z ?? 0);
+                    chestMesh.position.set(chestX, getTerrainHeight(chestX, chestZ) - chestGeo.boundingBox.min.y, chestZ);
                     chestMesh.rotation.y = definition?.rotationY ?? 0;
                     chestMesh.userData = { type: 'CHEST', gx: x, gz: z, id: definition?.id || `chest:${x},${z}`, item: definition?.item || 'key' };
                     // Preparar cuerpo, bisagra y buffers antes de la primera interacción.
@@ -2243,6 +2301,38 @@ function buildWorld(prepared) {
     scene.add(vegetationSectors.group);
     surfaceVegetationFade = createVegetationVisibility(vegetationSectors.group,{value:1});
     scene.add(bldgMesh);
+    const dividerLength = (grahamRoomDivider.fromX - grahamRoomDivider.toX) * UNIT_SIZE;
+    const dividerThickness = 0.32;
+    const dividerX = (grahamRoomDivider.fromX + grahamRoomDivider.toX) * UNIT_SIZE / 2;
+    const dividerZ = grahamRoomDivider.z * UNIT_SIZE;
+    const dividerFloor = getTerrainHeight(dividerX, dividerZ);
+    const dividerGeometry = new THREE.BoxGeometry(dividerLength, WALL_HEIGHT, dividerThickness);
+    const dividerUvs = dividerGeometry.attributes.uv;
+    const dividerNormals = dividerGeometry.attributes.normal;
+    for (let i = 0; i < dividerUvs.count; i++) {
+        if (Math.abs(dividerNormals.getZ(i)) > 0.5)
+            dividerUvs.setX(i, dividerUvs.getX(i) * dividerLength / UNIT_SIZE);
+    }
+    const roomDivider = new THREE.Mesh(dividerGeometry, bldgMat);
+    roomDivider.name = 'graham-room-divider';
+    roomDivider.position.set(dividerX, dividerFloor + WALL_HEIGHT / 2, dividerZ);
+    roomDivider.userData.type = 'BUILDING';
+    scene.add(roomDivider);
+    roomDivider.updateMatrixWorld(true);
+    solidInteractables.push(roomDivider);
+    for (const side of [-1, 1]) {
+        const x = grahamRoomDivider.torchX * UNIT_SIZE;
+        const z = dividerZ + side * (dividerThickness / 2 + 0.2);
+        const y = getTerrainHeight(x, z) + TORCH_MOUNT_HEIGHT;
+        worldTorches.push({ x, y, z, isBlue: false, isIndoor: true, intensityScale: 0.65 });
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: torchFrames[0], transparent: true, fog: false, depthWrite: false
+        }));
+        sprite.position.set(x, y, z);
+        sprite.scale.set(1, 1, 1);
+        scene.add(sprite);
+        torchSprites.push(sprite);
+    }
     lintelMesh.count = idxLintel;
     scene.add(lintelMesh);
     jambMesh.count = idxJamb;
@@ -2266,39 +2356,51 @@ function buildWorld(prepared) {
         outline.lineTo(width / 2, length / 2);
         outline.lineTo(-width / 2, length / 2);
         outline.closePath();
-        const opening = new THREE.Path();
-        BED_CEILING_OPENING.forEach(([x,z], index) => {
-            if (index === 0) opening.moveTo(x,z);
-            else opening.lineTo(x,z);
-        });
-        opening.closePath();
-        outline.holes.push(opening);
-        const brokenWood = new THREE.MeshPhongMaterial({ color: 0x65432b, shininess: 0, flatShading: true });
-        const brokenCeiling = new THREE.ExtrudeGeometry(outline, { depth: 0.1, bevelEnabled: false, steps: 1, curveSegments: 1 });
-        brokenCeiling.rotateX(Math.PI / 2);
-        // Mismo tamaño, orientación y fase de textura que las caras inferiores de cada casilla.
-        const ceilingPositions = brokenCeiling.attributes.position;
-        const ceilingNormals = brokenCeiling.attributes.normal;
-        const ceilingUvs = brokenCeiling.attributes.uv;
-        for (const group of brokenCeiling.groups) {
-            if (group.materialIndex !== 0) continue;
-            for (let i = group.start; i < group.start + group.count; i++) {
-                ceilingUvs.setXY(i,
-                    ceilingPositions.getX(i) / UNIT_SIZE + bedDefinition.size.x / 2,
-                    ceilingNormals.getY(i) > 0
-                        ? 1 - bedDefinition.size.z / 2 - ceilingPositions.getZ(i) / UNIT_SIZE
-                        : bedDefinition.size.z / 2 + ceilingPositions.getZ(i) / UNIT_SIZE);
-            }
-        }
-        bedHoleRim = new THREE.Mesh(brokenCeiling, [ceilingMat, brokenWood]);
-        bedHoleRim.position.set(
+        const brokenWood = new THREE.MeshBasicMaterial({ color: 0x342317 });
+        const bedHolePosition = new THREE.Vector3(
             (bedDefinition.position.x + (bedDefinition.size.x - 1) / 2) * UNIT_SIZE,
             roofBaseMap[bedDefinition.position.z][bedDefinition.position.x] + WALL_HEIGHT + 0.05,
             (bedDefinition.position.z + (bedDefinition.size.z - 1) / 2) * UNIT_SIZE
         );
-        bedHoleRim.userData.visibilityEnabled = false;
-        bedHoleRim.visible = false;
-        scene.add(bedHoleRim);
+        makeBedHoleMesh = points => {
+            const opening = new THREE.Path();
+            points.forEach(([x,z], index) => {
+                if (index === 0) opening.moveTo(x,z);
+                else opening.lineTo(x,z);
+            });
+            opening.closePath();
+            outline.holes.length = 0;
+            outline.holes.push(opening);
+            const geometry = new THREE.ExtrudeGeometry(outline, { depth: 0.1, bevelEnabled: false, steps: 1, curveSegments: 1 });
+            geometry.rotateX(Math.PI / 2);
+            // Mantener la fase de textura de las tablas intactas en todas las fases.
+            const positions = geometry.attributes.position;
+            const normals = geometry.attributes.normal;
+            const uvs = geometry.attributes.uv;
+            for (const group of geometry.groups) {
+                if (group.materialIndex !== 0) continue;
+                for (let i = group.start; i < group.start + group.count; i++) {
+                    uvs.setXY(i,
+                        positions.getX(i) / UNIT_SIZE + bedDefinition.size.x / 2,
+                        normals.getY(i) > 0
+                            ? 1 - bedDefinition.size.z / 2 - positions.getZ(i) / UNIT_SIZE
+                            : bedDefinition.size.z / 2 + positions.getZ(i) / UNIT_SIZE);
+                }
+            }
+            const mesh = new THREE.Mesh(geometry, [ceilingMat, brokenWood]);
+            mesh.position.copy(bedHolePosition);
+            mesh.userData.visibilityEnabled = false;
+            mesh.visible = false;
+            scene.add(mesh);
+            return mesh;
+        };
+        bedHoleRim = makeBedHoleMesh(BED_CEILING_OPENING);
+        bedWoodChips = new THREE.InstancedMesh(
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.MeshBasicMaterial({ color: 0x493426 }), BED_CEILING_CHIP_COUNT);
+        bedWoodChips.count = 0;
+        bedWoodChips.frustumCulled = false;
+        scene.add(bedWoodChips);
         const atticAnt = createAtticAnt(THREE);
         const antHome = findAtticAntHome(THREE, atticAnt, atticSupport, mapWidth, UNIT_SIZE);
         if (antHome) {
@@ -2629,6 +2731,7 @@ function buildWorld(prepared) {
     helmet.position.set(helmetX, getTerrainHeight(helmetX, helmetZ) - helmetBurial - helmetRotatedBounds.min.y, helmetZ);
     scene.add(helmet);
     interactables.push(helmet);
+    divingHelmetMesh = helmet;
 
     seaHeart = createSeaHeart(prepared.seaHeartFragments, floorMap, divingHelmet.position,
         UNIT_SIZE, MOVEMENT_SPEED * DIVING_WATER_SPEED_MOD / FRICTION, seaHeartAltar.center);
@@ -2778,6 +2881,23 @@ function buildWorld(prepared) {
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
         if (definition.id === 'graham-stump') interactables.push(model);
+    }
+
+    for (const definition of kitchenSacks) {
+        const x = definition.position.x * UNIT_SIZE + definition.offset.x;
+        const z = definition.position.z * UNIT_SIZE + definition.offset.z;
+        if (!['INDOOR_FLOOR', 'WOOD'].includes(floorMap[definition.position.z]?.[definition.position.x])) {
+            throw new Error(`El saco ${definition.id} requiere suelo interior.`);
+        }
+        const sack = createBurlapSack(THREE);
+        sack.name = definition.id;
+        sack.scale.setScalar(definition.scale);
+        sack.rotation.y = definition.rotationY;
+        sack.position.set(x, getTerrainHeight(x, z), z);
+        sack.userData = { type: 'BURLAP_SACK', id: definition.id };
+        scene.add(sack);
+        sack.updateMatrixWorld(true);
+        solidInteractables.push(sack);
     }
 
     const garden = createKitchenGarden(THREE, {
@@ -2968,6 +3088,26 @@ window.restartGame = () => {
     bedCeilingHits = 0;
     jumpHeld = false;
     bedCeilingTimer = 0;
+    if (!bedCeilingHoleOpen) {
+        for (const stage of bedHoleStages) {
+            scene.remove(stage);
+            stage.geometry.dispose();
+        }
+        bedHoleStages = [];
+        if (bedHoleRim) {
+            bedHoleRim.visible = false;
+            bedHoleRim.userData.visibilityEnabled = false;
+        }
+        for (const piece of bedFalseCeilingPieces.values()) {
+            piece.visible = true;
+            piece.userData.visibilityEnabled = true;
+        }
+    } else {
+        showBedHoleStage(bedHoleStages.length);
+    }
+    bedHoleOpeningTime = -1;
+    bedWoodChipTime = -1;
+    if (bedWoodChips) bedWoodChips.count = 0;
     crouchRequested = isCrouching = false;
     isDead = false;
     stamina = STAMINA_MAX;
@@ -2979,6 +3119,116 @@ window.restartGame = () => {
     hud.hideDivingAir();
     resumeGame();
 };
+
+function showBedHoleStage(index) {
+    for (const stage of bedHoleStages) {
+        stage.visible = false;
+        stage.userData.visibilityEnabled = false;
+    }
+    if (bedHoleRim) {
+        bedHoleRim.visible = false;
+        bedHoleRim.userData.visibilityEnabled = false;
+    }
+    const mesh = index < bedHoleStages.length ? bedHoleStages[index] : bedHoleRim;
+    if (mesh) {
+        mesh.visible = true;
+        mesh.userData.visibilityEnabled = true;
+    }
+}
+
+function pierceBedCeiling(x, z) {
+    if (!makeBedHoleMesh || !bedHoleRim) return;
+    for (const stage of bedHoleStages) {
+        scene.remove(stage);
+        stage.geometry.dispose();
+    }
+    const halfWidth = bedDefinition.size.x * UNIT_SIZE / 2;
+    const halfLength = bedDefinition.size.z * UNIT_SIZE / 2;
+    const localX = THREE.MathUtils.clamp(x - bedHoleRim.position.x, -halfWidth + 0.26, halfWidth - 0.26);
+    const localZ = THREE.MathUtils.clamp(z - bedHoleRim.position.z, -halfLength + 0.26, halfLength - 0.26);
+    bedCeilingImpact.set(bedHoleRim.position.x + localX, bedHoleRim.position.z + localZ);
+    bedHoleStages = [0, 0.32, 0.68, 0.9].map(progress => makeBedHoleMesh(
+        BED_CEILING_OPENING.map(([finalX, finalZ], index) => {
+            const angle = Math.atan2(finalZ, finalX);
+            const edge = 0.9 + (index % 3) * 0.08;
+            const smallX = localX + Math.cos(angle) * 0.23 * edge;
+            const smallZ = localZ + Math.sin(angle) * 0.23 * edge;
+            return [THREE.MathUtils.lerp(smallX, finalX, progress),
+                THREE.MathUtils.lerp(smallZ, finalZ, progress)];
+        })));
+    for (const piece of bedFalseCeilingPieces.values()) {
+        piece.visible = false;
+        piece.userData.visibilityEnabled = false;
+    }
+    showBedHoleStage(0);
+}
+
+function releaseBedCeiling() {
+    bedHoleOpeningTime = 0;
+}
+
+function spawnBedWoodChips() {
+    bedWoodChipTime = 0;
+    bedWoodChipMotion.length = 0;
+    if (!bedWoodChips || !bedHoleRim) return;
+    for (let i = 0; i < BED_CEILING_CHIP_COUNT; i++) {
+        const chip = {
+            x: bedCeilingImpact.x + (Math.random() - 0.5) * 0.75,
+            y: bedHoleRim.position.y - 0.08,
+            z: bedCeilingImpact.y + (Math.random() - 0.5) * 1.1,
+            vx: (Math.random() - 0.5) * 1.8,
+            vy: -0.4 - Math.random() * 1.1,
+            vz: (Math.random() - 0.5) * 1.8,
+            turn: (Math.random() - 0.5) * 8,
+            size: 0.08 + Math.random() * 0.13
+        };
+        bedWoodChipMotion.push(chip);
+        bedWoodChipDummy.position.set(chip.x, chip.y, chip.z);
+        bedWoodChipDummy.rotation.set(0, 0, 0);
+        bedWoodChipDummy.scale.set(chip.size * 1.8, chip.size * 0.35, chip.size);
+        bedWoodChipDummy.updateMatrix();
+        bedWoodChips.setMatrixAt(i, bedWoodChipDummy.matrix);
+    }
+    bedWoodChips.count = bedWoodChipMotion.length;
+    bedWoodChips.instanceMatrix.needsUpdate = true;
+}
+
+function updateBedCeilingBreak(delta) {
+    if (bedHoleOpeningTime >= 0) {
+        bedHoleOpeningTime += delta;
+        const stage = Math.min(bedHoleStages.length,
+            Math.floor(bedHoleOpeningTime / BED_CEILING_OPEN_SECONDS * (bedHoleStages.length + 1)));
+        showBedHoleStage(stage);
+        if (stage === bedHoleStages.length) {
+            bedHoleOpeningTime = -1;
+            spawnBedWoodChips();
+            for (const mesh of bedHoleStages) {
+                scene.remove(mesh);
+                mesh.geometry.dispose();
+            }
+            bedHoleStages = [];
+        }
+    }
+    if (bedWoodChipTime < 0 || !bedWoodChips) return;
+    bedWoodChipTime += delta;
+    if (bedWoodChipTime > 0.72) {
+        bedWoodChipTime = -1;
+        bedWoodChips.count = 0;
+        return;
+    }
+    for (let i = 0; i < bedWoodChipMotion.length; i++) {
+        const chip = bedWoodChipMotion[i];
+        const time = bedWoodChipTime;
+        bedWoodChipDummy.position.set(chip.x + chip.vx * time,
+            chip.y + chip.vy * time - 4.5 * time * time,
+            chip.z + chip.vz * time);
+        bedWoodChipDummy.rotation.set(chip.turn * time, chip.turn * time * 0.7, chip.turn * time * 0.4);
+        bedWoodChipDummy.scale.set(chip.size * 1.8, chip.size * 0.35, chip.size);
+        bedWoodChipDummy.updateMatrix();
+        bedWoodChips.setMatrixAt(i, bedWoodChipDummy.matrix);
+    }
+    bedWoodChips.instanceMatrix.needsUpdate = true;
+}
 
 const FRAME_INTERVAL = 1000 / 30;
 let nextFrame = 0;
@@ -2999,17 +3249,20 @@ function animate(timestamp = performance.now()) {
     let vegetationDelta = 0;
 
     if (grahamSprite) {
-        grahamSprite.rotation.y = Math.atan2(controlObj.position.x - grahamSprite.position.x, controlObj.position.z - grahamSprite.position.z);
+        grahamSprite.rotation.set(0,
+            Math.atan2(controlObj.position.x - grahamSprite.position.x, controlObj.position.z - grahamSprite.position.z),
+            0);
     }
     skyMesh.position.set(controlObj.position.x, 200, controlObj.position.z);
     daySkyMesh.position.y = controlObj.position.y - 200;
     nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y; // Horizonte del atlas a la altura de los ojos.
 
-    if (controls.isLocked && mapLoaded && !caveTransitionPending) {
+    if ((controls.isLocked || inventoryRunning) && mapLoaded && !caveTransitionPending) {
         previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const rawDelta = clock.getDelta();
         const delta = Math.min(rawDelta, 0.1);
+        updateBedCeilingBreak(delta);
         vegetationDelta = delta;
         grahamDap.update(delta);
         underwaterViewTime.value += delta;
@@ -3047,9 +3300,16 @@ function animate(timestamp = performance.now()) {
             heartBeaconPosition.applyQuaternion(camera.getWorldQuaternion(heartBeaconCameraRotation).invert());
             musicEvents.updateForestHeartBeacon(heartBeaconPosition);
         } else musicEvents.updateForestHeartBeacon(null);
-        const running = isRunning && !musicEvents.isEventActive('forest');
-        heartVision.update(delta, musicEvents.isEventActive('forest'), musicEvents.getForestEnergy(),
-            musicEvents.getEventTimeRemaining('forest'));
+        const forestActive = musicEvents.isEventActive('forest');
+        const forestPlaybackTime = musicEvents.getEventPlaybackTime('forest');
+        updateForestCueIndicator(forestPlaybackTime, forestActive);
+        if (forestActive && (isCrouching || crouchRequested)) {
+            crouchRequested = false;
+            updatePlayerPosture();
+        }
+        const running = isRunning && !forestActive;
+        heartVision.update(delta, forestActive, musicEvents.getForestEnergy(),
+            forestPlaybackTime ?? 0);
 
         heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
         const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
@@ -3314,6 +3574,16 @@ function animate(timestamp = performance.now()) {
         if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
+            // Amplía la zona de selección del casco a corta distancia sin tapar otros objetos.
+            if (!interactionHits.length && divingHelmetMesh) {
+                divingHelmetMesh.localToWorld(helmetInteractionCenter.copy(divingHelmetMesh.geometry.boundingSphere.center));
+                const helmetDistance = helmetInteractionOffset.subVectors(helmetInteractionCenter, raycaster.ray.origin).length();
+                if (helmetDistance < 3.5
+                    && raycaster.ray.direction.dot(helmetInteractionOffset) > 0
+                    && raycaster.ray.distanceSqToPoint(helmetInteractionCenter) < 0.95 * 0.95) {
+                    interactionHits.push({ object: divingHelmetMesh, distance: helmetDistance });
+                }
+            }
         }
         const intersects = interactionHits;
         
@@ -3494,7 +3764,8 @@ function animate(timestamp = performance.now()) {
                     lookY: frameCameraDirection.y,
                     distance: Math.hypot(controlObj.position.x - startX, controlObj.position.z - startZ)
                 });
-            heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE));
+            heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE))
+                * heartVision.uniforms.heartWarpStrength.value;
             // Reintentar incorporarse al despejar la cabeza durante este mismo desplazamiento.
             updatePlayerPosture();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -3538,15 +3809,8 @@ function animate(timestamp = performance.now()) {
                     velocityY = -1;
                     controlObj.position.y += velocityY * delta;
                     bedCeilingHoleOpen = true;
-                    // Se rompe solo el cielo falso; la cubierta superior queda intacta.
-                    for (const piece of bedFalseCeilingPieces.values()) {
-                        piece.userData.visibilityEnabled = false;
-                        piece.visible = false;
-                    }
-                    if (bedHoleRim) {
-                        bedHoleRim.userData.visibilityEnabled = true;
-                        bedHoleRim.visible = true;
-                    }
+                    // La abertura pequeña se ensancha mientras caen astillas; la cubierta superior sigue intacta.
+                    releaseBedCeiling();
                 }
             } else if (!isFlying) {
                 // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
@@ -3633,8 +3897,9 @@ function animate(timestamp = performance.now()) {
                         if (risingCeilingImpact && onBed && jumpHeld && bedBounceActive && !bedCeilingHoleOpen && bedCeilingTimer <= 0
                             && bedRoofPieces.has(`${roofGX},${roofGZ}`)) {
                             if (++bedCeilingHits >= BED_CEILING_HITS_TO_BREAK) {
-                                bedCeilingTimer = 0.7;
+                                bedCeilingTimer = BED_CEILING_STUCK_SECONDS;
                                 bedCeilingHoleTile = { x: roofGX, z: roofGZ };
+                                pierceBedCeiling(controlObj.position.x, controlObj.position.z);
                                 // Ojos sobre las tablas intactas, fuera del recorte cercano de la cámara.
                                 const ceilingTop = atticCell?.top ?? ceilingMaxHeight + 0.35;
                                 const heldEyesHeight = ceilingTop + Math.max(0.2, camera.near * 2);
@@ -3719,6 +3984,12 @@ function animate(timestamp = performance.now()) {
         const airGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
         const waterUnderfoot = ['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[airGZ]?.[airGX])
             && !slabTops.has(airGZ*mapWidth+airGX);
+        if (heldItem === 'mate' && waterUnderfoot && !isRidingBoat
+            && controlObj.position.y - (isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT)
+                <= getWaterSurfaceHeight(controlObj.position.x, controlObj.position.z) + 0.05) {
+            setHeldItem(null);
+            menus.setItemDescription('Mate guardado.');
+        }
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const localWaterHeight = getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z);
         const visuallySubmerged = waterUnderfoot && !isRidingBoat && controlObj.position.y < localWaterHeight - 0.03;
@@ -3928,10 +4199,36 @@ function animate(timestamp = performance.now()) {
 
 animate();
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+let viewportWidth = window.innerWidth, viewportHeight = window.innerHeight;
+function resizeGameViewport() {
+    const width = Math.max(1, Math.round(window.visualViewport?.width || window.innerWidth));
+    const height = Math.max(1, Math.round(window.visualViewport?.height || window.innerHeight));
+    if (width === viewportWidth && height === viewportHeight) return;
+    viewportWidth = width;
+    viewportHeight = height;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
     updateHeldItemLayout();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(width, height);
     underwaterView.resize();
-});
+}
+function restoreTouchViewport() {
+    if (!isTouchMode || document.hidden) return;
+    requestAnimationFrame(() => {
+        resizeGameViewport();
+        if (gameStarted) {
+            touchControls?.show();
+            touchControls?.syncDialogue(controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active));
+            touchControls?.sync(controls.isLocked);
+        }
+    });
+    setTimeout(resizeGameViewport, 150);
+    setTimeout(resizeGameViewport, 400);
+}
+window.addEventListener('resize', resizeGameViewport);
+window.visualViewport?.addEventListener('resize', resizeGameViewport);
+window.addEventListener('orientationchange', restoreTouchViewport);
+document.addEventListener('fullscreenchange', restoreTouchViewport);
+document.addEventListener('webkitfullscreenchange', restoreTouchViewport);
+document.addEventListener('visibilitychange', restoreTouchViewport);
+window.addEventListener('pageshow', restoreTouchViewport);

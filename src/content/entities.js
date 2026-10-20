@@ -16,6 +16,7 @@ export const entities = [
         id: 'island-map-chest',
         type: 'CHEST',
         position: { x: 231, z: 444 },
+        offset: { x: -0.1 },
         sourcePosition: { x: 229, z: 448 },
         item: 'map',
         rotationY: Math.PI / 2
@@ -27,11 +28,20 @@ export const grahamPosition = { x: 230, z: 440, offset: { x: 1.3, z: 1.0 } };
 
 export const spawnRoomExit = { x: 235, z: 442 };
 
+// Tabique corto y sacos de la casa trasladados junto con su planta 19 celdas al sur.
+export const grahamRoomDivider = { fromX: 231.5, toX: 229, z: 446, torchX: 230.5 };
+
+export const kitchenSacks = [
+    { id: 'graham-kitchen-sack-1', position: { x: 230, z: 447 }, offset: { x: 0, z: -0.55 }, rotationY: -0.22, scale: 1 },
+    { id: 'graham-kitchen-sack-2', position: { x: 230, z: 447 }, offset: { x: 0.45, z: 0.45 }, rotationY: 0.32, scale: 0.85 }
+];
+
 export const kitchenGardenPosition = { x: 237, z: 452 };
 
 // Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
 // La puerta posterior ocupa un muro pintado; el cambio queda localizado aquí.
 export const mapCellOverrides = [
+    { id: 'graham-divider-old-torch', position: { x: 231, z: 446 }, expectedType: 'TORCH', type: 'INDOOR_FLOOR' },
     { id: 'kitchen-rear-door', position: { x: 229, z: 450 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' }
 ];
 
@@ -97,7 +107,7 @@ export const furniture = [
     { id: 'graham-desk', type: 'DESK', position: { x: 234, z: 447 }, size: { x: 2, z: 1 }, offset: { z: 0.35 } },
     { id: 'graham-desk-chair', type: 'CHAIR', position: { x: 234, z: 446 }, size: { x: 1, z: 1 }, offset: { x: 1.25, z: 1.3 } },
     { id: 'graham-crate-stack', type: 'CRATE_STACK', position: { x: 230, z: 448 }, size: { x: 2, z: 2 }, rotationY: Math.PI / 8 },
-    { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 445 }, size: { x: 1, z: 1 }, offset: { x: 0.65 }, rotationY: -Math.PI / 2 },
+    { id: 'graham-tall-shelf', type: 'SHELF', position: { x: 231, z: 445 }, size: { x: 1, z: 1 }, offset: { x: 0.72 }, rotationY: -Math.PI / 2 },
     { id: 'graham-dresser', type: 'DRESSER', position: { x: 227, z: 444 }, size: { x: 1, z: 2 }, offset: { x: -0.45 }, rotationY: Math.PI / 2 },
     { id: 'graham-barrel-pyramid', type: 'BARREL_STACK', position: { x: 227, z: 447 }, size: { x: 2, z: 1 }, offset: { x: -1.39 }, rotationY: Math.PI / 2 }
 ];

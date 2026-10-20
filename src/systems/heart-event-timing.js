@@ -1,7 +1,16 @@
 import { FOREST_CUES } from '../content/forest-cues.js';
+import { PLAYER_HEIGHT, TREE_SPRITE_HEIGHT } from '../config.js';
+
+const FIRST_MARK_RISE = Math.max(0, TREE_SPRITE_HEIGHT * 0.42 - PLAYER_HEIGHT);
+const SECOND_MARK_RISE = FIRST_MARK_RISE + 0.7;
+const THIRD_MARK_RISE = TREE_SPRITE_HEIGHT + 1.0 - PLAYER_HEIGHT;
+const FIRST_MARK_SLOW_RISE_SPEED = 0.012; // m/s: evita detenerse en seco en la marca 1.
+const FIRST_MARK_NAV_RANGE = 0.4;
+const SECOND_MARK_NAV_RANGE = 0.5;
 
 export const HEART_EVENT_END_MARGIN = 0;
-export const HEART_LEVITATION_MAX_RISE = 13.2;
+// Referencia del movimiento visual de árboles: misma intensidad que antes al llegar a la marca 1.
+export const HEART_LEVITATION_MAX_RISE = FIRST_MARK_RISE * (13.2 / 7);
 export const HEART_VISION_FADE_IN_SECONDS = 8;
 export const HEART_VEGETATION_FADE_IN_SECONDS = 16;
 export const HEART_VISION_FADE_OUT_SECONDS = 8;
@@ -15,14 +24,42 @@ export function smoothest(t) {
 function levitationProfile(duration, remaining) {
     if (!Number.isFinite(duration) || !Number.isFinite(remaining) || duration <= 0) return { base: 0, range: 0, fade: 0, navigation: 0 };
     const elapsed = Math.max(0, duration - remaining);
-    const first = FOREST_CUES[1], second = FOREST_CUES[2];
-    // Arranque lento solo al principio; ganar altura antes y llegar suavemente a la marca 1.
+    const first = FOREST_CUES[1], second = FOREST_CUES[2], third = FOREST_CUES[3];
+    // La altura base permanece fija durante la mayor parte de la marca 1.
+    // Solo en el tramo final se acerca suavemente a la altura de la marca 2.
     const rise = smoothest(elapsed / first);
     const expansion = smoothest((elapsed - first) / (second - first));
-    const base = elapsed < first ? 0.25 * smoothest(elapsed / 4) + 6.75 * rise : 7.0 + 0.5 * expansion;
-    const fade = 1 - smoothest((elapsed - (duration - HEART_VISION_FADE_OUT_SECONDS)) / HEART_VISION_FADE_OUT_SECONDS);
+    const secondRiseStart = first + (second - first) * 0.6;
+    let base;
+    if (elapsed < first) {
+        // Arranca muy lento y reduce la velocidad a cero de forma gradual antes de la meseta.
+        base = FIRST_MARK_RISE * rise + FIRST_MARK_SLOW_RISE_SPEED * elapsed * (1 - rise);
+    } else if (elapsed < second) {
+        base = FIRST_MARK_RISE + (SECOND_MARK_RISE - FIRST_MARK_RISE)
+            * smoothest((elapsed - secondRiseStart) / (second - secondRiseStart));
+    } else if (elapsed < third) {
+        base = SECOND_MARK_RISE + (THIRD_MARK_RISE - SECOND_MARK_RISE)
+            * smoothest((elapsed - second) / (third - second));
+    } else {
+        base = THIRD_MARK_RISE;
+    }
+    // Desde la marca 8 desciende durante toda la última sección hasta tocar suelo en la 9.
+    const fade = 1 - smoothest((elapsed - FOREST_CUES[8]) / (FOREST_CUES[9] - FOREST_CUES[8]));
     const navigation = smoothest((elapsed - first) / 3);
-    return { base, range: (1.1 + 0.2 * expansion) * navigation, fade, navigation };
+    return { base, range: (FIRST_MARK_NAV_RANGE + (SECOND_MARK_NAV_RANGE - FIRST_MARK_NAV_RANGE) * expansion) * navigation, fade, navigation };
+}
+
+// Luz/color siguen las marcas; el warp no supera la intensidad ni velocidad de la marca 3.
+const FOREST_VISUAL_LEVELS = [0, 0.28, 0.62, 1, 0.76, 1, 1.2, 0.78, 0.78, 0];
+export function getForestVisualProfile(elapsed) {
+    const time = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+    let index = 0;
+    while (index < FOREST_CUES.length - 2 && time >= FOREST_CUES[index + 1]) index++;
+    const blend = smoothest((time - FOREST_CUES[index]) / (FOREST_CUES[index + 1] - FOREST_CUES[index]));
+    const strength = FOREST_VISUAL_LEVELS[index]
+        + (FOREST_VISUAL_LEVELS[index + 1] - FOREST_VISUAL_LEVELS[index]) * blend;
+    const warp = Math.min(1, strength);
+    return { strength, warp, speed: 0.35 + 0.65 * warp };
 }
 
 export function getHeartLevitationHeight(duration, remaining) {
@@ -42,7 +79,7 @@ export function createHeartLevitation() {
                 const pitch = Math.max(-1, Math.min(1, navigation.lookY || 0));
                 const pitchAmount = Math.sign(pitch) * smoothest((Math.abs(pitch) - 0.1) / 0.6);
                 const moving = navigation.forward ? Math.min(1, Math.max(0, navigation.distance || 0) / Math.max(0.0001, 2.5 * delta)) : 0;
-                desiredOffset += pitchAmount * moving * profile.navigation * 1.1 * delta;
+                desiredOffset += pitchAmount * moving * profile.navigation * 0.55 * delta;
                 desiredOffset = Math.max(-profile.range, Math.min(profile.range, desiredOffset));
                 offset += (desiredOffset - offset) * (1 - Math.exp(-delta / 0.8));
                 height = (profile.base + offset) * profile.fade;

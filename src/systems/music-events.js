@@ -16,7 +16,7 @@ export function createMusicEvents() {
     let sandFootstep = null, sandFootstepB = null, sandFootstepLoad = null;
     let grassFootstepB = null, woodFootstep = null, extraFootstepLoad = null;
     const dirtFootsteps = [null, null];
-    const footstepVariant = { grass: 0, dirt: 0, sand: 0 };
+    const footstepVariant = { dirt: 0, sand: 0 };
     const woodcuttingBuffers = [null, null, null];
     let woodcuttingLoad = null, woodcuttingVariant = 0;
     let indoorFootstepOutput = null;
@@ -40,7 +40,7 @@ export function createMusicEvents() {
     let forestSpectrum = null;
     // Nombres de producto: Bosque, Mañana y Submarino. IDs técnicos conservados.
     const tracks = {
-        forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:0.8,reverbMix:0.12,sky:true},
+        forest: {url:'./sonidos/musica/bosque.mpeg',delay:4,volume:0.8,reverbMix:0.38,sky:true},
         morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:1,reverbMix:0.5},
         underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
     };
@@ -225,36 +225,14 @@ export function createMusicEvents() {
         const outputKey = `${reverbMix}:${sky}`;
         if (musicOutputs.has(outputKey)) return musicOutputs.get(outputKey);
         const musicOutput = context.createGain();
-        let signal = musicOutput;
-        if (sky) {
-            // Menos presencia cercana y fuente elevada, sin una cola de sala grande.
-            const lowCut = context.createBiquadFilter();
-            lowCut.type = 'highpass';
-            lowCut.frequency.value = 160;
-            lowCut.Q.value = 0.707;
-            const air = context.createBiquadFilter();
-            air.type = 'lowpass';
-            air.frequency.value = 5500;
-            air.Q.value = 0.707;
-            const above = context.createPanner();
-            above.panningModel = 'HRTF';
-            above.rolloffFactor = 0; // La distancia percibida se ajusta por timbre y volumen.
-            above.positionX.value = 0;
-            above.positionY.value = 12;
-            above.positionZ.value = -4;
-            musicOutput.connect(lowCut);
-            lowCut.connect(air);
-            air.connect(above);
-            signal = above;
-        }
         const dry = context.createGain();
         dry.gain.value = 1 - reverbMix;
-        signal.connect(dry);
+        musicOutput.connect(dry);
         dry.connect(context.destination);
         const delay = context.createDelay();
         delay.delayTime.value = 0.065;
         const reverb = context.createConvolver();
-        const duration = sky ? 1.8 : 8;
+        const duration = sky ? 3.4 : 8;
         const impulse = context.createBuffer(2, Math.ceil(context.sampleRate * duration), context.sampleRate);
         for (let channel = 0; channel < 2; channel++) {
             const data = impulse.getChannelData(channel);
@@ -263,15 +241,25 @@ export function createMusicEvents() {
             }
         }
         reverb.buffer = impulse;
-        const softTail = context.createBiquadFilter();
-        softTail.type = 'lowpass';
-        softTail.frequency.value = 2400;
         const wet = context.createGain();
         wet.gain.value = reverbMix;
-        signal.connect(delay);
+        musicOutput.connect(delay);
         delay.connect(reverb);
-        reverb.connect(softTail);
-        softTail.connect(wet);
+        if (sky) {
+            // Solo la reverberación de Bosque pierde los graves; el original queda intacto.
+            const wetLowCut = context.createBiquadFilter();
+            wetLowCut.type = 'highpass';
+            wetLowCut.frequency.value = 350;
+            wetLowCut.Q.value = 0.707;
+            reverb.connect(wetLowCut);
+            wetLowCut.connect(wet);
+        } else {
+            const softTail = context.createBiquadFilter();
+            softTail.type = 'lowpass';
+            softTail.frequency.value = 2400;
+            reverb.connect(softTail);
+            softTail.connect(wet);
+        }
         wet.connect(context.destination);
         musicOutputs.set(outputKey, musicOutput);
         return musicOutput;
@@ -473,11 +461,12 @@ export function createMusicEvents() {
         const now = context.currentTime;
         if (outdoor || ['sand','dirt','wood'].includes(surface)) {
             const variants = surface === 'dirt' ? dirtFootsteps : surface === 'grass' ? [grassFootstep,grassFootstepB] : surface === 'sand' ? [sandFootstep,sandFootstepB] : null;
-            const index = variants ? footstepVariant[surface] : 0;
+            const index = variants ? (surface === 'grass' ? Math.floor(Math.random() * 2) : footstepVariant[surface]) : 0;
             const buffer = variants ? variants[index] || variants[1-index] : surface === 'wood' ? woodFootstep : sandFootstep;
             if (!buffer) return;
             const source = context.createBufferSource();
             source.buffer = buffer;
+            if (surface === 'grass') source.detune.value = (Math.random() * 2 - 1) * 35; // ±35 cents por pisada.
             const gain = context.createGain();
             const outdoorVolume = running ? 0.0952 : 0.0952 * (0.0816 / 0.1122);
             // La salida interior multiplica por 1.2: compensarla para duplicar el pasto.
@@ -487,7 +476,7 @@ export function createMusicEvents() {
             gain.connect(surface === 'wood' ? getIndoorFootstepOutput() : context.destination);
             source.onended = () => { source.disconnect(); gain.disconnect(); };
             source.start(now);
-            if (variants) footstepVariant[surface] = 1-index;
+            if (variants && surface !== 'grass') footstepVariant[surface] = 1-index;
             return;
         }
         const oscillator = context.createOscillator();
