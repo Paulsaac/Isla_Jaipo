@@ -79,6 +79,17 @@
             100% { transform: translateY(0%); }
         }
 
+        /* En vertical, acercar el mapa cuadrado hasta cubrir toda la pantalla. */
+        @media (orientation: portrait) {
+            #main-menu, #loading-screen { height: 100dvh; }
+            #main-menu-bg {
+                width: 100dvh;
+                height: 100dvh;
+                left: calc(50% - 50dvh);
+                animation: none;
+            }
+        }
+
         /* EFECTO CRT TV PARA TODO EL JUEGO */
         body::before {
             content: " ";
@@ -242,7 +253,11 @@
         }
         #diving-air-track { height: 12px; margin-top: 8px; border: 2px solid #fff; background: rgba(0,0,0,0.5); }
         #diving-air-bar { height: 100%; width: 100%; background: #81cedf; }
-        .touch-mode #diving-air-container { bottom: 218px; }
+        /* Centrado sobre SELECT/START, con holgura para tocarlos. */
+        .touch-mode #diving-air-container {
+            bottom: calc(max(12px, env(safe-area-inset-bottom)) + 68px);
+            width: min(160px, 38vw);
+        }
         #forest-heart-icon {
             width: auto;
             height: 64px;
@@ -292,6 +307,27 @@
             z-index: 50;
             display: none;
             pointer-events: none;
+        }
+        #forest-cue-indicator {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+            box-sizing: border-box;
+            background: #fff;
+            border: 2px solid #9d1b20;
+            border-radius: 4px;
+            color: #c51d25;
+            font: 22px/1 'Press Start 2P', cursive;
+            z-index: 101;
+            pointer-events: none;
+        }
+        #forest-cue-indicator[hidden] { display: none; }
+        .touch-mode #forest-cue-indicator {
+            top: calc(max(12px, env(safe-area-inset-top)) + 54px);
         }
         #hud {
             position: absolute;
@@ -359,6 +395,7 @@
     <!-- <div id="hud">Llaves: <span id="key-count">0</span></div> -->
     <div id="hud"></div>
     <div id="position-coordinates"></div>
+    <div id="forest-cue-indicator" role="status" aria-label="Marca 0" hidden>0</div>
     <div id="interaction-msg">Presiona E para interactuar</div>
     <div id="item-notification" role="status" aria-live="polite" aria-atomic="true"></div>
     <div id="stamina-container"><div id="stamina-bar"></div></div>

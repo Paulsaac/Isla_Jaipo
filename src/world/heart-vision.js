@@ -1,40 +1,39 @@
 // Respuesta visual del bosque: materiales existentes, sin pasos extra de render.
 import { UNIT_SIZE } from '../config.js';
 import { TREE_COLOR_ANGLE_GLSL } from './tree-color-cycle.js';
-import { HEART_EVENT_END_MARGIN, HEART_VISION_FADE_IN_SECONDS, HEART_VISION_FADE_OUT_SECONDS, HEART_VEGETATION_FADE_IN_SECONDS, smoothest } from '../systems/heart-event-timing.js';
+import { HEART_VISION_FADE_OUT_SECONDS, getForestVisualProfile, smoothest } from '../systems/heart-event-timing.js';
 export function createHeartVision() {
     const uniforms = {
         heartStrength: { value: 0 }, heartBass: { value: 0 },
         heartTreble: { value: 0 }, heartTime: { value: 0 }, heartColorTime: { value: 0 },
-        heartTreeMotion: { value: 0 }, heartVegetationStrength: { value: 0 }
+        heartTreeMotion: { value: 0 }, heartVegetationStrength: { value: 0 }, heartWarpStrength: { value: 0 }
     };
-    let onset = 0;
-    let releaseTime = null, releaseFrom = 0, releaseVegetationFrom = 0;
-    function update(delta, active, energy, remaining = Infinity) {
-        uniforms.heartTime.value += delta;
-        uniforms.heartColorTime.value += delta * 1.25;
+    let releaseTime = null, releaseFrom = 0, releaseVegetationFrom = 0, releaseWarpFrom = 0;
+    let motionSpeed = 0.35;
+    function update(delta, active, energy, elapsed = 0) {
         if (active) {
             releaseTime = null;
-            onset = Math.min(HEART_VEGETATION_FADE_IN_SECONDS, onset + delta);
-            const t = onset / HEART_VISION_FADE_IN_SECONDS;
-            uniforms.heartStrength.value = smoothest(t);
-            // El mismo envolvente lleva distorsión y luces a cero al terminar la canción.
-            const tail = (remaining - HEART_EVENT_END_MARGIN) / HEART_VISION_FADE_OUT_SECONDS;
-            uniforms.heartStrength.value = Math.min(uniforms.heartStrength.value, smoothest(tail));
-            uniforms.heartVegetationStrength.value = Math.min(uniforms.heartStrength.value,
-                smoothest(onset / HEART_VEGETATION_FADE_IN_SECONDS));
+            const profile = getForestVisualProfile(elapsed);
+            motionSpeed = profile.speed;
+            uniforms.heartStrength.value = profile.strength;
+            uniforms.heartVegetationStrength.value = profile.strength;
+            uniforms.heartWarpStrength.value = profile.warp;
+        } else if (uniforms.heartStrength.value > 0.00001) {
+            if (releaseTime === null) {
+                releaseTime = 0; releaseFrom = uniforms.heartStrength.value;
+                releaseVegetationFrom = uniforms.heartVegetationStrength.value;
+                releaseWarpFrom = uniforms.heartWarpStrength.value;
+            }
+            releaseTime = Math.min(HEART_VISION_FADE_OUT_SECONDS, releaseTime + delta);
+            const fade = 1 - smoothest(releaseTime / HEART_VISION_FADE_OUT_SECONDS);
+            uniforms.heartStrength.value = releaseFrom * fade;
+            uniforms.heartVegetationStrength.value = releaseVegetationFrom * fade;
+            uniforms.heartWarpStrength.value = releaseWarpFrom * fade;
         } else {
-            onset = 0;
-            if (uniforms.heartStrength.value > 0.00001) {
-                if (releaseTime === null) {
-                    releaseTime = 0; releaseFrom = uniforms.heartStrength.value;
-                    releaseVegetationFrom = uniforms.heartVegetationStrength.value;
-                }
-                releaseTime = Math.min(HEART_VISION_FADE_OUT_SECONDS, releaseTime + delta);
-                uniforms.heartStrength.value = releaseFrom * (1 - smoothest(releaseTime / HEART_VISION_FADE_OUT_SECONDS));
-                uniforms.heartVegetationStrength.value = releaseVegetationFrom * (1 - smoothest(releaseTime / HEART_VISION_FADE_OUT_SECONDS));
-            } else uniforms.heartStrength.value = uniforms.heartVegetationStrength.value = 0;
+            uniforms.heartStrength.value = uniforms.heartVegetationStrength.value = uniforms.heartWarpStrength.value = 0;
         }
+        uniforms.heartTime.value += delta * motionSpeed;
+        uniforms.heartColorTime.value += delta * 1.25 * motionSpeed;
         const response = 1 - Math.exp(-delta * 8);
         uniforms.heartBass.value += (energy.bass - uniforms.heartBass.value) * response;
         uniforms.heartTreble.value += (energy.treble - uniforms.heartTreble.value) * response;
@@ -68,7 +67,7 @@ export function createHeartVision() {
             const mask = terrain ? 'clamp(vSplat.x + vSplat.y + vSplat.z + vWetSand, 0.0, 1.0) * (1.0 - smoothstep(3.0, 10.0, vTerrainHeight))' : '1.0';
             shader.fragmentShader = `uniform float heartStrength;
                 uniform float heartBass; uniform float heartTreble; uniform float heartTime; uniform float heartColorTime;
-                uniform float heartVegetationStrength;
+                uniform float heartVegetationStrength; uniform float heartWarpStrength;
                 ${shader.fragmentShader}`;
             if (!terrain && !celestial && !water) shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment);
             // Sustituir solo consultas de textura, conservando UV base y transparencia.
@@ -83,10 +82,10 @@ export function createHeartVision() {
                 ${celestial || water ? '' : `#ifdef USE_MAP
                     vec2 heartWarpUv = vMapUv;
                     // Condición uniforme: conserva las derivadas de textura en los bordes.
-                    if (${tree || mode === 'vegetation' ? 'heartVegetationStrength' : 'heartStrength'} > 0.0) heartWarpUv += vec2(
+                    if (heartWarpStrength > 0.0) heartWarpUv += vec2(
                         sin(vMapUv.y * 7.0 + heartTime * 0.55),
                         cos(vMapUv.x * 6.0 - heartTime * 0.45)
-                    ) * heartAmount * (${terrain ? '0.012 + heartBass * 0.018' : '0.010 + heartBass * 0.025'});
+                    ) * heartWarpStrength * (${mask}) * (${terrain ? '0.012 + heartBass * 0.018' : '0.010 + heartBass * 0.025'});
                 #endif`}
             `);
             shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
@@ -96,7 +95,7 @@ export function createHeartVision() {
                 heartHsv.x = ${moon ? 'fract(0.6667 + heartColorTime * 0.035 + 0.4 + sin(heartColorTime * 0.13) * 0.12 + heartTreble * 0.02)' : 'fract(heartHsv.x + heartColorTime * 0.035 + heartBass * 0.03)'};
                 heartHsv.y = clamp(heartHsv.y * 2.0, ${moon ? '0.88' : '0.85'}, 1.0);
                 heartHsv.z = min(1.0, heartHsv.z * ${moon ? '1.05' : '1.65'});
-                outgoingLight = mix(outgoingLight, heartHsvToRgb(heartHsv), heartAmount);
+                outgoingLight = mix(outgoingLight, heartHsvToRgb(heartHsv), clamp(heartAmount, 0.0, 1.0));
                 ` : `
                 // Brillo del propio dibujo: los píxeles oscuros conservan sus sombras.
                 outgoingLight += diffuseColor.rgb * heartAmount * ${terrain ? '(0.035 + clamp(vSplat.x, 0.0, 1.0) * 0.065)' : tree ? '(0.45 + heartBass * 0.20)' : '0.0'};

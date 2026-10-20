@@ -10,6 +10,26 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
     const runButton = root.querySelector('[data-action="run"]');
     let runLatched = false;
     const directions = ['forward', 'backward', 'left', 'right'];
+    const konamiSequence = ['forward', 'forward', 'backward', 'backward', 'left', 'right', 'left', 'right', 'interact', 'jump'];
+    const konamiStepTimeout = 5000;
+    let konamiIndex = 0, lastKonamiStep = 0;
+    function recordKonamiInput(input) {
+        const now = performance.now();
+        if (now - lastKonamiStep > konamiStepTimeout) konamiIndex = 0;
+        if (input === konamiSequence[konamiIndex]) {
+            konamiIndex++;
+            lastKonamiStep = now;
+            if (konamiIndex === konamiSequence.length) {
+                konamiIndex = 0;
+                actions.toggleFlight();
+                return true;
+            }
+            return konamiIndex > 8;
+        }
+        konamiIndex = input === konamiSequence[0] ? 1 : 0;
+        lastKonamiStep = now;
+        return false;
+    }
     let lookPointer = null, lastX = 0, lastY = 0;
 
     const fullscreenButton = root.querySelector('.touch-fullscreen');
@@ -17,6 +37,27 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
     const fullscreenStatus = root.querySelector('.touch-fullscreen-status');
     let fullscreenPending = false, fullscreenStatusTimer;
     let fullscreenActive = false, orientationRequest = 0;
+    let backgroundExitPending = false;
+    const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+    function releaseOrientation() {
+        ++orientationRequest;
+        try { window.screen?.orientation?.unlock?.(); } catch { /* Sin bloqueo que liberar. */ }
+    }
+    async function exitFullscreenAfterBackground() {
+        releaseOrientation();
+        fullscreenPending = false;
+        if (!fullscreenElement()) {
+            backgroundExitPending = false;
+            syncFullscreen();
+            return;
+        }
+        backgroundExitPending = true;
+        try {
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (exit) await exit.call(document);
+        } catch { /* Reintentar al recuperar la pestaña. */ }
+        syncFullscreen();
+    }
     function showFullscreenStatus(message) {
         clearTimeout(fullscreenStatusTimer);
         fullscreenStatus.textContent = message;
@@ -24,6 +65,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         fullscreenStatusTimer = setTimeout(() => { fullscreenStatus.hidden = true; }, 4500);
     }
     async function lockLandscape() {
+        if (document.hidden || backgroundExitPending || !fullscreenElement()) return;
         const request = ++orientationRequest;
         try {
             const orientation = window.screen?.orientation;
@@ -32,18 +74,18 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         } catch {
             // La pantalla completa sigue funcionando aunque el navegador rechace el giro.
             if (request === orientationRequest && fullscreenActive)
-                showFullscreenStatus('Gira el celular para jugar en horizontal.');
+                showFullscreenStatus('Activa la rotación automática y gira el celular para jugar en horizontal.');
         }
     }
     function syncFullscreen() {
-        const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        const active = !!fullscreenElement();
         if (active !== fullscreenActive) {
             fullscreenActive = active;
             if (active) {
-                void lockLandscape();
+                if (!fullscreenPending && !document.hidden && !backgroundExitPending) void lockLandscape();
             } else {
-                ++orientationRequest;
-                try { window.screen?.orientation?.unlock?.(); } catch { /* Sin bloqueo que liberar. */ }
+                backgroundExitPending = false;
+                releaseOrientation();
                 clearTimeout(fullscreenStatusTimer);
                 fullscreenStatus.hidden = true;
             }
@@ -62,7 +104,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         fullscreenStatus.hidden = true;
         try {
             // Ampliar toda la página mantiene HUD, menús y controles sobre el juego.
-            if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (fullscreenElement()) {
                 const exit = document.exitFullscreen || document.webkitExitFullscreen;
                 await exit.call(document);
             } else {
@@ -70,6 +112,8 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
                 if (page.requestFullscreen) await page.requestFullscreen({ navigationUI: 'hide' });
                 else if (page.webkitRequestFullscreen) await page.webkitRequestFullscreen();
                 else throw new Error('Fullscreen no disponible');
+                syncFullscreen();
+                if (!document.hidden && !backgroundExitPending) await lockLandscape();
             }
         } catch {
             showFullscreenStatus('Este navegador no permite activar pantalla completa aquí.');
@@ -83,6 +127,10 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
     });
     document.addEventListener('fullscreenchange', syncFullscreen);
     document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    window.addEventListener('pageshow', () => {
+        if (backgroundExitPending || fullscreenElement()) void exitFullscreenAfterBackground();
+        else { releaseOrientation(); syncFullscreen(); }
+    });
     syncFullscreen();
 
     function setRunLatched(active) {
@@ -99,6 +147,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
             button.classList.toggle('pressed', held.has(button.dataset.direction));
     }
     function moveDpad(event, id = event.pointerId, update = true) {
+        const newPress = !directionTouches.has(id);
         const bounds = dpad.getBoundingClientRect();
         const x = (event.clientX - bounds.left - bounds.width / 2) / (bounds.width / 2);
         const y = (event.clientY - bounds.top - bounds.height / 2) / (bounds.height / 2);
@@ -108,6 +157,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         if (y < -0.25) held.push('forward');
         if (y > 0.25) held.push('backward');
         directionTouches.set(id, held);
+        if (newPress && held.length === 1) recordKonamiInput(held[0]);
         if (update) updateMovement();
     }
     dpad.addEventListener('pointerdown', event => {
@@ -139,6 +189,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
             if (!isActive() && !['inventory', 'pause'].includes(action)) return;
             button.setPointerCapture(event.pointerId);
             button.classList.add('pressed');
+            if ((action === 'interact' || action === 'jump') && recordKonamiInput(action)) return;
             if (action === 'jump') actions.holdJump?.(true);
             if (action === 'run') {
                 setRunLatched(true);
@@ -226,6 +277,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
     }
 
     function reset() {
+        konamiIndex = 0;
         setRunLatched(false);
         actions.holdJump?.(false);
         const captures = [...directionCaptures];
@@ -288,7 +340,16 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
     }
     window.addEventListener('blur', () => { reset(); if (isActive()) pause(); });
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) { reset(); if (isActive()) pause(); }
+        if (document.hidden) {
+            reset();
+            if (isActive()) pause();
+            void exitFullscreenAfterBackground();
+        } else if (backgroundExitPending || fullscreenElement()) {
+            void exitFullscreenAfterBackground();
+        } else {
+            releaseOrientation();
+            syncFullscreen();
+        }
     });
     root.addEventListener('contextmenu', event => event.preventDefault());
     return { reset, sync, syncDialogue, syncRun() { actions.run(runLatched); }, show() { root.hidden = false; } };

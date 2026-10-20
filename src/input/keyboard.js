@@ -5,7 +5,15 @@ export function bindKeyboard(actions, target = document) {
     const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right', ArrowUp:'forward', ArrowDown:'backward', ArrowLeft:'left', ArrowRight:'right' };
 
     function onKeyDown(event) {
-        if (actions.isPaused?.()) { sequenceIndex = 0; return; }
+        if (actions.isPaused?.()) {
+            sequenceIndex = 0;
+            // Inventario abierto: Q lo cierra; Esc pasa a la pausa real.
+            if (actions.isInventoryOpen?.() && !event.repeat) {
+                if (event.code === 'KeyQ') actions.inventory();
+                else if (event.code === 'Escape') actions.pause();
+            }
+            return;
+        }
         const code = event.code;
         if(code.startsWith('Arrow')) event.preventDefault();
         if (code === sequence[sequenceIndex]) {

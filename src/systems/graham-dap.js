@@ -1,8 +1,12 @@
 // Gesto de entrega: offsets solo durante render, sin desplazar cuerpos ni colisiones.
 export function createGrahamDap(THREE, { onImpact, onFinish, onCancel } = {}) {
     const playerOrigin = new THREE.Vector3(), npcOrigin = new THREE.Vector3(), direction = new THREE.Vector3();
-    const playerRotation = new THREE.Quaternion(), leanRotation = new THREE.Quaternion();
+    const playerRotation = new THREE.Quaternion(), npcRotation = new THREE.Quaternion();
+    const leanRotation = new THREE.Quaternion(), npcLeanRotation = new THREE.Quaternion();
     const leanAngles = new THREE.Euler(0, 0, 0, 'YXZ');
+    const npcLeanAngles = new THREE.Euler(0, 0, 0, 'YXZ');
+    const npcBaseAngles = new THREE.Euler();
+    const npcFootBefore = new THREE.Vector3(), npcFootAfter = new THREE.Vector3();
     let player = null, npc = null, elapsed = 0, active = false, hit = false, applied = false, travel = 0;
     const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
     function amount() {
@@ -16,6 +20,9 @@ export function createGrahamDap(THREE, { onImpact, onFinish, onCancel } = {}) {
         if (!applied) return;
         player.position.copy(playerOrigin); npc.position.copy(npcOrigin);
         player.quaternion.copy(playerRotation);
+        // Conservar también la representación Euler: restaurar el quaternion puede
+        // convertir un yaw > 90° en otros ejes de 180° que invierten el billboard.
+        npc.rotation.copy(npcBaseAngles);
         player.updateMatrixWorld(true); npc.updateMatrixWorld(true); applied = false;
     }
     return {
@@ -39,7 +46,8 @@ export function createGrahamDap(THREE, { onImpact, onFinish, onCancel } = {}) {
         apply() {
             if (!active || applied) return;
             playerOrigin.copy(player.position); npcOrigin.copy(npc.position);
-            playerRotation.copy(player.quaternion);
+            playerRotation.copy(player.quaternion); npcRotation.copy(npc.quaternion);
+            npcBaseAngles.copy(npc.rotation);
             const gesture = amount();
             const shift = gesture * travel;
             // Inclinar la vista hacia el dap; el mismo gesto conduce la vuelta suave.
@@ -47,7 +55,15 @@ export function createGrahamDap(THREE, { onImpact, onFinish, onCancel } = {}) {
             leanAngles.set(-0.07 * lean, -0.035 * lean, -0.055 * lean, 'YXZ');
             leanRotation.setFromEuler(leanAngles);
             player.quaternion.multiply(leanRotation);
+            // Leve inclinación adelante y giro que acerca el borde izquierdo del sprite.
+            npcLeanAngles.set(0.07 * lean, 0.12 * lean, 0, 'YXZ');
+            npcLeanRotation.setFromEuler(npcLeanAngles);
+            npc.quaternion.multiply(npcLeanRotation);
             player.position.addScaledVector(direction, shift); npc.position.addScaledVector(direction, -shift);
+            const footY = -(npc.geometry?.parameters?.height ?? 1.9) / 2;
+            npcFootBefore.set(0, footY, 0).applyQuaternion(npcRotation);
+            npcFootAfter.set(0, footY, 0).applyQuaternion(npc.quaternion);
+            npc.position.add(npcFootBefore.sub(npcFootAfter));
             player.updateMatrixWorld(true); npc.updateMatrixWorld(true); applied = true;
         },
         restore,
