@@ -70,10 +70,10 @@ export function createRusticBeachChairGeometry(THREE) {
     beam([-.40,.60,-.555],[.40,.60,-.555],.065,.065,0x89704e);
     beam([-.40,1.01,-.795],[.40,1.01,-.795],.065,.065,0x89704e);
     // Apoyabrazos planos y sencillos, sujetos con madera.
-    for(const x of [-.45,.45]){
-        board(.105,.06,1.02,x,.73,-.07,0xb19a76);
-        beam([x,.48,.39],[x,.70,.39],.065,.065,0x8e7655);
-        beam([x,.49,-.42],[x,.70,-.54],.065,.065,0x8e7655);
+    for(const x of [-.36,.36]){
+        board(.115,.06,1.16,x,.73,-.08,0xb19a76);
+        beam([x,.48,.48],[x,.71,.48],.075,.075,0x8e7655);
+        beam([x,.44,-.38],[x,.71,-.54],.075,.075,0x8e7655);
     }
     return finish();
 }
