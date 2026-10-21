@@ -26,6 +26,21 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight) {
             g.scale(size*0.43,size*0.12,size); g.rotateX(tilt); g.rotateY(angle); g.translate(x,y,z);
         });
     }
+    function carrotLeaflet(start, tip, width, color) {
+        const a = new THREE.Vector3(...start), b = new THREE.Vector3(...tip);
+        const middle = a.clone().lerp(b,0.55);
+        middle.y += 0.008;
+        const side = new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3(0,1,0)).normalize().multiplyScalar(width);
+        const left = middle.clone().add(side), right = middle.clone().sub(side);
+        const vertices = [];
+        for (const triangle of [[a,left,right],[left,b,right],[right,left,a],[right,b,left]]) {
+            for (const vertex of triangle) vertices.push(vertex.x,vertex.y,vertex.z);
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+        geometry.computeVertexNormals();
+        add(geometry,color);
+    }
     function tomato(x,y,z,r=0.085) {
         add(new THREE.IcosahedronGeometry(r,1),colors.red,g=>{g.scale(1,0.88,1);g.translate(x,y,z);});
         for(let i=0;i<3;i++) leaf(x,y+r*0.8,z,r*0.4,i*Math.PI*2/3,0,colors.green);
@@ -76,10 +91,21 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight) {
             } else {
                 for(const x of [-0.22,0.22]) {
                     add(new THREE.ConeGeometry(0.055,0.24,6),colors.orange,g=>{g.rotateZ(Math.PI);g.translate(x,0.07,z);});
-                    for(let i=0;i<5;i++) {
-                        const angle=i*Math.PI*2/5, dx=Math.cos(angle)*0.09, dz=Math.sin(angle)*0.09;
-                        stem([x,0.19,z],[x+dx,0.43+(i%2)*0.05,z+dz],0.005,colors.green);
-                        leaf(x+dx*0.75,0.37,z+dz*0.75,0.11,angle,0.9,colors.light);
+                    for(let i=0;i<4;i++) {
+                        const angle=i*Math.PI/2+0.2, radialX=Math.cos(angle), radialZ=Math.sin(angle);
+                        const base=[x,0.19,z];
+                        const tip=[x+radialX*0.14,0.48+(i%2)*0.035,z+radialZ*0.14];
+                        stem(base,tip,0.006,colors.green);
+                        // Cada fronda tiene pares de foliolos pequeños, como una hoja de zanahoria.
+                        for(const t of [0.36,0.57,0.76]) for(const side of [-1,1]) {
+                            const start=[x+radialX*0.14*t,0.19+(tip[1]-0.19)*t,z+radialZ*0.14*t];
+                            const reach=0.058*(1-t*0.35);
+                            carrotLeaflet(start,[start[0]+radialX*0.035-side*radialZ*reach,
+                                start[1]+0.045,start[2]+radialZ*0.035+side*radialX*reach],
+                                0.018,i%2 ? colors.green : colors.light);
+                        }
+                        carrotLeaflet(tip,[tip[0]+radialX*0.025,tip[1]+0.055,tip[2]+radialZ*0.025],
+                            0.018,colors.green);
                     }
                 }
             }

@@ -64,3 +64,4 @@ export const bridgeKeyReceivedDialogs = [
 export const atticAntDialogs = ['no le digas a nadie que vivo aqui'];
 
 export const mateOfferDialogs = ['Quieres mate?'];
+export const mateAlreadyHeldDialogs = ['Ya tengo uno.'];

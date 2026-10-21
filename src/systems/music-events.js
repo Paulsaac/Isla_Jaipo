@@ -16,6 +16,10 @@ export function createMusicEvents() {
     let sandFootstep = null, sandFootstepB = null, sandFootstepLoad = null;
     let grassFootstepB = null, woodFootstep = null, extraFootstepLoad = null;
     const dirtFootsteps = [null, null];
+    const bedJumps = [null, null];
+    let bedJumpLoad = null;
+    const bedCeilingSounds = [null, null];
+    let bedCeilingSoundLoad = null;
     const footstepVariant = { dirt: 0, sand: 0 };
     const woodcuttingBuffers = [null, null, null];
     let woodcuttingLoad = null, woodcuttingVariant = 0;
@@ -55,6 +59,8 @@ export function createMusicEvents() {
         prepareGrassFootstep();
         prepareSandFootstep();
         prepareExtraFootsteps();
+        prepareBedJumps();
+        prepareBedCeilingSounds();
         prepareWoodcutting();
         prepareDap();
         getIndoorFootstepOutput();
@@ -99,6 +105,53 @@ export function createMusicEvents() {
                 return response.arrayBuffer();
             }).then(data => context.decodeAudioData(data)).then(receive)
                 .catch(error => console.warn('Error al cargar la pisada ' + file + ':', error))));
+    }
+
+    function prepareBedJumps() {
+        if (bedJumpLoad) return;
+        bedJumpLoad = Promise.all(['a', 'b'].map((variant, index) =>
+            fetch(`./sonidos/fx/cama_${variant}.wav`).then(response => {
+                if (!response.ok) throw new Error(`No se pudo cargar cama_${variant}.wav`);
+                return response.arrayBuffer();
+            }).then(data => context.decodeAudioData(data)).then(buffer => { bedJumps[index] = buffer; })
+                .catch(error => console.warn('Error al cargar el salto en cama:', error))));
+    }
+
+    function playBedJump() {
+        if (!context || paused || context.state !== 'running') return;
+        const index = Math.floor(Math.random() * bedJumps.length);
+        const buffer = bedJumps[index] || bedJumps[1 - index];
+        if (!buffer) return;
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.detune.value = (Math.random() * 2 - 1) * 35;
+        const gain = context.createGain();
+        gain.gain.value = 0.115;
+        source.connect(gain);
+        gain.connect(getIndoorFootstepOutput());
+        source.onended = () => { source.disconnect(); gain.disconnect(); };
+        source.start(context.currentTime);
+    }
+
+    function prepareBedCeilingSounds() {
+        if (bedCeilingSoundLoad) return;
+        bedCeilingSoundLoad = Promise.all(['break_wood_1.mp3', 'break_wood_2.mp3'].map((file, index) =>
+            fetch('./sonidos/fx/' + file).then(response => {
+                if (!response.ok) throw new Error('No se pudo cargar sonidos/fx/' + file);
+                return response.arrayBuffer();
+            }).then(data => context.decodeAudioData(data)).then(buffer => { bedCeilingSounds[index] = buffer; })
+                .catch(error => console.warn('Error al cargar el sonido de rotura del techo:', error))));
+    }
+
+    function playBedCeilingSound(index) {
+        if (!context || paused || context.state !== 'running') return;
+        const buffer = bedCeilingSounds[index];
+        if (!buffer) return;
+        const source = context.createBufferSource(); source.buffer = buffer;
+        const gain = context.createGain(); gain.gain.value = 0.4;
+        source.connect(gain); gain.connect(context.destination);
+        source.onended = () => { source.disconnect(); gain.disconnect(); };
+        source.start(context.currentTime);
     }
 
     function prepareWoodcutting() {
@@ -456,7 +509,7 @@ export function createMusicEvents() {
         return indoorFootstepOutput;
     }
 
-    function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true, surface = outdoor ? 'grass' : 'indoor') {
+    function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true, surface = outdoor ? 'grass' : 'indoor', highPitch = false) {
         if (!context || paused || context.state !== 'running') return;
         const now = context.currentTime;
         if (outdoor || ['sand','dirt','wood'].includes(surface)) {
@@ -466,7 +519,8 @@ export function createMusicEvents() {
             if (!buffer) return;
             const source = context.createBufferSource();
             source.buffer = buffer;
-            if (surface === 'grass') source.detune.value = (Math.random() * 2 - 1) * 35; // ±35 cents por pisada.
+            // El salto usa la parte aguda del mismo rango normal, sin superar +35 cents.
+            source.detune.value = highPitch ? 18 + Math.random() * 17 : (Math.random() * 2 - 1) * 35;
             const gain = context.createGain();
             const outdoorVolume = running ? 0.0952 : 0.0952 * (0.0816 / 0.1122);
             // La salida interior multiplica por 1.2: compensarla para duplicar el pasto.
@@ -481,7 +535,8 @@ export function createMusicEvents() {
         }
         const oscillator = context.createOscillator();
         const gain = context.createGain();
-        const pitch = (isLeft ? 0.98 : 1.02) * (0.98 + Math.random() * 0.04);
+        const pitch = highPitch ? 1.02 * (1 + Math.random() * 0.02)
+            : (isLeft ? 0.98 : 1.02) * (0.98 + Math.random() * 0.04);
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(126 * pitch, now);
         oscillator.frequency.exponentialRampToValueAtTime(53.2 * pitch, now + 0.12);
@@ -493,6 +548,23 @@ export function createMusicEvents() {
         oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
         oscillator.start(now);
         oscillator.stop(now + 0.195);
+    }
+
+    function playDialogueCharacter(character) {
+        if (!context || paused || context.state !== 'running') return;
+        const now = context.currentTime;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 270 + (character.codePointAt(0) % 4) * 14;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.014, now + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.026);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+        oscillator.start(now);
+        oscillator.stop(now + 0.027);
     }
 
     function updateWind(sheltered, underwater = false) {
@@ -598,7 +670,7 @@ export function createMusicEvents() {
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,updateWind,updateForestAmbience: state => forestAmbience?.update(state),resetForestAmbience: () => forestAmbience?.reset(),updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience: state => forestAmbience?.update(state),resetForestAmbience: () => forestAmbience?.reset(),updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

@@ -1,5 +1,5 @@
 // Sectores con detalle íntegro y buffers locales: subir una zona no carga todo el mapa en GPU.
-export function createTerrainSectors(THREE, source, material, segmentsW, segmentsH, sectorSegments = 128) {
+function* terrainSectorSteps(THREE, source, material, segmentsW, segmentsH, sectorSegments = 128) {
     const group = new THREE.Group();
     group.name = 'terrain-sectors';
     const verticesW = segmentsW + 1;
@@ -50,7 +50,25 @@ export function createTerrainSectors(THREE, source, material, segmentsW, segment
             mesh.frustumCulled = true;
             mesh.userData.hasMountain = hasMountain;
             group.add(mesh);
+            yield;
         }
     }
     return group;
+}
+export function createTerrainSectors(...args) {
+    const steps = terrainSectorSteps(...args);
+    let step;
+    do { step = steps.next(); } while (!step.done);
+    return step.value;
+}
+
+export async function createTerrainSectorsAsync(THREE, source, material, segmentsW, segmentsH, sectorSegments, checkpoint) {
+    const steps = terrainSectorSteps(THREE, source, material, segmentsW, segmentsH, sectorSegments);
+    let step;
+    do {
+        step = steps.next();
+        const pause = checkpoint();
+        if (pause) await pause;
+    } while (!step.done);
+    return step.value;
 }

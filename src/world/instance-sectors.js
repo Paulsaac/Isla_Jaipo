@@ -1,13 +1,15 @@
 // Sectores visibles, con una sola llamada de dibujo por tipo de vegetación.
-export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.2) {
+function* instanceSectorSteps(THREE, sources, size = 64, windMargin = 0.2) {
     const group = new THREE.Group();
     group.name = 'vegetation-sectors';
     const matrix = new THREE.Matrix4(), box = new THREE.Box3();
-    const entries = sources.map(mesh => {
+    const entries = [];
+    for (const mesh of sources) {
         const original = mesh.instanceMatrix.array.slice();
         const buckets = new Map();
         if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
         for (let index = 0; index < mesh.count; index++) {
+            if ((index & 1023) === 0) yield;
             const key = `${Math.floor(original[index * 16 + 12] / size)},${Math.floor(original[index * 16 + 14] / size)}`;
             if (!buckets.has(key)) buckets.set(key, { indices: [], box: new THREE.Box3(), visible: null });
             const bucket = buckets.get(key);
@@ -25,8 +27,8 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
         const slotToSource = new Int32Array(mesh.count);
         const dirty = new Uint8Array(Math.ceil(mesh.count / 64));
         mesh.count = 0;
-        return { mesh, original, sectors, sourceToSlot, slotToSource, dirty };
-    });
+        entries.push({ mesh, original, sectors, sourceToSlot, slotToSource, dirty });
+    }
     const frustum = new THREE.Frustum(), projection = new THREE.Matrix4();
     const previousProjection = new Float64Array(16).fill(NaN);
     let previousFogConstant = NaN, previousMaxDistance = NaN;
@@ -105,4 +107,22 @@ export function createInstanceSectors(THREE, sources, size = 64, windMargin = 0.
         }
     }
     return { group, update };
+}
+
+export function createInstanceSectors(...args) {
+    const steps = instanceSectorSteps(...args);
+    let step;
+    do { step = steps.next(); } while (!step.done);
+    return step.value;
+}
+
+export async function createInstanceSectorsAsync(THREE, sources, size, windMargin, checkpoint) {
+    const steps = instanceSectorSteps(THREE, sources, size, windMargin);
+    let step;
+    do {
+        step = steps.next();
+        const pause = checkpoint();
+        if (pause) await pause;
+    } while (!step.done);
+    return step.value;
 }

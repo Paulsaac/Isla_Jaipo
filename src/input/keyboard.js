@@ -5,6 +5,7 @@ export function bindKeyboard(actions, target = document) {
     const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right', ArrowUp:'forward', ArrowDown:'backward', ArrowLeft:'left', ArrowRight:'right' };
 
     function onKeyDown(event) {
+        if (actions.isEnabled?.() === false) return;
         if (actions.isPaused?.()) {
             sequenceIndex = 0;
             // Inventario abierto: Q lo cierra; Esc pasa a la pausa real.
@@ -30,6 +31,7 @@ export function bindKeyboard(actions, target = document) {
         }
         if (directions[code]) actions.move(directions[code], true);
         switch (code) {
+            case 'Escape': if (!event.repeat) actions.pause(); break;
             case 'Space': event.preventDefault(); actions.holdJump?.(true); if (!event.repeat) actions.jump(); actions.move('up', true); break;
             case 'KeyC': actions.crouch(true); actions.move('down', true); break;
             case 'ShiftLeft': case 'ShiftRight': actions.run(true); break;

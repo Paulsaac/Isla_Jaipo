@@ -27,7 +27,8 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
 
     // Círculo del jugador frente a la huella del modelo, incluida la hoja abierta.
     for (const object of solidInteractables) {
-        if (object.userData.type === 'DOOR' && object.userData.collisionEnabled === false) continue;
+        if ((object.userData.type === 'DOOR' || object.userData.type === 'GATE')
+            && object.userData.collisionEnabled === false) continue;
         if (object.userData.type === 'BED') {
             if (bedSurfaces(x, z, object).some(top => feetY < top - 0.08)) return true;
             continue;

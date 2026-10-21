@@ -1,3 +1,31 @@
+# Apagado de servidores por orden de AxByZ — 2026-10-21
+
+Copia activa C:/Users/clop9/Documents/Codex/IslaJaipo-integracion-2026-10-19. Se detuvieron el servidor LAN tools/serve.cjs --lan --port=8001 (PID6588) y el túnel Cloudflare dirigido a http://127.0.0.1:8001 (PID21848). Verificado: puerto8001 sin listener y sin respuesta HTTP; no había listeners en 8000, 8002 ni 8003. El servidor y túnel quedan apagados hasta nueva orden.
+
+# Servidor LAN reanudado por AxByZ — 2026-10-21
+
+Copia activa `C:/Users/clop9/Documents/Codex/IslaJaipo-integracion-2026-10-19`. Servidor `node tools/serve.cjs --lan --port=8001`, PID 6588, escucha `0.0.0.0:8001`. Verificados HTTP 200 en `http://127.0.0.1:8001/` y `http://192.168.4.89:8001/?touch=1`; enlace LAN para dispositivo: `http://192.168.4.89:8001/?touch=1`. No se cambió firewall. Mantener activo hasta orden expresa de apagado.
+
+# Apagado explícito solicitado por AxByZ — 2026-10-21
+
+El usuario pidió cerrar los servidores para comenzar de nuevo. Se identificaron por comando y título HTTP los cuatro servidores de Isla Jaipó, y se detuvieron: puerto8000/PID31844,8001/PID22552,8002/PID30444,8003/PID26780; también túneles Cloudflare PID5112,29672,28088,8320. Verificación posterior: sin listeners en puertos8000–8003. Esto sustituye las indicaciones inferiores de mantener esos procesos activos. Código y respaldo local conservados. CONTINUAR_AXBYZ.md contiene la actualización para el siguiente chat. Sin commit/push. Sesión temporal e1092e0d-0596-44bf-b738-84b0de0c5b31 usada solo para documentar este apagado y liberada al terminar.
+
+# AxByZ — relevo de portada guardada y carga sin congelamiento — 2026-10-21
+
+**Relevo actual: [CONTINUAR_AXBYZ.md](CONTINUAR_AXBYZ.md)**. Retomar con «Hola, soy axbyz de nuevo, continuemos desde el ultimo markdown». Copia activa: C:/Users/clop9/Documents/Codex/IslaJaipo-integracion-2026-10-19, rama codex/axbyz-main-2026-10-20, HEAD 3d57f0c5a6177e6ba68418f15d0619d4243bf571. Esta entrada sustituye para la portada las notas inferiores de generación en vivo y CRT desactivado.
+
+Maqueta IJM2 pregenerada; costa suavizada, montaña más baja y definida con cola color roca, edificios texturados a escala 0,85. CRT restaurado. Enter/táctil muestra Cargando mundo con puntos animados, giro/zoom lento durante la carga, llegada rápida 2,8 s y fundido. Render independiente mediante OffscreenCanvas/worker; respaldo compatible comparte hilo principal. Archivos, condiciones, límites y comandos detallados en el relevo.
+
+Verificado Chromium integrado: 449 fotogramas de portada durante 7,4998 s de carga; intervalo máximo 35,9 ms, entrada al dormitorio 236/446 y sin errores observados. Evidencia .coordination/preview-worker-check.json. Teléfono físico pendiente. Servidor HTTP200 en 127.0.0.1:8003, PID26780, conservado. Respaldo local de cambios .coordination/IslaJaipo-actual-2026-10-21.zip. Cambios de trabajo guardados, sin staging/commit/push/PR de cierre. Liberar solo token propio eb4b1033-92b5-458c-bb6f-cd731fefbf25 con session.ps1 finish; el siguiente chat debe adquirir su sesión.
+
+# Portada 3D: filtrado, costa y carga — 2026-10-20
+
+Pedido de AxByZ aplicado en esta copia integrada, servida en http://127.0.0.1:8003/. Solo durante la portada: sin CRT, resolución hasta 1080p, filtrado con mipmaps/anisotropía, recortes opacos de vegetación, luz de relleno y costa más clara. La vista distante muestrea el terreno vigente cada cuatro vértices; al acercarse a la casa vuelve al terreno completo. Al entrar se restauran texturas, luces, resolución y efectos del juego, y se libera la geometría de portada. No se modificaron mapas ni assets originales.
+
+Construcción del terreno: caché temporal de ruido/proximidad a madera y clasificación de materiales por celda para evitar cálculos repetidos por vértice. Comparación exacta de alturas con/sin caché: 56.925 vértices sintéticos aprobados. Archivos: game.js, src/world/terrain-height.js, src/ui/island-intro.js, index.html y marcas de carga optativas en src/ui/performance-panel.js (?perf=1, sin telemetría).
+
+Medición local en navegador integrado Chromium, GTX 1660 SUPER, viewport 1280×720, límite 30 FPS, recargas con caché: antes 8.609.565 triángulos/1297 dibujos, portada lista a 12,893 s; después 714.577/1030 y 7,149–7,663 s. Ambos a 30 FPS; estos contadores no acreditan aumento de FPS. La portada cambió de pixel ratio 0,5 a 1 como parte de la mejora visual. Sintaxis de cuatro módulos aprobada; portada y entrada táctil hasta dormitorio 236/446 sin errores de consola, aspecto habitual restaurado. Pendientes: teléfono físico, descarga con caché fría y reproducción del video adjunto. Servidores y sesión propia eb4b1033-92b5-458c-bb6f-cd731fefbf25 se mantienen; sin commit/push.
+
 # Diseño estético: silla y escritura de Graham — 2026-10-20
 
 Clawshoot confirmó «camino libre» y autorizó recuperar turno: finish del bloqueo Codexeb5a2d21-f561-44d0-bf06-e464021b402c y start propioe53f7556-3c1b-4ca6-9231-a972d9a0d834, activo entre pedidos. En main/a256350, silla graham-desk-chair desplazada−0.5u enX (offset1.25→0.75) y set de escritura−0.5u enX local del escritorio, equivalente a derecha en la captura mirando hacia+Z. Escritorio fijo; posición al sentarse y colisión siguen al modelo de silla existente. Archivos propios: src/content/entities.js y una línea en game.js. Sintaxis de ambos módulos y git diff --check correctos; comprobación visual en juego pendiente. Entrada de servidor ajena preservada debajo.
