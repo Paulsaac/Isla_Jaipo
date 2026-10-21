@@ -12,6 +12,11 @@ export function createPerformancePanel(renderer) {
     let samples = [];
     panel.textContent = `Midiendo FPS…\nGPU: ${gpu}`;
     return {
+        mark(stage) {
+            const marks = JSON.parse(panel.dataset.startup || '{}');
+            marks[stage] = Math.round(performance.now());
+            panel.dataset.startup = JSON.stringify(marks);
+        },
         record(timestamp, frameStart) {
             if (document.hidden) { frames = 0; began = null; work = 0; samples = []; return; }
             if (began === null) { began = timestamp; return; }

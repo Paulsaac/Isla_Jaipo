@@ -80,14 +80,14 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
     const camera = new THREE.Camera();
     let preparation = null;
     return {
-        prepare(world,view,refresh=false){
+        prepare(world,view,refresh=false,preparePrograms=null){
             if (preparation && !refresh) return preparation;
             const previous = renderer.getRenderTarget();
             try {
                 // Preparar framebuffer y programas con el espacio de color submarino.
                 renderer.setRenderTarget(target);
                 renderer.clear();
-                const worldPrograms = renderer.compileAsync(world,view);
+                const worldPrograms = preparePrograms ? preparePrograms(world,view,target) : renderer.compileAsync(world,view);
                 renderer.setRenderTarget(previous);
                 preparation = Promise.all([worldPrograms,renderer.compileAsync(scene,camera)]);
             } finally { renderer.setRenderTarget(previous); }

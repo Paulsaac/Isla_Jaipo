@@ -305,12 +305,18 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         if (!dialogueVisible || dialoguePointer) return;
         event.preventDefault();
         dialogueOverlay.setPointerCapture(event.pointerId);
-        dialoguePointer = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+        dialoguePointer = { id: event.pointerId, x: event.clientX, y: event.clientY,
+            lastX: event.clientX, lastY: event.clientY, moved: false };
     });
     dialogueOverlay.addEventListener('pointermove', event => {
-        if (dialoguePointer?.id === event.pointerId
-            && Math.hypot(event.clientX - dialoguePointer.x, event.clientY - dialoguePointer.y) > 12)
+        if (dialoguePointer?.id !== event.pointerId) return;
+        if (Math.hypot(event.clientX - dialoguePointer.x, event.clientY - dialoguePointer.y) > 12)
             dialoguePointer.moved = true;
+        const dx = event.clientX - dialoguePointer.lastX;
+        const dy = event.clientY - dialoguePointer.lastY;
+        dialoguePointer.lastX = event.clientX;
+        dialoguePointer.lastY = event.clientY;
+        if (dialoguePointer.moved && canAdvanceDialogue()) look(dx, dy);
     });
     dialogueOverlay.addEventListener('pointerup', event => {
         if (dialoguePointer?.id !== event.pointerId) return;

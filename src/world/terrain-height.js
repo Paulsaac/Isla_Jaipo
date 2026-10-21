@@ -6,7 +6,25 @@ function hash2D(x, z) {
     return n < 0 ? n + 1 : n;
 }
 
-function getSmoothNoise(x, z, scale) {
+export function createTerrainSamplingCache(width, height, woodMap) {
+    function field(scale) {
+        const w = Math.ceil(width / scale) + 1, h = Math.ceil(height / scale) + 1;
+        const data = new Float64Array(w * h);
+        for (let z = 0; z < h; z++) for (let x = 0; x < w; x++) data[z * w + x] = hash2D(x, z);
+        return { width: w, data };
+    }
+    const nearWood = new Uint8Array(width * height);
+    for (let z = 0; z < height; z++) for (let x = 0; x < width; x++) {
+        if (!woodMap?.[z]?.[x]) continue;
+        for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+            if (x + dx >= 0 && x + dx < width && z + dz >= 0 && z + dz < height)
+                nearWood[(z + dz) * width + x + dx] = 1;
+        }
+    }
+    return { macro: field(3), micro: field(1), nearWood };
+}
+
+function getSmoothNoise(x, z, scale, field) {
     const sx = x / scale;
     const sz = z / scale;
     const c0 = Math.floor(sx);
@@ -18,17 +36,17 @@ function getSmoothNoise(x, z, scale) {
     const smoothTx = tx * tx * (3 - 2 * tx);
     const smoothTz = tz * tz * (3 - 2 * tz);
 
-    const n00 = hash2D(c0, r0);
-    const n10 = hash2D(c1, r0);
-    const n01 = hash2D(c0, r1);
-    const n11 = hash2D(c1, r1);
+    const n00 = field ? field.data[r0 * field.width + c0] : hash2D(c0, r0);
+    const n10 = field ? field.data[r0 * field.width + c1] : hash2D(c1, r0);
+    const n01 = field ? field.data[r1 * field.width + c0] : hash2D(c0, r1);
+    const n11 = field ? field.data[r1 * field.width + c1] : hash2D(c1, r1);
 
     const n0 = n00 * (1 - smoothTx) + n10 * smoothTx;
     const n1 = n01 * (1 - smoothTx) + n11 * smoothTx;
     return n0 * (1 - smoothTz) + n1 * smoothTz;
 }
 
-export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile) {
+export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile, cache) {
     let platformHeight = 0, platformWeight = 0;
     for (const platform of elevationMap.buildingPlatforms ?? []) {
         if (colF < platform.minX - 1 || colF > platform.maxX + 1
@@ -74,9 +92,9 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     const noiseAmount = interpolate(noiseWeight(t00,c0,r0), noiseWeight(t10,c1,r0), noiseWeight(t01,c0,r1), noiseWeight(t11,c1,r1)) * (0.25 + 0.75 * coastalRelief);
     if (noiseAmount > 0) {
         // Large rolling hills (scale = 3.0 tiles)
-        let macroNoise = getSmoothNoise(colF, rowF, 3.0) * 0.4;
+        let macroNoise = getSmoothNoise(colF, rowF, 3.0, cache?.macro) * 0.4;
         // Medium details (scale = 1.0 tiles)
-        let microNoise = getSmoothNoise(colF, rowF, 1.0) * 0.15;
+        let microNoise = getSmoothNoise(colF, rowF, 1.0, cache?.micro) * 0.15;
 
         let shoreGranularity = 0;
         if (y > -0.5 && y < 0.5) {
@@ -96,7 +114,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     }
     // Mantener tierra continua bajo la madera y suavizar el encuentro exterior.
     // Las cajas de madera abarcan media celda desde su centro y terminan en Y=1.
-    if (woodFloorMap) {
+    if (woodFloorMap && (!cache || cache.nearWood[r0 * mapWidth + c0])) {
         let distance = Infinity;
         let floorHeight = 1;
         for (let z = Math.max(0, Math.floor(rowF) - 1); z <= Math.min(mapHeight - 1, Math.ceil(rowF) + 1); z++) {

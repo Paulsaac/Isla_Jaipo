@@ -10,11 +10,12 @@ import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/worl
 import { prepareInactiveLights } from './src/world/inactive-lights.js';
 import { getTerrainTextureBlend } from './src/world/terrain-textures.js';
 import { createPerformancePanel } from './src/ui/performance-panel.js';
+import { waitForRenderedFrame, prepareProgramsInBatches } from './src/ui/render-ready.js';
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
-import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs } from './src/content/dialogues.js';
+import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
 import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
@@ -27,10 +28,13 @@ import { createStumpGeometry } from './src/world/stump-geometry.js';
 import { createEntityRegistry } from './src/world/entity-registry.js';
 import { createForestHeartQuest } from './src/systems/forest-heart.js';
 import { loadMapImage, readMapLayers } from './src/world/map-loader.js';
-import { prepareMap } from './src/world/map-data.js';
+import { prepareMapAsync } from './src/world/map-data.js';
+import { createLoadingYield } from './src/ui/loading-yield.js';
+import { createTerrainBuild } from './src/world/terrain-build.js';
+import { prepareWorldFields } from './src/world/world-preparation.js';
 import { getBedSupport } from './src/player/bed-support.js';
 import { createAtticSupport, BED_CEILING_OPENING } from './src/player/attic-support.js';
-import { focusLoadingSpawn, finishLoadingZoom } from './src/ui/loading-screen.js';
+import { showReadyIsland, getIslandPreview, setIslandPreview } from './src/ui/island-start.js';
 import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
 import { createHud } from './src/ui/hud.js';
@@ -38,19 +42,15 @@ import { bindKeyboard } from './src/input/keyboard.js';
 import { requestGamePointerLock, guardPointerLockMouse } from './src/input/pointer-lock.js';
 import { isTouchMode } from './src/input/touch-mode.js';
 import { bindTouchControls } from './src/input/touch-controls.js';
-import { getTerrainVertexY, getTerrainHeight as sampleTerrainHeight } from './src/world/terrain-height.js';
+import { getTerrainVertexY, createTerrainSamplingCache, getTerrainHeight as sampleTerrainHeight } from './src/world/terrain-height.js';
 import { isWall as hasObstacle } from './src/player/collisions.js';
 import { toggleDoor, unlockDoor, updateDoorAnimations } from './src/systems/doors.js';
-import { createWoodFloorMap, createWaterDeckMap, createWaterDeckTerrain, levelBuildingAtTerrain, createWetSandShoreMap } from './src/world/surfaces.js';
+import { createWaterDeckTerrain, levelBuildingAtTerrain, createWetSandShoreMap } from './src/world/surfaces.js';
 import { createTorchLighting } from './src/systems/torch-lighting.js';
-import { createMountainHeights } from './src/world/mountain-height.js';
-import { createMountainReliefMap } from './src/world/mountain-relief.js';
 import { MOUNTAIN_PROFILE_REFERENCE } from './src/content/mountain-relief.js';
 import { smoothMountainPath } from './src/world/mountain-path.js';
 import { createRoofBaseMap } from './src/world/roof-height.js';
 import { getDoorOpening } from './src/world/door-opening.js';
-import { smoothMountainSlope } from './src/world/mountain-slope.js';
-import { carveMountainTrail } from './src/world/mountain-trail.js';
 import { createBoatGeometry } from './src/world/boat-geometry.js';
 import { updateBoatFloating } from './src/world/boat-floating.js';
 import { placeBoatFacingWest } from './src/world/boat-placement.js';
@@ -66,7 +66,6 @@ import { loadCaveTestMap } from './src/world/cave-test-map.js';
 import { createUnderwaterView } from './src/world/underwater-view.js';
 import { createUnderwaterVegetation } from './src/world/underwater-vegetation.js';
 import { createVegetationVisibility } from './src/world/vegetation-visibility.js';
-import { createSeaFloorHeights } from './src/world/sea-depth.js';
 import { createRiverCurrentField } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
 import { createDryVineShrine } from './src/world/dry-vine-geometry.js';
@@ -74,11 +73,12 @@ import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
 import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER, FLIGHT_VERTICAL_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
 import { pushPlayerFromMovingDoors } from './src/player/door-push.js';
-import { createTerrainSectors } from './src/world/terrain-sectors.js';
-import { createInstanceSectors } from './src/world/instance-sectors.js';
+import { createTerrainSectorsAsync } from './src/world/terrain-sectors.js';
+import { createInstanceSectorsAsync } from './src/world/instance-sectors.js';
 import { createFogCulling } from './src/world/fog-culling.js';
 import { mergeRoofBlocks } from './src/world/roof-blocks.js';
 import { createBedGeometry } from './src/world/bed-geometry.js';
+import { createBedDebrisLanding, createBedDebrisTargets, bedDebrisTravel } from './src/world/bed-debris.js';
 import { createSideTableGeometry } from './src/world/side-table-geometry.js';
 import { createBarrelGeometry } from './src/world/barrel-geometry.js';
 import { createBookshelfGeometry } from './src/world/bookshelf-geometry.js';
@@ -128,12 +128,15 @@ const BED_BOUNCE_MAX_IMPULSE = 20;
 const BED_BOUNCE_AFTER_IMPACT_GAIN = 4;
 const BED_BOUNCE_INITIAL_TIME_SCALE = 0.45;
 const BED_CEILING_HITS_TO_BREAK = 6;
-const BED_CEILING_STUCK_SECONDS = 1.2;
+const BED_CEILING_STUCK_SECONDS = 1.5;
 const BED_CEILING_OPEN_SECONDS = 0.36;
-const BED_CEILING_CHIP_COUNT = 18;
+const BED_CEILING_CHIP_COUNT = 10;
+const BED_WOOD_CHIP_HOLD_SECONDS = 2.2;
+const BED_WOOD_CHIP_FADE_SECONDS = 0.9;
 let bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
 let bedBounceHitCeiling = false;
 let bedBounceActive = false;
+let bedTakeoffSoundPlayed = false;
 let bedCeilingHits = 0;
 let jumpHeld = false;
 const TOUCH_JUMP_REPEAT_PAUSE = 0.08;
@@ -148,9 +151,11 @@ let makeBedHoleMesh = null;
 let bedHoleStages = [];
 let bedHoleOpeningTime = -1;
 let bedWoodChips = null;
+let bedWoodChipMaterial = null;
 const bedWoodChipMotion = [];
 const bedWoodChipDummy = new THREE.Object3D();
 let bedWoodChipTime = -1;
+let bedWoodChipFadeStart = -1;
 const bedCeilingImpact = new THREE.Vector2();
 let atticSupport = null;
 const bedDefinition = furniture.find(item => item.id === 'graham-bed');
@@ -287,7 +292,7 @@ let structureSectors = null;
 let fogCulling = null;
 let grahamSprite = null;
 let targetInteractable = null;
-let divingHelmetMesh = null;
+let divingHelmetMesh = null, mateInteractable = null;
 let isRidingBoat = false;
 let boatReference = null;
 let seatedChair = null;
@@ -313,6 +318,7 @@ let deliveringHeart = false;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a14); // Noche azulada lúgubre
 const WORLD_VISIBILITY_DISTANCE = 300;
+const terrainVisibilityDistance = { value: WORLD_VISIBILITY_DISTANCE };
 const MOUNTAIN_VISIBILITY_DISTANCE = 600;
 const FOG_RESIDUAL = 0.0001;
 let underwaterBlend = 0;
@@ -419,6 +425,8 @@ raycaster.far = 3.5;
 const interactionHits = [];
 const helmetInteractionCenter = new THREE.Vector3();
 const helmetInteractionOffset = new THREE.Vector3();
+const mateInteractionCenter = new THREE.Vector3();
+const mateInteractionOffset = new THREE.Vector3();
 const frameCameraDirection = new THREE.Vector3();
 const frameCameraHeading = new THREE.Euler(0, 0, 0, 'YXZ');
 const frameMoonPosition = new THREE.Vector3();
@@ -432,10 +440,62 @@ const performancePanel = createPerformancePanel(renderer);
 const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime,pinkSunglassesTint,sunglassesViewColor,sunglassesNegativeView);
 
 const controls = new PointerLockControls(camera, document.body);
+// La portada tiene su cámara; ningún gesto debe girar la cámara del dormitorio.
+controls.disconnect();
 if (isTouchMode) controls.disconnect();
 else {
     guardPointerLockMouse(controls);
     controls.lock=()=>requestGamePointerLock(document.body).catch(()=>{});
+}
+const dialogLookAnchor = new THREE.Quaternion();
+const dialogLookInverse = new THREE.Quaternion();
+const dialogLookDirection = new THREE.Vector3();
+const dialogLookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+let dialogLookActive = false;
+let dialogLookX = 0, dialogLookY = 0;
+function beginDialogLook() {
+    dialogLookAnchor.copy(camera.quaternion);
+    dialogLookInverse.copy(dialogLookAnchor).invert();
+    dialogLookX = dialogLookY = 0;
+    dialogLookActive = true;
+}
+function constrainDialogLook(dt) {
+    if (!dialogLookActive || !controls.isLocked) return;
+    dialogLookDirection.set(0, 0, -1).applyQuaternion(camera.quaternion).applyQuaternion(dialogLookInverse);
+    const tangent = Math.hypot(dialogLookDirection.x, dialogLookDirection.y);
+    const angle = Math.atan2(tangent, -dialogLookDirection.z);
+    const targetX = tangent > 1e-8 ? dialogLookDirection.x * angle / tangent : 0;
+    const targetY = tangent > 1e-8 ? dialogLookDirection.y * angle / tangent : 0;
+    const dx = targetX - dialogLookX, dy = targetY - dialogLookY;
+    const steps = Math.min(128, Math.max(1, Math.ceil(Math.hypot(dx, dy) / 0.01)));
+    for (let i = 0; i < steps; i++) {
+        const radius = Math.hypot(dialogLookX, dialogLookY);
+        const inward = dx * dialogLookX + dy * dialogLookY < 0;
+        // La resistencia crece antes de llegar al borde; volver hacia dentro sigue siendo fácil.
+        const weight = inward ? 1 : 1 - 0.92 * THREE.MathUtils.smoothstep(radius, 0.14, 0.34);
+        dialogLookX += dx / steps * weight;
+        dialogLookY += dy / steps * weight;
+        const nextRadius = Math.hypot(dialogLookX, dialogLookY);
+        if (nextRadius > radius && nextRadius > 0.34) {
+            const room = Math.max(0, 0.34 - radius);
+            const eased = room > 1e-8 ? room * (1 - Math.exp(-(nextRadius - radius) / room)) : 0;
+            const scale = (radius + eased) / nextRadius;
+            dialogLookX *= scale;
+            dialogLookY *= scale;
+        }
+    }
+    const radius = Math.hypot(dialogLookX, dialogLookY);
+    if (radius > 0.23) {
+        const relaxed = 0.23 + (radius - 0.23) * Math.exp(-Math.min(dt, 0.1) * 0.85);
+        dialogLookX *= relaxed / radius;
+        dialogLookY *= relaxed / radius;
+    }
+    const limitedRadius = Math.hypot(dialogLookX, dialogLookY);
+    const sine = limitedRadius > 1e-8 ? Math.sin(limitedRadius) / limitedRadius : 1;
+    dialogLookDirection.set(dialogLookX * sine, dialogLookY * sine, -Math.cos(limitedRadius)).applyQuaternion(dialogLookAnchor);
+    dialogLookEuler.set(Math.asin(THREE.MathUtils.clamp(dialogLookDirection.y, -1, 1)),
+        Math.atan2(-dialogLookDirection.x, -dialogLookDirection.z), 0, 'YXZ');
+    camera.quaternion.setFromEuler(dialogLookEuler);
 }
 function resumeGame() {
     if (isDead || !mapLoaded) return;
@@ -467,7 +527,8 @@ function pauseGame() {
 
 const loadingScreen = document.getElementById('loading-screen');
 const mainMenu = document.getElementById('main-menu');
-const menus = createMenus({ onResume: resumeGame, onUseItem: useInventoryItem });
+const menus = createMenus({ onResume: resumeGame, onUseItem: useInventoryItem,
+    onDialogueCharacter: musicEvents.playDialogueCharacter });
 let dapPointerSpeed = 1;
 const grahamDap = createGrahamDap(THREE, {
     onImpact: () => musicEvents.playDap(),
@@ -481,6 +542,19 @@ const grahamDap = createGrahamDap(THREE, {
     },
     onCancel: () => musicEvents.stopDap()
 });
+function cancelActiveDialog() {
+    if (!isDialogOpen) return;
+    if (grahamDap.active) {
+        grahamDap.cancel();
+        controls.pointerSpeed = dapPointerSpeed;
+    }
+    isDialogOpen = false;
+    dialogLookActive = false;
+    dialogIndex = 0;
+    deliveringHeart = false;
+    menus.hideDialog();
+    clearGreetingInput();
+}
 let mapChestSoundSource = null;
 const mapChestSoundPosition = new THREE.Vector3();
 function getMapChestSoundPosition() {
@@ -528,7 +602,10 @@ function showActiveDialog() {
         return;
     }
 
-    menus.showDialog(activeDialogs[dialogIndex], { speaker: activeDialogSpeaker });
+    const thought = activeDialogs === mateAlreadyHeldDialogs;
+    menus.showDialog(activeDialogs[dialogIndex], thought
+        ? { anonymous: true, blurBackdrop: false, smooth: true }
+        : { speaker: activeDialogSpeaker });
 }
 const spawnGreeting = createSpawnGreeting({
     door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN
@@ -801,6 +878,8 @@ function standFromChair() {
 
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    if (bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return false;
+    if (menus.isDialogVisible() && menus.completeDialogText()) return true;
     if (seatedChair) { standFromChair(); return true; }
     if (woodcutting.active) {
         if (isTouchMode) woodcutting.interact();
@@ -850,6 +929,7 @@ function interact() {
                 }
                 deliveringHeart = false;
                 isDialogOpen = false;
+                dialogLookActive = false;
                 menus.hideDialog();
                 if ((completedHeartDelivery && !GRAHAM_BRIDGE_KEY_AVAILABLE) || receivedBridgeKey) openMapChestAfterThanks();
             }
@@ -909,8 +989,9 @@ function interact() {
                 deliveringHeart = false;
                 isDialogOpen = true;
                 clearGreetingInput();
-                activeDialogs = mateOfferDialogs;
-                activeDialogSpeaker = 'Graham';
+                beginDialogLook();
+                activeDialogs = hasMate ? mateAlreadyHeldDialogs : mateOfferDialogs;
+                activeDialogSpeaker = hasMate ? 'Pensamiento' : 'Graham';
                 dialogIndex = 0;
                 showActiveDialog();
                 return true;
@@ -998,7 +1079,8 @@ function interact() {
                 canJump = true;
             } else if (targetInteractable.userData.type === 'NPC') {
                 isDialogOpen = true;
-                if (isTouchMode) clearGreetingInput();
+                clearGreetingInput();
+                beginDialogLook();
                 if (targetInteractable.userData.id === 'attic-ant') {
                     deliveringHeart = false;
                     activeDialogs = atticAntDialogs;
@@ -1027,12 +1109,22 @@ function interact() {
                 } else {
                     toggleDoorWithPlayer(targetInteractable);
                 }
+            } else if (targetInteractable.userData.type === 'GATE') {
+                const gate = targetInteractable;
+                gate.userData.isOpen = !gate.userData.isOpen;
+                gate.userData.collisionEnabled = !gate.userData.isOpen;
+                gate.userData.motion = {
+                    from: gate.userData.parentGroup.rotation.y,
+                    to: gate.userData.isOpen ? Math.PI / 2 : 0,
+                    elapsed: 0
+                };
             }
         }
     }
 }
 
 const gameActions = {
+    isEnabled: () => mapLoaded,
     cycleLensView() {
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
             || !hasPinkSunglasses || !pinkSunglassesEquipped || woodcutting.active || grahamDap.active
@@ -1046,6 +1138,7 @@ const gameActions = {
     },
     isPaused: () => gameStarted && !isDead && !controls.isLocked,
     isInventoryOpen: () => isInventoryOpen,
+    cancelDialogue: cancelActiveDialog,
     toggleFlight,
     toggleDayNight,
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
@@ -1091,12 +1184,25 @@ const gameActions = {
         }
     },
     jump() {
-        if (seatedChair) return;
+        if (seatedChair || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return;
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
             const player = controls.getObject();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
             const support = getBedSupport(player.position.x, player.position.z, player.position.y - eyeHeight, solidInteractables);
             const standingOnBed = Number.isFinite(support) && Math.abs(player.position.y - eyeHeight - support) < 0.18;
+            const atticHeight = bedCeilingHoleOpen ? atticSupport?.supportHeight(
+                player.position.x, player.position.z, player.position.y - eyeHeight, true) : -Infinity;
+            const onAttic = Number.isFinite(atticHeight) && atticHeight >= getTerrainHeight(player.position.x, player.position.z);
+            const takeoffStep = footstepSurfaceAt(player.position.x, player.position.z, standingOnBed || onAttic);
+            if (standingOnBed) {
+                musicEvents.playBedJump();
+                bedTakeoffSoundPlayed = true;
+            } else if (takeoffStep) {
+                musicEvents.playFootstep(isRunning, 0.9, takeoffStep.outdoor, footstepIndex % 2 === 0,
+                    takeoffStep.surface, true);
+                footstepIndex++;
+            }
+            if (!standingOnBed) bedTakeoffSoundPlayed = false;
             touchJumpRepeatWait = 0;
             velocityY = standingOnBed ? BED_BOUNCE_BASE_IMPULSE : JUMP_FORCE;
             canJump = false;
@@ -1107,7 +1213,7 @@ const gameActions = {
         }
     },
     crouch(pressed) {
-        if (seatedChair) return;
+        if (seatedChair || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return;
         // Durante Bosque no se permite agacharse; si ya lo estaba, intentar incorporarse.
         crouchRequested = musicEvents.isEventActive('forest') ? false : pressed;
         updatePlayerPosture();
@@ -1203,6 +1309,7 @@ for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToFo
         if (woodcutting.active) {
             return;
         }
+        if (isDialogOpen && !(name === 'move' && args[1] === false)) return;
         if (!spawnGreeting.active && !grahamDap.active && (!heartPull.active || name === 'move')) return action(...args);
     };
 }
@@ -1241,7 +1348,7 @@ const touchControls = isTouchMode ? bindTouchControls({
         || (spawnGreeting.active && spawnGreeting.phase === 'invitation')),
     pause: pauseGame,
     look(dx, dy) {
-        if (woodcutting.active || spawnGreeting.active || grahamDap.active || isDialogOpen) return;
+        if (woodcutting.active || spawnGreeting.active || grahamDap.active) return;
         touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
         touchLook.y -= dx * TOUCH_LOOK_SENSITIVITY;
         touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * TOUCH_LOOK_SENSITIVITY, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
@@ -1311,7 +1418,12 @@ let aguaFloorMat = null;
 
 
 // Cargar texturas de Sprites
-const texLoader = new THREE.TextureLoader();
+let worldTexturesReady = Promise.resolve();
+const worldTextureManager = new THREE.LoadingManager();
+worldTextureManager.onStart = () => {
+    worldTexturesReady = new Promise(resolve => { worldTextureManager.onLoad = resolve; });
+};
+const texLoader = new THREE.TextureLoader(worldTextureManager);
 let resolveHeartTexture, rejectHeartTexture;
 const heartTextureReady = new Promise((resolve,reject)=>{resolveHeartTexture=resolve;rejectHeartTexture=reject;});
 heldItemTextures = {
@@ -1370,6 +1482,12 @@ renderer.domElement.addEventListener('contextmenu', event => {
     if ((woodcutting.active && controls.isLocked) || canDrinkMate()) event.preventDefault();
 });
 const torchFrames = [];
+const torchFlameGeometry = new THREE.PlaneGeometry(1, 1);
+function faceTorchFlameToCamera(flame) {
+    const dx = camera.position.x - flame.position.x;
+    const dz = camera.position.z - flame.position.z;
+    if (dx * dx + dz * dz > 1e-8) flame.rotation.y = Math.atan2(dx, dz);
+}
 const blueFireAtlas = texLoader.load('./imagenes/Sprites/fuego-azul-altar-atlas.png');
 blueFireAtlas.colorSpace = THREE.SRGBColorSpace;
 blueFireAtlas.magFilter = blueFireAtlas.minFilter = THREE.NearestFilter;
@@ -1554,17 +1672,65 @@ Promise.all([
     loadMapImage('./imagenes/Mapa/capa2.png?v=' + Date.now()),
     heartTextureReady
 ]).then(async ([baseImage, roofImage]) => {
-    const prepared = prepareMap(readMapLayers(baseImage, roofImage), entities, shipwreckProps, mapCellOverrides);
-    focusLoadingSpawn(prepared.playerStartX, prepared.playerStartZ, prepared.mapWidth, prepared.mapHeight);
+    performancePanel?.mark('Capas listas');
+    const checkpoint = createLoadingYield(6);
+    const prepared = await prepareMapAsync(readMapLayers(baseImage, roofImage), entities, shipwreckProps, mapCellOverrides, checkpoint);
     // Presentar la carga antes de la construcción síncrona de geometría.
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    buildWorld(prepared);
+    await buildWorld(prepared, checkpoint);
+    performancePanel?.mark('Mundo construido');
+    await worldTexturesReady;
+    performancePanel?.mark('Texturas listas');
+    // Subir texturas por tandas evita estrenar todas las cargas GPU en un dibujo.
+    const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,...torchFrames]);
+    scene.traverse(object => {
+        const materials = object.material ? Array.isArray(object.material) ? object.material : [object.material] : [];
+        for (const material of materials) for (const value of Object.values(material)) {
+            if (value?.isTexture) startupTextures.add(value);
+        }
+    });
+    for (const texture of startupTextures) {
+        renderer.initTexture(texture);
+        await waitForRenderedFrame(renderer);
+        const pause = checkpoint();
+        if (pause) await pause;
+    }
+    performancePanel?.mark('Texturas subidas');
     // La primera inmersión no debe estrenar framebuffer ni shaders del mundo.
-    await underwaterView.prepare(scene, camera);
+    const prepareStartupPrograms = (world, view, target) =>
+        prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target);
+    await underwaterView.prepare(scene, camera, false, prepareStartupPrograms);
     // Preparar también los materiales fuera de cámara durante la pantalla de carga.
     // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
-    await renderer.compileAsync(scene, camera);
-    await finishLoadingZoom();
+    await prepareStartupPrograms(scene, camera, null);
+    performancePanel?.mark('Shaders preparados');
+    camera.position.y = getTerrainHeight(camera.position.x, camera.position.z) + PLAYER_HEIGHT;
+    const preview = getIslandPreview();
+    if (!preview) throw new Error('No está disponible la maqueta guardada.');
+    // Dibujar y subir los buffers/texturas del encuadre real ANTES del zoom final.
+    // compileAsync prepara programas, pero no garantiza un primer dibujo listo.
+    const spawn = controls.getObject().position;
+    camera.updateMatrixWorld(true);
+    skyMesh.position.set(spawn.x, 200, spawn.z);
+    daySkyMesh.position.y = spawn.y - 200;
+    nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y;
+    torchLighting?.update(spawn, performance.now() / 1000, dayTransition);
+    updateFogColor();
+    const startupFogPlane = fogCulling?.update(camera);
+    vegetationSectors?.update(camera, startupFogPlane);
+    structureSectors?.update(camera, startupFogPlane);
+    sunFlare.update();
+    underwaterView.render(scene, camera);
+    await waitForRenderedFrame(renderer);
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    performancePanel?.mark('Primer fotograma preparado');
+    performancePanel?.mark('Juego listo');
+    await showReadyIsland(preview, isTouchMode ? 'Toca para comenzar' : 'Presiona Enter para jugar');
+    preview.reveal();
+    setIslandPreview(null);
+    clock.getDelta();
+    for (const direction of Object.keys(moveState)) moveState[direction] = false;
+    if (!isTouchMode) controls.connect();
     mapLoaded = true;
     loadingScreen.style.display = 'none';
     if (isTouchMode) {
@@ -1573,24 +1739,27 @@ Promise.all([
         controls.isLocked = true;
         controls.dispatchEvent({ type: 'lock' });
     } else {
-        mainMenu.style.display = 'flex';
+        gameStarted = true;
+        menus.showPause();
     }
 }).catch((error) => {
     if (document.pointerLockElement) document.exitPointerLock();
     loadingScreen.style.color = 'red';
+    loadingScreen.style.display = 'flex';
     loadingScreen.textContent = 'ERROR: ' + error.message;
     console.error(error);
 });
 
 
-function buildWorld(prepared) {
+async function buildWorld(prepared, checkpoint) {
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
-    const mountainReliefMap = createMountainReliefMap(floorMap, collisionMap);
-    woodFloorMap = createWoodFloorMap(floorMap, roofMap, mapWidth, mapHeight, prepared.externalTorchMap);
-    const waterDeckMap = createWaterDeckMap(floorMap, roofMap, mapWidth, mapHeight);
-    const seaFloorHeights = createSeaFloorHeights(floorMap,waterDeckMap,mapWidth,mapHeight);
+    const fields = await prepareWorldFields('base', {floorMap,collisionMap,roofMap,
+        width:mapWidth,height:mapHeight,externalTorchMap:prepared.externalTorchMap});
+    const { mountainReliefMap, waterDeckMap, seaFloorHeights } = fields;
+    woodFloorMap = fields.woodFloorMap;
+    collisionMap = fields.collisionMap;
     // El floorCanvas se utilizará ahora exclusivamente para el minimapa
     // Eliminado el floorMesh (la imagen del mapa 2D en el mundo 3D) para no interferir con las laderas y profundidades del terreno continuo.
     
@@ -1634,6 +1803,7 @@ function buildWorld(prepared) {
     const snowPeakMat = new THREE.MeshPhongMaterial({ color: 0x808080, shininess: 0 }); 
     const ceilingMat = new THREE.MeshPhongMaterial({ map: cieloFalsoTex, shininess: 0 }); 
     const roofMat = new THREE.MeshPhongMaterial({ map: techoTex, shininess: 0 });
+    const brokenCeilingWoodMat = new THREE.MeshPhongMaterial({ map: maderaTex, shininess: 0, side: THREE.DoubleSide });
     roofMat.onBeforeCompile = function ( shader ) {
         shader.vertexShader = `
             varying vec3 vWorldPos;
@@ -1758,7 +1928,9 @@ function buildWorld(prepared) {
     const distQueue = [];
     
     for (let z = 0; z < mapHeight; z++) {
+        { const pause = checkpoint(); if (pause) await pause; }
         for (let x = 0; x < mapWidth; x++) {
+            if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             if (['WATER', 'WATER_ROCK', 'BOAT'].includes(floorMap[z][x]) || x === 0 || x === mapWidth-1 || z === 0 || z === mapHeight-1) {
                 let bordersLand = false;
                 for (let dz = -1; dz <= 1; dz++) {
@@ -1780,6 +1952,7 @@ function buildWorld(prepared) {
 
     let qHead = 0;
     while(qHead < distQueue.length) {
+        if ((qHead & 1023) === 0) { const pause = checkpoint(); if (pause) await pause; }
         const {r, c, dist} = distQueue[qHead++];
         const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
         for (const [dr, dc] of dirs) {
@@ -1795,14 +1968,18 @@ function buildWorld(prepared) {
 
     let previousMountainMaximum = 1;
     for(let z=0;z<mapHeight;z++) for(let x=0;x<mapWidth;x++) {
+        if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
         const factor = {MOUNTAIN:1.5,PEAK:2,SNOW_PEAK:3}[mountainReliefMap[z][x]];
         if(factor) previousMountainMaximum=Math.max(previousMountainMaximum,elevationMap[z][x]*factor);
     }
     previousMountainMaximum *= 0.85 * 0.8;
-    const { heights: mountainHeights, mask: mountainMask } = createMountainHeights(mountainReliefMap, mapWidth, mapHeight, previousMountainMaximum);
+    const { heights: mountainHeights, mask: mountainMask } = await prepareWorldFields('mountain',
+        {floorMap:mountainReliefMap,width:mapWidth,height:mapHeight,targetHeight:previousMountainMaximum});
     // Aplanar y esculpir
     for (let z = 0; z < mapHeight; z++) {
+        { const pause = checkpoint(); if (pause) await pause; }
         for (let x = 0; x < mapWidth; x++) {
+            if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             const type = floorMap[z][x];
             let dist = elevationMap[z][x];
             
@@ -1853,6 +2030,7 @@ function buildWorld(prepared) {
     // Plataforma de las construcciones apoyadas en nieve: misma cota para suelo, muros y techo.
     const summitCells = [];
     for(let z=0;z<mapHeight;z++) for(let x=0;x<mapWidth;x++) {
+        if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
         if(mountainMask[z][x] && ['BUILDING','INDOOR_FLOOR','WOOD','CHEST','DOOR_UNLOCKED','DOOR_LOCKED'].includes(floorMap[z][x])) summitCells.push([x,z]);
     }
     if(summitCells.length) {
@@ -1871,7 +2049,9 @@ function buildWorld(prepared) {
     mountainPathProfile = smoothMountainPath(mountainReliefMap, elevationMap, mountainMask, previousMountainMaximum, {...MOUNTAIN_PROFILE_REFERENCE, followTerrain:true, inclineMultiplier:1.1});
     // Smooth indoor boundaries
     for (let z = 0; z < mapHeight; z++) {
+        { const pause = checkpoint(); if (pause) await pause; }
         for (let x = 0; x < mapWidth; x++) {
+            if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             if (['TORCH', 'OTHER'].includes(floorMap[z][x])) {
                 let isAdjacentToIndoor = false;
                 for (let r = Math.max(0, z-1); r <= Math.min(mapHeight-1, z+1); r++) {
@@ -1888,8 +2068,11 @@ function buildWorld(prepared) {
         }
     }
 
-    smoothMountainSlope(mountainReliefMap, elevationMap, mountainMask, mountainPathProfile?.summitHeight, mountainPathProfile?.followsTerrain);
-    mountainPathProfile = carveMountainTrail(floorMap, elevationMap, mountainMask, mountainPathProfile);
+    const shaped = await prepareWorldFields('slope', {relief:mountainReliefMap,elevations:elevationMap,
+        mask:mountainMask,profile:mountainPathProfile,floorMap});
+    elevationMap = shaped.elevations;
+    if (shaped.platforms) elevationMap.buildingPlatforms = shaped.platforms;
+    mountainPathProfile = shaped.profile;
     // Elevar cada puente cubierto al terreno de sus accesos, antes de construir sus piezas.
     for (const bridge of waterDeckMap.coveredBridges) {
         const midX = (bridge.minX + bridge.maxX) / 2, midZ = (bridge.minZ + bridge.maxZ) / 2;
@@ -1915,7 +2098,9 @@ function buildWorld(prepared) {
     const roofDistances = Array.from({length: mapHeight * roofSubdivisions}, () => new Uint8Array(mapWidth * roofSubdivisions).fill(255));
     
     for (let z = 0; z < mapHeight; z++) {
+        { const pause = checkpoint(); if (pause) await pause; }
         for (let x = 0; x < mapWidth; x++) {
+            if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             if (roofMap[z][x] === 'ROOF') {
                 const isEdge = x===0 || x===mapWidth-1 || z===0 || z===mapHeight-1 || roofMap[z-1][x] !== 'ROOF' || roofMap[z+1][x] !== 'ROOF' || roofMap[z][x-1] !== 'ROOF' || roofMap[z][x+1] !== 'ROOF';
                 if (isEdge) {
@@ -1937,6 +2122,7 @@ function buildWorld(prepared) {
     
     let head = 0;
     while(head < roofQueue.length) {
+        if ((head & 1023) === 0) { const pause = checkpoint(); if (pause) await pause; }
         const {r, c, dist} = roofQueue[head++];
         if (dist >= 25) continue; // La cresta alcanza su altura máxima; no hace falta propagar más.
         const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
@@ -1956,7 +2142,9 @@ function buildWorld(prepared) {
     }
 
     for (let z = 0; z < mapHeight; z++) {
+        { const pause = checkpoint(); if (pause) await pause; }
         for (let x = 0; x < mapWidth; x++) {
+            if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             const type = floorMap[z][x];
             const rType = roofMap[z][x];
             
@@ -2031,7 +2219,7 @@ function buildWorld(prepared) {
                 const torchY = supportHeight + TORCH_MOUNT_HEIGHT;
                 worldTorches.push({ x: wallX, z: wallZ, y: torchY, isBlue: isBlueTorch, isIndoor: woodFloorMap[z][x], gx: x, gz: z });
                 const isIndoor = woodFloorMap[z][x];
-                const material = new THREE.SpriteMaterial({ map: torchFrames[0], transparent: true, fog: !isIndoor, depthWrite: false, color: isBlueTorch ? 0x66ccff : 0xffffff });
+                const material = new THREE.MeshBasicMaterial({ map: torchFrames[0], transparent: true, fog: !isIndoor, depthWrite: false, color: isBlueTorch ? 0x66ccff : 0xffffff });
                 if (!isIndoor) {
                     // Apagar la llama sin ocultar el soporte ni alterar el sprite original.
                     const flameStrength = { value: 1 - dayTransition };
@@ -2043,9 +2231,10 @@ function buildWorld(prepared) {
                             '#include <map_fragment>\nif (vMapUv.y > 0.5) diffuseColor.a *= flameStrength;');
                     };
                 }
-                const sprite = new THREE.Sprite(material);
+                const sprite = new THREE.Mesh(torchFlameGeometry, material);
                 sprite.position.set(wallX, torchY, wallZ);
                 sprite.scale.set(1, 1, 1);
+                faceTorchFlameToCamera(sprite);
                 scene.add(sprite);
                 torchSprites.push(sprite);
             }
@@ -2297,7 +2486,7 @@ function buildWorld(prepared) {
         }
     }
     
-    vegetationSectors = createInstanceSectors(THREE, [pino1Mesh, pino2Mesh, alamo1Mesh, alamo2Mesh, arau1Mesh, arau2Mesh, arbusto1Mesh, arbusto2Mesh, weed1Mesh, weed2Mesh, weed3Mesh], 64, 0.75);
+    vegetationSectors = await createInstanceSectorsAsync(THREE, [pino1Mesh, pino2Mesh, alamo1Mesh, alamo2Mesh, arau1Mesh, arau2Mesh, arbusto1Mesh, arbusto2Mesh, weed1Mesh, weed2Mesh, weed3Mesh], 64, 0.75, checkpoint);
     scene.add(vegetationSectors.group);
     surfaceVegetationFade = createVegetationVisibility(vegetationSectors.group,{value:1});
     scene.add(bldgMesh);
@@ -2325,11 +2514,12 @@ function buildWorld(prepared) {
         const z = dividerZ + side * (dividerThickness / 2 + 0.2);
         const y = getTerrainHeight(x, z) + TORCH_MOUNT_HEIGHT;
         worldTorches.push({ x, y, z, isBlue: false, isIndoor: true, intensityScale: 0.65 });
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        const sprite = new THREE.Mesh(torchFlameGeometry, new THREE.MeshBasicMaterial({
             map: torchFrames[0], transparent: true, fog: false, depthWrite: false
         }));
         sprite.position.set(x, y, z);
         sprite.scale.set(1, 1, 1);
+        faceTorchFlameToCamera(sprite);
         scene.add(sprite);
         torchSprites.push(sprite);
     }
@@ -2356,7 +2546,6 @@ function buildWorld(prepared) {
         outline.lineTo(width / 2, length / 2);
         outline.lineTo(-width / 2, length / 2);
         outline.closePath();
-        const brokenWood = new THREE.MeshBasicMaterial({ color: 0x342317 });
         const bedHolePosition = new THREE.Vector3(
             (bedDefinition.position.x + (bedDefinition.size.x - 1) / 2) * UNIT_SIZE,
             roofBaseMap[bedDefinition.position.z][bedDefinition.position.x] + WALL_HEIGHT + 0.05,
@@ -2387,7 +2576,7 @@ function buildWorld(prepared) {
                             : bedDefinition.size.z / 2 + positions.getZ(i) / UNIT_SIZE);
                 }
             }
-            const mesh = new THREE.Mesh(geometry, [ceilingMat, brokenWood]);
+            const mesh = new THREE.Mesh(geometry, [ceilingMat, brokenCeilingWoodMat]);
             mesh.position.copy(bedHolePosition);
             mesh.userData.visibilityEnabled = false;
             mesh.visible = false;
@@ -2395,9 +2584,18 @@ function buildWorld(prepared) {
             return mesh;
         };
         bedHoleRim = makeBedHoleMesh(BED_CEILING_OPENING);
+        const woodChipGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const woodChipUvs = woodChipGeometry.attributes.uv;
+        // Cada astilla toma una franja de una sola tabla, no el mosaico completo.
+        for (let i = 0; i < woodChipUvs.count; i++) {
+            woodChipUvs.setY(i, 0.05 + woodChipUvs.getY(i) * 0.12);
+        }
+        bedWoodChipMaterial = brokenCeilingWoodMat.clone();
+        bedWoodChipMaterial.transparent = true;
+        bedWoodChipMaterial.depthWrite = false;
         bedWoodChips = new THREE.InstancedMesh(
-            new THREE.BoxGeometry(1, 1, 1),
-            new THREE.MeshBasicMaterial({ color: 0x493426 }), BED_CEILING_CHIP_COUNT);
+            woodChipGeometry,
+            bedWoodChipMaterial, BED_CEILING_CHIP_COUNT);
         bedWoodChips.count = 0;
         bedWoodChips.frustumCulled = false;
         scene.add(bedWoodChips);
@@ -2423,11 +2621,10 @@ function buildWorld(prepared) {
     const vertsW = segmentsW + 1;
     const vertsH = segmentsH + 1;
     
-    const terrainGeo = new THREE.PlaneGeometry((mapWidth - 1) * UNIT_SIZE, (mapHeight - 1) * UNIT_SIZE, segmentsW, segmentsH);
-    terrainGeo.rotateX(-Math.PI / 2); // Acostarlo en XZ
-    terrainGeo.translate(((mapWidth - 1) * UNIT_SIZE) / 2, 0, ((mapHeight - 1) * UNIT_SIZE) / 2); // Alinear vértices con la grilla
+    const terrainBuild = await createTerrainBuild(THREE, (mapWidth - 1) * UNIT_SIZE, (mapHeight - 1) * UNIT_SIZE, segmentsW, segmentsH);
+    const terrainGeo = terrainBuild.geometry;
 
-    const positions = terrainGeo.attributes.position.array;
+    let positions = terrainGeo.attributes.position.array;
     const uvs = terrainGeo.attributes.uv.array;
     const splatWeights = new Float32Array(positions.length / 3 * 4);
     const wetSandWeights = new Float32Array(positions.length / 3);
@@ -2435,11 +2632,13 @@ function buildWorld(prepared) {
     const { floorMap: terrainFloorMap, elevations: terrainElevations, woodMap: terrainWoodMap } =
         createWaterDeckTerrain(floorMap, elevationMap, woodFloorMap, waterDeckMap, seaFloorHeights);
     const mountainWeights = new Float32Array(positions.length / 3 * 4);
+    const terrainSamplingCache = createTerrainSamplingCache(mapWidth, mapHeight, terrainWoodMap);
     const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6, SNOW_SLOPE: 6 };
     const wetSandShoreMap = createWetSandShoreMap(terrainFloorMap, mapWidth, mapHeight);
     const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
     const naturalShrineGround = new Uint8Array(mapWidth * mapHeight);
     for (const definition of entities) {
+        { const pause = checkpoint(); if (pause) await pause; }
         if (definition.ground === 'SLAB') slabGroundCells[definition.position.z * mapWidth + definition.position.x] = 1;
         if (definition.ground === 'DIRT_STONE') {
             const {x, z} = definition.position;
@@ -2481,6 +2680,7 @@ function buildWorld(prepared) {
     solidInteractables.push(...caveEntrance.solids);
     const boatBottomChannels = new Map();
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
+        if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
         if (floorMap[z][x] !== 'BOAT') continue;
         let nearest = Infinity, channel = 2;
         for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) {
@@ -2494,7 +2694,37 @@ function buildWorld(prepared) {
         boatBottomChannels.set(z * mapWidth + x, channel);
     }
 
+    // Clasificar cada celda una sola vez, no cuatro veces por cada subdivisión.
+    const cellChannels = new Uint8Array(mapWidth * mapHeight);
+    const shrineStone = new Float64Array(mapWidth * mapHeight);
+    for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
+        if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
+        const cell = z * mapWidth + x;
+        shrineStone[cell] = naturalShrineGround[cell] ? 0.2 + 0.15 * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7)) : 0;
+        let channel = slabGroundCells[cell] ? 3
+            : floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
+            : boatBottomChannels.get(cell) ?? terrainChannels[terrainFloorMap[z][x]] ?? 0;
+        const seaCell = terrainFloorMap[z][x] === 'WATER' || (floorMap[z][x] === 'BOAT' && boatBottomChannels.get(cell) === 2);
+        if (seaCell && wetSandShoreMap[z][x]) channel = 8;
+        if (seaCell && terrainElevations[z][x] <= -2.5) channel = 7;
+        cellChannels[cell] = channel;
+    }
+    function blendTerrainCell(vertex, cell, weight) {
+        if (weight === 0) return;
+        const stone = shrineStone[cell];
+        if (stone) {
+            splatWeights[vertex*4+1] += weight * (1-stone);
+            splatWeights[vertex*4+3] += weight * stone;
+        } else {
+            const channel = cellChannels[cell];
+            if (channel === 8) wetSandWeights[vertex] += weight;
+            else if (channel < 4) splatWeights[vertex*4+channel] += weight;
+            else mountainWeights[vertex*4+channel-4] += weight;
+        }
+    }
+
     for (let i = 0; i < positions.length / 3; i++) {
+        if ((i & 511) === 0) { const pause = checkpoint(); if (pause) await pause; }
         const vx = i % vertsW;
         const vz = Math.floor(i / vertsW);
         const colF = vx / SUBDIVISIONS;
@@ -2512,26 +2742,12 @@ function buildWorld(prepared) {
         
         // Interpolación compartida para pasto, tierra, arena, piedra, roca y nieve.
         const tx = colF - c0, tz = rowF - r0;
-        for (const [x,z,weight] of [[c0,r0,(1-tx)*(1-tz)], [c1,r0,tx*(1-tz)], [c0,r1,(1-tx)*tz], [c1,r1,tx*tz]]) {
-            if (naturalShrineGround[z * mapWidth + x]) {
-                // Tierra con piedra integrada al terreno, sin bloques ni escalones.
-                const stone = 0.2 + 0.15 * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7));
-                splatWeights[i*4+1] += weight * (1-stone);
-                splatWeights[i*4+3] += weight * stone;
-                continue;
-            }
-            let channel = slabGroundCells[z * mapWidth + x] ? 3
-                : floorMap[z][x] === 'CHEST' && !woodFloorMap[z][x] ? 1
-                : boatBottomChannels.get(z * mapWidth + x) ?? terrainChannels[terrainFloorMap[z][x]] ?? 0;
-            const seaCell = terrainFloorMap[z][x] === 'WATER' || (floorMap[z][x] === 'BOAT' && boatBottomChannels.get(z * mapWidth + x) === 2);
-            if (seaCell && wetSandShoreMap[z][x]) channel = 8;
-            if (seaCell && terrainElevations[z][x] <= -2.5) channel = 7;
-            if (channel === 8) wetSandWeights[i] += weight;
-            else if (channel < 4) splatWeights[i*4+channel] += weight;
-            else mountainWeights[i*4+channel-4] += weight;
-        }
+        blendTerrainCell(i, r0 * mapWidth + c0, (1-tx)*(1-tz));
+        blendTerrainCell(i, r0 * mapWidth + c1, tx*(1-tz));
+        blendTerrainCell(i, r1 * mapWidth + c0, (1-tx)*tz);
+        blendTerrainCell(i, r1 * mapWidth + c1, tx*tz);
 
-        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, terrainFloorMap, terrainElevations, terrainWoodMap, mountainPathProfile);
+        const y = getTerrainVertexY(colF, rowF, mapWidth, mapHeight, terrainFloorMap, terrainElevations, terrainWoodMap, mountainPathProfile, terrainSamplingCache);
         positions[i * 3 + 1] = caveEntrance.carveHeight(colF*UNIT_SIZE,rowF*UNIT_SIZE,y);
     }
     
@@ -2540,11 +2756,13 @@ function buildWorld(prepared) {
     terrainGeo.setAttribute('mountainWeights', new THREE.BufferAttribute(mountainWeights, 4));
 
     for(let i = 0; i < uvs.length; i += 2) {
+        if ((i & 8191) === 0) { const pause = checkpoint(); if (pause) await pause; }
         uvs[i] *= (mapWidth - 1);
         uvs[i+1] *= (mapHeight - 1);
     }
     
-    terrainGeo.computeVertexNormals();
+    await terrainBuild.computeNormals();
+    positions = terrainGeo.attributes.position.array;
     terrainHeightSamples = { positions, verticesW: vertsW, segmentsW, segmentsH, subdivisions: SUBDIVISIONS };
 
     // --- MATERIAL SPlAT COMPARTIDO POR TODO EL TERRENO ---
@@ -2561,7 +2779,7 @@ function buildWorld(prepared) {
         shader.uniforms.tSnow = { value: nieveTex };
         shader.uniforms.tSlab = { value: losaTex };
         shader.uniforms.mountainFogScale = { value: WORLD_VISIBILITY_DISTANCE / MOUNTAIN_VISIBILITY_DISTANCE };
-        shader.uniforms.terrainVisibilityDistance = { value: WORLD_VISIBILITY_DISTANCE };
+        shader.uniforms.terrainVisibilityDistance = terrainVisibilityDistance;
 
         shader.vertexShader = `
             attribute vec4 splatWeights;
@@ -2622,15 +2840,17 @@ function buildWorld(prepared) {
     };
 
     heartVision.apply(THREE, splatMaterial, true);
-    const terrainSectors = createTerrainSectors(THREE, terrainGeo, splatMaterial, segmentsW, segmentsH);
+    const terrainSectors = await createTerrainSectorsAsync(THREE, terrainGeo, splatMaterial, segmentsW, segmentsH, 128, checkpoint);
     for (const sector of terrainSectors.children) {
         // Dibujar después del cielo y antes de agua/vegetación, conservando la oclusión del suelo.
         sector.renderOrder = -0.1;
         if (sector.userData.hasMountain) sector.userData.fogDistanceMultiplier = MOUNTAIN_VISIBILITY_DISTANCE / WORLD_VISIBILITY_DISTANCE;
     }
     scene.add(terrainSectors);
+    { const pause = checkpoint(); if (pause) await pause; }
     const slabCells = [];
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
+        if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
         if (!naturalShrineGround[z * mapWidth + x] && (floorMap[z][x] === 'OTHER' || slabGroundCells[z * mapWidth + x])) slabCells.push([x,z]);
     }
     const slabs = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE, SLAB_HEIGHT, UNIT_SIZE),
@@ -2641,7 +2861,8 @@ function buildWorld(prepared) {
         .sort((a,b)=>a-b);
     const altarBase = altarOuterHeights[Math.floor(altarOuterHeights.length/2)] ?? 0;
     const altarTop = altarBase + seaHeartAltar.radius * seaHeartAltar.stepHeight;
-    slabCells.forEach(([x,z],index) => {
+    for (const [index, [x,z]] of slabCells.entries()) {
+        { const pause = checkpoint(); if (pause) await pause; }
         const worldX=x*UNIT_SIZE, worldZ=z*UNIT_SIZE;
         const distance=altarDistance(x,z);
         const inAltar=distance<=seaHeartAltar.radius;
@@ -2659,7 +2880,7 @@ function buildWorld(prepared) {
                 chest.updateMatrixWorld(true);
             }
         }
-    });
+    }
     const altarNeighborTops = [[-1,0],[1,0],[0,-1],[0,1]]
         .map(([dx,dz])=>slabTops.get((seaHeartAltar.center.z+dz)*mapWidth+seaHeartAltar.center.x+dx))
         .filter(height=>height!==undefined).sort((a,b)=>a-b);
@@ -2681,6 +2902,7 @@ function buildWorld(prepared) {
     slabs.name='slab-blocks';
     slabs.computeBoundingSphere();
     scene.add(slabs);
+    { const pause = checkpoint(); if (pause) await pause; }
     terrainGeo.dispose(); // Los sectores conservan los atributos compartidos; la malla global ya no se dibuja.
 
     const wreckMaterials = [
@@ -2691,6 +2913,7 @@ function buildWorld(prepared) {
         new THREE.MeshPhongMaterial({color:0xa58a58,shininess:0})
     ];
     for (const definition of shipwreckProps) {
+        { const pause = checkpoint(); if (pause) await pause; }
         const {x,z} = definition.position;
         const wreck = new THREE.Mesh(createShipwreckGeometry(THREE,definition.model),wreckMaterials);
         wreck.name = definition.id;
@@ -2764,6 +2987,7 @@ function buildWorld(prepared) {
     };
     glowMaterial.customProgramCacheKey = () => 'sea-heart-glow-distance-v1';
     for (const point of prepared.seaHeartFragments) {
+        { const pause = checkpoint(); if (pause) await pause; }
         const fragment = new THREE.Sprite(new THREE.SpriteMaterial({
             map: fragmentTexture, transparent: true, alphaTest: 0.1, depthWrite: false, fog: true
         }));
@@ -2790,6 +3014,7 @@ function buildWorld(prepared) {
     revealNextSeaHeartFragment();
 
     for (const definition of furniture) {
+        { const pause = checkpoint(); if (pause) await pause; }
         if (!['BED', 'SIDE_TABLE', 'BARREL', 'BOOKSHELF', 'TABLE', 'CHAIR', 'WARDROBE', 'DESK', 'CRATE_STACK', 'SHELF', 'DRESSER', 'BARREL_STACK', 'LOG_STACK', 'WORKBENCH', 'STUMP', 'ANTIQUE_STOVE', 'WOOD_STOVE', 'SPICE_SHELF', 'BEACH_PLANK_TABLE', 'RUSTIC_BEACH_CHAIR'].includes(definition.type)) continue;
         const { position, size } = definition;
         const allowedGround = ['LOG_STACK', 'WORKBENCH', 'STUMP', 'BEACH_PLANK_TABLE', 'RUSTIC_BEACH_CHAIR'].includes(definition.type)
@@ -2876,7 +3101,11 @@ function buildWorld(prepared) {
             const mateSet = createMateSet(THREE);
             mateSet.scale.setScalar(FURNITURE_SCALE);
             model.add(mateSet);
-            for (const object of mateSet.children) { object.userData.type = 'MATE_SET'; interactables.push(object); }
+            for (const object of mateSet.children) {
+                object.userData.type = 'MATE_SET';
+                interactables.push(object);
+                if (object.name === 'graham-mate') mateInteractable = object;
+            }
         }
         scene.add(model);
         model.updateMatrixWorld(true);
@@ -2885,6 +3114,7 @@ function buildWorld(prepared) {
     }
 
     for (const definition of kitchenSacks) {
+        { const pause = checkpoint(); if (pause) await pause; }
         const x = definition.position.x * UNIT_SIZE + definition.offset.x;
         const z = definition.position.z * UNIT_SIZE + definition.offset.z;
         if (!['INDOOR_FLOOR', 'WOOD'].includes(floorMap[definition.position.z]?.[definition.position.x])) {
@@ -2905,6 +3135,7 @@ function buildWorld(prepared) {
         x: kitchenGardenPosition.x * UNIT_SIZE, z: kitchenGardenPosition.z * UNIT_SIZE
     }, getTerrainHeight);
     for (const model of garden) {
+        { const pause = checkpoint(); if (pause) await pause; }
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
@@ -2913,7 +3144,10 @@ function buildWorld(prepared) {
     const fenceMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0 });
     const fenceLocations = new Set(prepared.fenceCells.map(({ x, z }) => `${x},${z}`));
     for (const { x, z } of prepared.fenceCells) {
-        const east = fenceLocations.has(`${x + 1},${z}`);
+        { const pause = checkpoint(); if (pause) await pause; }
+        // La abertura del portón conserva ambos postes de la valla.
+        const gateHinge = x === 235 && z === 455 && fenceLocations.has('236,455');
+        const east = fenceLocations.has(`${x + 1},${z}`) && !gateHinge;
         const south = fenceLocations.has(`${x},${z + 1}`);
         const wallConnections = [[-1,0],[1,0],[0,-1],[0,1]].filter(([dx,dz]) => floorMap[z+dz]?.[x+dx] === 'BUILDING');
         const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south, wallConnections), fenceMaterial);
@@ -2923,6 +3157,40 @@ function buildWorld(prepared) {
         scene.add(fence);
         fence.updateMatrixWorld(true);
         solidInteractables.push(fence);
+        if (gateHinge) {
+            const pivot = new THREE.Group();
+            pivot.name = 'garden-gate-pivot';
+            pivot.position.copy(fence.position);
+            const gateWood = new THREE.MeshPhongMaterial({ color: 0x795034, flatShading: true, shininess: 0 });
+            const gateEdge = new THREE.MeshPhongMaterial({ color: 0x9b6940, flatShading: true, shininess: 0 });
+            const gateIron = new THREE.MeshPhongMaterial({ color: 0x282521, flatShading: true, shininess: 5 });
+            function gatePiece(width, height, depth, px, py, pz, material, angle = 0) {
+                const piece = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+                piece.position.set(px, py, pz);
+                piece.rotation.z = angle;
+                pivot.add(piece);
+            }
+            for (const height of [0.49, 1.05]) {
+                gatePiece(1.70, 0.17, 0.13, 1, height, 0, gateWood);
+                gatePiece(1.60, 0.025, 0.14, 1, height + 0.095, 0, gateEdge);
+            }
+            for (const offset of [0.23, 1.77]) gatePiece(0.14, 0.93, 0.17, offset, 0.76, 0, gateWood);
+            // La riostra y el pestillo la distinguen de un tramo fijo de valla.
+            gatePiece(1.55, 0.13, 0.18, 1, 0.77, 0, gateWood, -0.34);
+            gatePiece(0.24, 0.12, 0.22, 1.77, 0.78, 0.03, gateIron);
+            for (const height of [0.48, 1.04]) gatePiece(0.12, 0.12, 0.24, 0.19, height, 0, gateIron);
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.72, 1.1, 0.18),
+                new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+            hitbox.position.set(1, 0.75, 0);
+            hitbox.name = 'garden-gate';
+            hitbox.userData = { type: 'GATE', isOpen: false, collisionEnabled: true,
+                parentGroup: pivot, isHorizontal: true };
+            pivot.add(hitbox);
+            scene.add(pivot);
+            pivot.updateMatrixWorld(true);
+            interactables.push(hitbox);
+            solidInteractables.push(hitbox);
+        }
     }
 
     // Buscar punto de spawn seguro si POI no fue válido o se omitió
@@ -2966,14 +3234,18 @@ function buildWorld(prepared) {
 
     // Agrupar también los bloques estáticos para descartar partes ocultas, no edificios enteros.
     const structureMeshes = scene.children.filter(object => object.isInstancedMesh);
-    structureSectors = createInstanceSectors(THREE, structureMeshes, 32, 0);
+    structureSectors = await createInstanceSectorsAsync(THREE, structureMeshes, 32, 0, checkpoint);
     structureSectors.group.name = 'structure-sectors';
     scene.add(structureSectors.group);
     fogCulling = createFogCulling(THREE, scene, [skyMesh, sunFlare.object, camera], FOG_RESIDUAL);
     prepareInactiveLights(THREE, scene);
+    { const pause = checkpoint(); if (pause) await pause; }
     fogCulling.register();
+    { const pause = checkpoint(); if (pause) await pause; }
     heartHalos = createHeartHalos(THREE, scene, floorMap, UNIT_SIZE, getTerrainHeight);
+    { const pause = checkpoint(); if (pause) await pause; }
     minimap.initialize(floorCanvas);
+    { const pause = checkpoint(); if (pause) await pause; }
 }
 
 
@@ -3073,6 +3345,21 @@ let footstepIndex = 0;
 const OUTDOOR_STEP_FLOORS = new Set(['DIRT', 'GRASS', 'SAND', 'WET_SAND', 'TREE', 'BUSH', 'TALL_GRASS', 'EXTERNAL_TORCH', 'CHEST']);
 const WALKING_STEP_ACCENTS = [1, 0.65];
 const walkingRhythm = createWalkingRhythm();
+function footstepSurfaceAt(x, z, onWoodSupport = false) {
+    const gx = Math.floor((x + UNIT_SIZE / 2) / UNIT_SIZE);
+    const gz = Math.floor((z + UNIT_SIZE / 2) / UNIT_SIZE);
+    const floor = caveMap?.active ? 'DIRT' : floorMap[gz]?.[gx];
+    const water = ['WATER', 'WATER_ROCK', 'BOAT'].includes(floor) && !slabTops.has(gz * mapWidth + gx);
+    if (!floor || water || (caveMap?.active && caveMap.isWater(x, z))) return null;
+    const slab = slabTops.has(gz * mapWidth + gx);
+    const wood = onWoodSupport || (!slab && (woodFloorMap[gz]?.[gx]
+        || ['INDOOR_FLOOR', 'WOOD', 'DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floor)));
+    const hard = wood || slab;
+    const sand = !hard && ['SAND', 'WET_SAND', 'SNOW_PEAK', 'SNOW_SLOPE'].includes(floor);
+    const dirt = !hard && floor === 'DIRT';
+    return { surface: wood ? 'wood' : sand ? 'sand' : dirt ? 'dirt' : hard ? 'indoor' : 'grass',
+        outdoor: !hard && (OUTDOOR_STEP_FLOORS.has(floor) || sand) };
+}
 
 let stamina = STAMINA_MAX;
 
@@ -3084,6 +3371,7 @@ window.restartGame = () => {
     woodcutting.finish();
     if (grahamDap.active) { grahamDap.cancel(); controls.pointerSpeed = dapPointerSpeed; }
     bedBounceActive = false;
+    bedTakeoffSoundPlayed = false;
     bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
     bedBounceHitCeiling = false;
     bedCeilingHits = 0;
@@ -3108,7 +3396,10 @@ window.restartGame = () => {
     }
     bedHoleOpeningTime = -1;
     bedWoodChipTime = -1;
+    bedWoodChipFadeStart = -1;
+    bedWoodChipMotion.length = 0;
     if (bedWoodChips) bedWoodChips.count = 0;
+    if (bedWoodChipMaterial) bedWoodChipMaterial.opacity = 1;
     crouchRequested = isCrouching = false;
     isDead = false;
     stamina = STAMINA_MAX;
@@ -3170,22 +3461,34 @@ function releaseBedCeiling() {
 
 function spawnBedWoodChips() {
     bedWoodChipTime = 0;
+    bedWoodChipFadeStart = -1;
     bedWoodChipMotion.length = 0;
     if (!bedWoodChips || !bedHoleRim) return;
-    for (let i = 0; i < BED_CEILING_CHIP_COUNT; i++) {
+    if (bedWoodChipMaterial) bedWoodChipMaterial.opacity = 1;
+    const bed = solidInteractables.find(object => object.userData.id === 'graham-bed');
+    if (!bed) { bedWoodChipTime = -1; return; }
+    const resolveLanding = createBedDebrisLanding(bed);
+    const targets = createBedDebrisTargets(bed);
+    for (let i = 0; i < targets.length; i++) {
         const chip = {
             x: bedCeilingImpact.x + (Math.random() - 0.5) * 0.75,
             y: bedHoleRim.position.y - 0.08,
             z: bedCeilingImpact.y + (Math.random() - 0.5) * 1.1,
-            vx: (Math.random() - 0.5) * 1.8,
             vy: -0.4 - Math.random() * 1.1,
-            vz: (Math.random() - 0.5) * 1.8,
             turn: (Math.random() - 0.5) * 8,
-            size: 0.08 + Math.random() * 0.13
+            yaw: Math.random() * Math.PI * 2,
+            size: 0.08 + Math.random() * 0.13,
+            landed: false
         };
+        const target = targets[i];
+        chip.landing = resolveLanding(chip, target.x, target.z,
+            getTerrainHeight(target.x, target.z), target.surface);
+        chip.bounceHeight = chip.landing.surface === 'bed'
+            ? 0.008 + Math.random() * 0.014 : 0.035 + Math.random() * 0.04;
+        chip.bounceDuration = Math.sqrt(8 * chip.bounceHeight / 9);
         bedWoodChipMotion.push(chip);
         bedWoodChipDummy.position.set(chip.x, chip.y, chip.z);
-        bedWoodChipDummy.rotation.set(0, 0, 0);
+        bedWoodChipDummy.rotation.set(0, chip.yaw, 0);
         bedWoodChipDummy.scale.set(chip.size * 1.8, chip.size * 0.35, chip.size);
         bedWoodChipDummy.updateMatrix();
         bedWoodChips.setMatrixAt(i, bedWoodChipDummy.matrix);
@@ -3212,23 +3515,40 @@ function updateBedCeilingBreak(delta) {
     }
     if (bedWoodChipTime < 0 || !bedWoodChips) return;
     bedWoodChipTime += delta;
-    if (bedWoodChipTime > 0.72) {
-        bedWoodChipTime = -1;
-        bedWoodChips.count = 0;
-        return;
-    }
     for (let i = 0; i < bedWoodChipMotion.length; i++) {
         const chip = bedWoodChipMotion[i];
-        const time = bedWoodChipTime;
-        bedWoodChipDummy.position.set(chip.x + chip.vx * time,
-            chip.y + chip.vy * time - 4.5 * time * time,
-            chip.z + chip.vz * time);
-        bedWoodChipDummy.rotation.set(chip.turn * time, chip.turn * time * 0.7, chip.turn * time * 0.4);
+        const landing = chip.landing;
+        const time = Math.min(bedWoodChipTime, landing.time);
+        const touching = bedWoodChipTime >= landing.time;
+        const bounce = THREE.MathUtils.clamp((bedWoodChipTime - landing.time) / chip.bounceDuration, 0, 1);
+        chip.landed = bedWoodChipTime >= landing.time + chip.bounceDuration;
+        const bounceY = 4 * chip.bounceHeight * bounce * (1 - bounce);
+        const travel = bedDebrisTravel(time, landing.travelTime) * landing.travelTime;
+        bedWoodChipDummy.position.set(touching ? landing.x : chip.x + landing.vx * travel,
+            touching ? landing.y + bounceY : chip.y + chip.vy * time - 4.5 * time * time,
+            touching ? landing.z : chip.z + landing.vz * travel);
+        // Rebote vertical sobre el contacto calculado; nunca atraviesa la superficie.
+        bedWoodChipDummy.rotation.set(0, chip.yaw + chip.turn * time, 0);
         bedWoodChipDummy.scale.set(chip.size * 1.8, chip.size * 0.35, chip.size);
         bedWoodChipDummy.updateMatrix();
         bedWoodChips.setMatrixAt(i, bedWoodChipDummy.matrix);
     }
+    if (bedWoodChipFadeStart < 0 && bedWoodChipMotion.every(chip => chip.landed)) {
+        bedWoodChipFadeStart = bedWoodChipTime;
+    }
+    let fade = 0;
+    if (bedWoodChipFadeStart >= 0) {
+        fade = THREE.MathUtils.clamp((bedWoodChipTime - bedWoodChipFadeStart
+            - BED_WOOD_CHIP_HOLD_SECONDS) / BED_WOOD_CHIP_FADE_SECONDS, 0, 1);
+    }
+    if (bedWoodChipMaterial) bedWoodChipMaterial.opacity = 1 - fade;
     bedWoodChips.instanceMatrix.needsUpdate = true;
+    if (fade >= 1) {
+        bedWoodChipTime = -1;
+        bedWoodChipFadeStart = -1;
+        bedWoodChips.count = 0;
+        if (bedWoodChipMaterial) bedWoodChipMaterial.opacity = 1;
+    }
 }
 
 const FRAME_INTERVAL = 1000 / 30;
@@ -3245,8 +3565,12 @@ function animate(timestamp = performance.now()) {
     const cameraDelta = previousRenderedTimestamp === undefined ? 0 : Math.max(0, (timestamp - previousRenderedTimestamp) / 1000);
     previousRenderedTimestamp = timestamp;
 
+    // Espera, órbita y viaje no avanzan físicas, misiones, reloj del cielo ni audio.
+    if (!mapLoaded) return;
+
     const controlObj = controls.getObject();
     touchControls?.syncDialogue(controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active));
+    if (isDialogOpen) constrainDialogLook(cameraDelta);
     let vegetationDelta = 0;
 
     if (grahamSprite) {
@@ -3313,7 +3637,7 @@ function animate(timestamp = performance.now()) {
             forestPlaybackTime ?? 0);
 
         heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
-        const doors = solidInteractables.filter(object => object.userData.type === 'DOOR');
+        const doors = solidInteractables.filter(object => object.userData.type === 'DOOR' || object.userData.type === 'GATE');
         updateDoorAnimations(doors, delta, () => {
             const position = controlObj.position;
             const beforeX = position.x, beforeZ = position.z;
@@ -3572,7 +3896,7 @@ function animate(timestamp = performance.now()) {
 
         // Raycaster para Interacciones
         interactionHits.length = 0;
-        if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active) {
+        if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active && !isDialogOpen) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
             // Amplía la zona de selección del casco a corta distancia sin tapar otros objetos.
@@ -3585,10 +3909,20 @@ function animate(timestamp = performance.now()) {
                     interactionHits.push({ object: divingHelmetMesh, distance: helmetDistance });
                 }
             }
+            // El mate es pequeño: aceptar una zona generosa alrededor del recipiente al apuntar.
+            if (!interactionHits.length && mateInteractable) {
+                mateInteractable.localToWorld(mateInteractionCenter.copy(mateInteractable.geometry.boundingSphere.center));
+                const mateDistance = mateInteractionOffset.subVectors(mateInteractionCenter, raycaster.ray.origin).length();
+                if (mateDistance < 3.5
+                    && raycaster.ray.direction.dot(mateInteractionOffset) > 0
+                    && raycaster.ray.distanceSqToPoint(mateInteractionCenter) < 1.15 * 1.15) {
+                    interactionHits.push({ object: mateInteractable, distance: mateDistance });
+                }
+            }
         }
         const intersects = interactionHits;
         
-        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active) {
+        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen) {
             targetInteractable = null;
             hud.hideInteraction();
         } else if (seatedChair) {
@@ -3649,15 +3983,13 @@ function animate(timestamp = performance.now()) {
                     hud.setInteractionText(targetInteractable.userData.isOpen ? "Presiona E para Cerrar" : "Presiona E para Abrir");
                     hud.setInteractionColor("#ffeb3b");
                 }
+            } else if (targetInteractable.userData.type === 'GATE') {
+                hud.setInteractionText(targetInteractable.userData.isOpen ? 'Presiona E para cerrar Portón' : 'Presiona E para abrir Portón');
+                hud.setInteractionColor('#ffeb3b');
             }
         } else {
             targetInteractable = null;
             hud.hideInteraction();
-            if (isDialogOpen) {
-                isDialogOpen = false;
-                menus.hideDialog();
-
-            }
         }
 
         if (caveMap?.active) {
@@ -3672,7 +4004,11 @@ function animate(timestamp = performance.now()) {
         heartPull.update(delta);
         const cuttingWood = woodcutting.active;
         woodcutting.update(delta, rawDelta);
-        if (!seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active) {
+        if (!seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen) {
+            // Desde que queda ensartado hasta que caen las astillas no puede desplazarse.
+            // La física vertical sigue activa para que se suelte y caiga normalmente.
+            const trappedInBedCeiling = bedCeilingTimer > 0 || bedHoleOpeningTime >= 0;
+            if (trappedInBedCeiling) velocity.x = velocity.z = 0;
             updatePlayerPosture();
             velocity.x -= velocity.x * FRICTION * delta;
             velocity.z -= velocity.z * FRICTION * delta;
@@ -3706,8 +4042,8 @@ function animate(timestamp = performance.now()) {
                 ? (running ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
                 : (running ? SPRINT_MULTIPLIER : 1);
 
-            if (moveState.forward || moveState.backward) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
-            if (moveState.left || moveState.right) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+            if (!trappedInBedCeiling && (moveState.forward || moveState.backward)) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+            if (!trappedInBedCeiling && (moveState.left || moveState.right)) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
 
             controls.moveRight(-velocity.x * delta);
             controls.moveForward(-velocity.z * delta);
@@ -3806,6 +4142,7 @@ function animate(timestamp = performance.now()) {
                 velocityY = 0;
                 if (bedCeilingTimer <= 0) {
                     bedCeilingTimer = 0;
+                    musicEvents.playBedCeilingRelease();
                     // Soltar al jugador antes de revelar la rotura en este mismo fotograma.
                     velocityY = -1;
                     controlObj.position.y += velocityY * delta;
@@ -3836,6 +4173,8 @@ function animate(timestamp = performance.now()) {
                 if (controlObj.position.y < targetEyesHeight) {
                     if (onBed && jumpHeld) {
                         // Mantener salto inicia/reanuda la cadena al apoyar sobre el colchón.
+                        musicEvents.playBedJump();
+                        bedTakeoffSoundPlayed = false;
                         if (!bedBounceActive) {
                             bedBounceActive = true;
                             bedBounceImpulse = BED_BOUNCE_BASE_IMPULSE;
@@ -3856,6 +4195,16 @@ function animate(timestamp = performance.now()) {
 
                     } else {
                         const justLanded = !canJump;
+                        if (onBed && justLanded && !bedTakeoffSoundPlayed) musicEvents.playBedJump();
+                        else if (justLanded && !onBed && !inWater && !isRidingBoat && !isFlying) {
+                            const landingStep = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic);
+                            if (landingStep) {
+                                musicEvents.playFootstep(false, 1.15, landingStep.outdoor,
+                                    footstepIndex % 2 === 0, landingStep.surface);
+                                footstepIndex++;
+                            }
+                        }
+                        bedTakeoffSoundPlayed = false;
                         controlObj.position.y = targetEyesHeight;
                         velocityY = 0;
                         canJump = true;
@@ -3899,6 +4248,7 @@ function animate(timestamp = performance.now()) {
                             && bedRoofPieces.has(`${roofGX},${roofGZ}`)) {
                             if (++bedCeilingHits >= BED_CEILING_HITS_TO_BREAK) {
                                 bedCeilingTimer = BED_CEILING_STUCK_SECONDS;
+                                musicEvents.playBedCeilingImpact();
                                 bedCeilingHoleTile = { x: roofGX, z: roofGZ };
                                 pierceBedCeiling(controlObj.position.x, controlObj.position.z);
                                 // Ojos sobre las tablas intactas, fuera del recorte cercano de la cámara.
@@ -3942,23 +4292,15 @@ function animate(timestamp = performance.now()) {
                     if (currentStep > previousStep && moved && !inWater
                         && !(caveMap?.active && caveMap.isWater(controlObj.position.x,controlObj.position.z))) {
                         const accented = footstepIndex % 2 === 0;
-                        const stepX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
-                        const stepZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-                        const stepFloor = caveMap?.active ? 'DIRT' : floorMap[stepZ]?.[stepX];
-                        const slabStep = slabTops.has(stepZ * mapWidth + stepX);
-                        const woodStep = !slabStep && (woodFloorMap[stepZ]?.[stepX]
-                            || ['INDOOR_FLOOR','WOOD','DOOR_UNLOCKED','DOOR_LOCKED'].includes(stepFloor));
-                        const hardSurface = woodStep || slabStep;
-                        const sandStep = !hardSurface && ['SAND','WET_SAND','SNOW_PEAK','SNOW_SLOPE'].includes(stepFloor);
-                        const dirtStep = !hardSurface && stepFloor === 'DIRT';
-                        const outdoorStep = !hardSurface && (OUTDOOR_STEP_FLOORS.has(stepFloor) || sandStep);
-                        const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
-                        const accent = running ? (accented ? 1 : outdoorStep ? 0.72 : 0.92) : walkingAccent;
-                        const rhythm = walkingRhythm.next(running);
-                        musicEvents.playFootstep(running, accent * rhythm.variation, outdoorStep, accented,
-                            woodStep ? 'wood' : sandStep ? 'sand' : dirtStep ? 'dirt' : undefined);
-                        footstepIndex++;
-                        bobCadence = rhythm.cadence;
+                        const step = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic);
+                        if (step) {
+                            const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
+                            const accent = running ? (accented ? 1 : step.outdoor ? 0.72 : 0.92) : walkingAccent;
+                            const rhythm = walkingRhythm.next(running);
+                            musicEvents.playFootstep(running, accent * rhythm.variation, step.outdoor, accented, step.surface);
+                            footstepIndex++;
+                            bobCadence = rhythm.cadence;
+                        }
                     }
                 } else if (canJump) {
                     bobTimer = 0;
@@ -4091,6 +4433,7 @@ function animate(timestamp = performance.now()) {
     }
 
     for (const sprite of torchSprites) {
+        faceTorchFlameToCamera(sprite);
         if (sprite.material.userData.flameStrength) sprite.material.userData.flameStrength.value = 1 - dayTransition;
     }
     if (torchLighting) torchLighting.update(controlObj.position, performance.now() / 1000, dayTransition);

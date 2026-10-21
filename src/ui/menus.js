@@ -1,5 +1,5 @@
 // Presentación de menús. El estado y las reglas permanecen en game.js.
-export function createMenus({ onResume, onUseItem }) {
+export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const mainMenu = document.getElementById('main-menu');
     const pauseMenu = document.getElementById('pause-menu');
     const inventoryMenu = document.getElementById('inventory-menu');
@@ -19,6 +19,8 @@ export function createMenus({ onResume, onUseItem }) {
     const dialogFontReady = document.fonts
         ? document.fonts.load('16px "Super Legend Boy"').catch(() => {}) : Promise.resolve();
     let dialogVersion = 0, dialogAnimation = null;
+    let dialogTyping = null, dialogTypingTimer = null;
+    const spokenCharacter = /[\p{L}\p{N}]/u;
 
     function setMenuVisible(menu, visible) {
         const previous = transitions.get(menu);
@@ -68,34 +70,56 @@ export function createMenus({ onResume, onUseItem }) {
     function showPause() { setMenuVisible(inventoryMenu, false); setMenuVisible(pauseMenu, true); }
     function showInventory() { setMenuVisible(pauseMenu, false); setMenuVisible(inventoryMenu, true); }
     function hideInventory() { setMenuVisible(inventoryMenu, false); }
-    function setDialogText(entry) {
+    function stopDialogTyping() {
+        if (dialogTypingTimer !== null) clearTimeout(dialogTypingTimer);
+        dialogTypingTimer = null;
+        dialogTyping = null;
+    }
+    function setDialogText(entry, visibleText) {
         const text = typeof entry === 'string' ? entry : entry.text;
         const highlight = typeof entry === 'string' ? null : entry.highlight;
+        const shown = visibleText ?? text;
+        dialogText.setAttribute('aria-label', text);
         if (!highlight || !text.includes(highlight)) {
-            dialogText.textContent = text;
+            dialogText.textContent = shown;
             return;
         }
         dialogText.replaceChildren();
-        text.split(highlight).forEach((part, index) => {
-            if (index) {
+        let remaining = shown.length;
+        const parts = text.split(highlight);
+        parts.forEach((part, index) => {
+            const visiblePart = part.slice(0, remaining);
+            if (visiblePart) dialogText.append(document.createTextNode(visiblePart));
+            remaining -= visiblePart.length;
+            if (index < parts.length - 1 && remaining > 0) {
                 const emphasis = document.createElement('strong');
-                emphasis.textContent = highlight;
+                emphasis.textContent = highlight.slice(0, remaining);
                 emphasis.style.color = '#87ceeb';
                 emphasis.style.fontWeight = '700';
                 dialogText.append(emphasis);
+                remaining -= emphasis.textContent.length;
             }
-            dialogText.append(document.createTextNode(part));
         });
+    }
+    function completeDialogText() {
+        if (!dialogTyping) return false;
+        const entry = dialogTyping.entry;
+        stopDialogTyping();
+        setDialogText(entry);
+        return true;
     }
     function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false, speaker = 'Graham' } = {}) {
         const version = ++dialogVersion;
         const waitForControls = !anonymous && document.body.classList.contains('touch-mode')
             && dialogBox.style.display !== 'block';
+        stopDialogTyping();
         dialogAnimation?.cancel();
         dialogAnimation = null;
         function reveal() {
             if (version !== dialogVersion) return;
             // Preparar contenido, nombre y formato antes del primer fotograma visible.
+            dialogBox.classList.toggle('thought-dialog', anonymous);
+            dialogText.style.minHeight = '';
             setDialogText(text);
             document.getElementById('dialog-name').hidden = anonymous;
             document.getElementById('dialog-name').textContent = speaker;
@@ -104,7 +128,41 @@ export function createMenus({ onResume, onUseItem }) {
             if (document.body.classList.contains('touch-mode'))
                 dialogHint.textContent = anonymous ? '[B] Continuar' : '(Tocar para continuar)';
             dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
+            dialogBox.style.visibility = 'hidden';
             dialogBox.style.display = 'block';
+            dialogText.style.minHeight = `${dialogText.getBoundingClientRect().height}px`;
+            const typewriter = !anonymous && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (typewriter) {
+                setDialogText(text, '');
+                const state = {
+                    entry: text,
+                    characters: Array.from(typeof text === 'string' ? text : text.text),
+                    visible: '', index: 0
+                };
+                dialogTyping = state;
+                function nextCharacter() {
+                    dialogTypingTimer = null;
+                    if (version !== dialogVersion || dialogTyping !== state) return;
+                    const character = state.characters[state.index++];
+                    state.visible += character;
+                    setDialogText(text, state.visible);
+                    if (spokenCharacter.test(character)) onDialogueCharacter?.(character);
+                    if (state.index < state.characters.length) {
+                        const previous = state.characters[state.index - 2];
+                        const next = state.characters[state.index];
+                        const ellipsisDot = character === '.' && (previous === '.' || next === '.');
+                        const delay = character === ',' ? 190
+                            : character === '…' ? 430
+                            : ellipsisDot ? (next === '.' ? 300 : 430)
+                            : 38;
+                        dialogTypingTimer = setTimeout(nextCharacter, delay);
+                    }
+                    else dialogTyping = null;
+                }
+                if (state.characters.length) nextCharacter();
+                else dialogTyping = null;
+            }
+            dialogBox.style.visibility = '';
             if (smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 const animation = dialogBox.animate([
                     { opacity: 0, transform: 'translateY(6px)' },
@@ -131,6 +189,7 @@ export function createMenus({ onResume, onUseItem }) {
     }
     function hideDialog() {
         ++dialogVersion;
+        stopDialogTyping();
         dialogAnimation?.cancel();
         dialogAnimation = null;
         dialogBox.style.display = 'none';
@@ -169,5 +228,5 @@ export function createMenus({ onResume, onUseItem }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

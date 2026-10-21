@@ -1,0 +1,21 @@
+{
+  "format": "IJM2",
+  "map": [
+    512,
+    512
+  ],
+  "step": 2,
+  "sources": {
+    "capa1.png": "ce69b1121586ab0b84d4f47cc2f93d87d0e087a9591dff83ab83eeadf821baf8",
+    "capa2.png": "a7d88be42bd482bceec76fe6bad779a8ac41e33a1f28573559771989c40ff964"
+  },
+  "vertices": 68981,
+  "triangles": 70792,
+  "trees": 778,
+  "roofs": 11,
+  "home": [
+    235,
+    442
+  ],
+  "bytes": 1896923
+}

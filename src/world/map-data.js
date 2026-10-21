@@ -3,7 +3,7 @@ import { getClosestType } from './map-decoder.js';
 import { validateGridPosition } from './coordinates.js';
 
 // Prepara datos y minimapa; no crea objetos Three.js ni modifica el estado del juego.
-export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions = [], cellOverrides = []) {
+function* prepareMapSteps(mapData, entityDefinitions = [], sceneryDefinitions = [], cellOverrides = []) {
     const mapWidth = mapData.width;
     const mapHeight = mapData.height;
     const relocations = new Map();
@@ -149,6 +149,25 @@ export function prepareMap(mapData, entityDefinitions = [], sceneryDefinitions =
                 playerStartZ = z;
             }
         }
+        yield;
     }
     return { mapWidth, mapHeight, collisionMap, floorMap, roofMap, externalTorchMap, fenceCells, counts, playerStartX, playerStartZ, floorCanvas, seaHeartFragments, underwaterPlants };
+}
+
+export function prepareMap(...args) {
+    const steps = prepareMapSteps(...args);
+    let step;
+    do { step = steps.next(); } while (!step.done);
+    return step.value;
+}
+
+export async function prepareMapAsync(mapData, entities, scenery, overrides, checkpoint) {
+    const steps = prepareMapSteps(mapData, entities, scenery, overrides);
+    let step;
+    do {
+        step = steps.next();
+        const pause = checkpoint();
+        if (pause) await pause;
+    } while (!step.done);
+    return step.value;
 }

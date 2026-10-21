@@ -48,13 +48,13 @@ export function createAtticAnt(THREE) {
     }
     const group=new THREE.Group();group.name='attic-ant';
     group.add(merge(bodyParts,new THREE.MeshPhongMaterial({color:0x090909,specular:0x555555,flatShading:true,shininess:30}),'attic-ant-body'));
-    const eyeTexture = new THREE.TextureLoader().load('./imagenes/Sprites/attic-ant-eyes.svg');
+    const eyeTexture = new THREE.TextureLoader().load('./imagenes/Sprites/attic-ant-eyes.svg?v=2');
     eyeTexture.colorSpace = THREE.SRGBColorSpace;
     const eyes = new THREE.Mesh(new THREE.PlaneGeometry(0.48,0.3825),new THREE.MeshBasicMaterial({
         map:eyeTexture,transparent:true,alphaTest:0.05,side:THREE.DoubleSide,forceSinglePass:true
     }));
     eyes.position.set(0,0.35,0.452);
-    eyes.scale.setScalar(0.75);
+    eyes.scale.setScalar(0.68);
     eyes.name='attic-ant-fixed-eye-sprite';
     eyes.userData={type:'NPC',id:'attic-ant'};
     // Mesh plano hijo del cuerpo: conserva su orientación y nunca gira hacia la cámara.

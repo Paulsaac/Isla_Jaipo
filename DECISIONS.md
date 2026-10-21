@@ -267,3 +267,8 @@
 
 ## 2026-10-16 — Forma de montaña según nieve vigente
 - La nieve del mapa vigente define la cima y el marrón las laderas; el camino sigue el terreno. El desnivel de referencia sube 10% (cima 129.02256, pie 1). Se conserva la clasificación de colisiones previa al repintado.
+
+## 2026-10-21 — Maqueta de portada pregenerada y animación independiente
+- Por pedido de AxByZ, la portada carga una maqueta simplificada guardada del mapa vigente (IJM2), regenerada únicamente por señal explícita del usuario. No sustituye la carga propia del mundo jugable. Procedimiento y archivos a incluir en PR: docs/PORTADA_ISLA.md.
+- La animación de la maqueta usa Worker/OffscreenCanvas cuando está disponible para que construir el mundo en el hilo principal no congele giro/zoom. Respaldo compatible con la limitación de compartir ese hilo.
+- CRT activo en portada/carga; Cargando mundo con puntos en salto, giro y acercamiento lento durante carga, zoom final rápido con fundido al estar listo. Estado y evidencia en CONTINUAR_AXBYZ.md.
