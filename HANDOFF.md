@@ -1,6 +1,7 @@
 # Apagado de servidores por orden de AxByZ — 2026-10-21
 
 Copia activa C:/Users/clop9/Documents/Codex/IslaJaipo-integracion-2026-10-19. Se detuvieron el servidor LAN tools/serve.cjs --lan --port=8001 (PID6588) y el túnel Cloudflare dirigido a http://127.0.0.1:8001 (PID21848). Verificado: puerto8001 sin listener y sin respuesta HTTP; no había listeners en 8000, 8002 ni 8003. El servidor y túnel quedan apagados hasta nueva orden.
+PR para revisión de Clawshoot: https://github.com/Paulsaac/Isla_Jaipo/pull/8.
 
 # Servidor LAN reanudado por AxByZ — 2026-10-21
 
