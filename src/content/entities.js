@@ -38,6 +38,9 @@ export const kitchenSacks = [
 
 export const kitchenGardenPosition = { x: 237, z: 452 };
 
+// Pie occidental de la montaña, junto al punto marcado por AxByZ en el mapa.
+export const telescopePickup = { x: 55, z: 188, rotationY: -0.75 };
+
 // Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
 // La puerta posterior ocupa un muro pintado; el cambio queda localizado aquí.
 export const mapCellOverrides = [

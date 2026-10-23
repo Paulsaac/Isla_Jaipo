@@ -1,3 +1,17 @@
+# Entrega de AxByZ: telescopio, huerta e interacciones — 2026-10-23
+
+Pedido explícito: crear PR para revisión e integración de Clawshoot y mantener abierto el servidor. Rama codex/axbyz-telescopio-huerta-20261023, base origin/main 2358f9fccd514ed992faa45e8638be8a26556f54. Preparada en una copia aislada; la copia principal con trabajo previo y la instantánea servida se conservan.
+
+- Telescopio al pie occidental de la montaña, celda (55,188), mundo (110,376). Modelo de ocho caras/548 triángulos, textura pixel art 256×128, cuerpo índigo y medallones de fondo azul oscuro; cuatro medallones rodean el objetivo ancho en una sola fila. Icono PNG 64×64 transparente; el SVG conserva una versión fuente anterior y no se usa en ejecución.
+- Recogida E/B, equipar/guardar en inventario. Clic izquierdo alterna zoom óptico 3×; clic derecho intenta más zoom y vuelve a visión normal tras forcejeo de 1.06 s. En táctil, A abre el zoom y la siguiente A intenta más zoom. El temblor de render no altera posición ni orientación persistente. Al completar la secuencia aparece «el zoom parece que esta trabado...». Pausa, inventario, muerte, blur y cambiar objeto restauran la cámara.
+- Huerta de Graham: pala y rastrillo apoyados en la pared sur, tres plantas jóvenes de yerba mate y banca de tablón con patas recortadas en V, madera pixel art original del juego y sombreado de uniones.
+- Margen de selección del mate reducido de 1.15 a 0.35; tercio superior del árbol sin colisión. Variación moderada por reproducción en pitch de pasos, tanto muestras como síntesis.
+- Recursos para edición: exports/telescopio/telescopio.blend, telescopio.glb, telescopio-textura.png y LEEME.txt. Blender 4.5.4 importó y guardó el modelo con textura empaquetada, UV, colores de vértices y filtrado Closest. Editar la exportación no actualiza automáticamente el constructor del juego.
+
+Verificado: sintaxis ES de ocho módulos y git diff --check; Chrome de escritorio y móvil emulado aprobaron recogida, apoyo al terreno (0.006 u), inventario, zoom/forcejeo/mensaje, interrupciones, pausa, blur y muerte sin errores JS. Deriva y desplazamiento durante forcejeo: 0. Vista previa del modelo revisada; geometría y UV finitos. Durante implementación se revisaron geometría/colocación de herramientas, banca y plantas. Auxiliares y capturas permanecen locales en .coordination y no forman parte del PR. Pendientes: teléfono físico, escucha comparativa del pitch y recorrido integral de misiones/árboles; no se acreditan mejoras de rendimiento.
+
+Servidor conservado por orden expresa: PID 376, node tools/serve.cjs --lan --port=8001; HTTP 200 en http://127.0.0.1:8001/ y http://192.168.4.89:8001/?touch=1. Continúa sirviendo la instantánea .coordination/main-2358f9f de la copia de Documents, con los mismos archivos de ejecución de esta entrega. No detener por terminar el PR. La sesión de trabajo continúa; integración en main a cargo de Clawshoot.
+
 # Apagado de servidores por orden de AxByZ — 2026-10-21
 
 Copia activa C:/Users/clop9/Documents/Codex/IslaJaipo-integracion-2026-10-19. Se detuvieron el servidor LAN tools/serve.cjs --lan --port=8001 (PID6588) y el túnel Cloudflare dirigido a http://127.0.0.1:8001 (PID21848). Verificado: puerto8001 sin listener y sin respuesta HTTP; no había listeners en 8000, 8002 ni 8003. El servidor y túnel quedan apagados hasta nueva orden.
