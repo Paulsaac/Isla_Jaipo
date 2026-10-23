@@ -1,5 +1,8 @@
 import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
 import { createHeldMate } from './src/player/held-mate.js';
+import { createTelescope } from './src/world/telescope.js';
+import { createTelescopeView } from './src/player/telescope-view.js';
+import { telescopePickup } from './src/content/entities.js';
 import { createWoodcutting } from './src/systems/woodcutting.js';
 import { createWoodcuttingHud } from './src/ui/woodcutting.js';
 import { sampleForestSurroundings } from './src/systems/forest-ambience.js';
@@ -173,6 +176,7 @@ let heldItemTextures = null;
 let hasTorch = false;
 let hasMap = false;
 let hasMate = false, heldMate = null;
+let hasTelescope = false, telescopeMesh = null, telescopeView = null;
 let hasPinkSunglasses = false, pinkSunglassesEquipped = false;
 let lensViewIndex = 0;
 let hasDivingHelmet = false;
@@ -427,6 +431,7 @@ const helmetInteractionCenter = new THREE.Vector3();
 const helmetInteractionOffset = new THREE.Vector3();
 const mateInteractionCenter = new THREE.Vector3();
 const mateInteractionOffset = new THREE.Vector3();
+const telescopeInteractionCenter = new THREE.Vector3(), telescopeInteractionOffset = new THREE.Vector3();
 const frameCameraDirection = new THREE.Vector3();
 const frameCameraHeading = new THREE.Euler(0, 0, 0, 'YXZ');
 const frameMoonPosition = new THREE.Vector3();
@@ -506,6 +511,7 @@ function resumeGame() {
     } else controls.lock();
 }
 function pauseGame() {
+    telescopeView?.cancel();
     if (!controls.isLocked) {
         if (inventoryRunning) {
             inventoryRunning = false;
@@ -674,6 +680,8 @@ function toggleDivingHelmet() {
 
 function setHeldItem(item) {
     heldItem = item;
+    if (item !== 'telescope') telescopeView?.cancel();
+    menus.setItemActive('telescope',item === 'telescope');
     if (item !== 'mate') heldMate?.cancel();
     menus.setItemActive('mate', item === 'mate');
     if (item !== 'key') keyInventory.clearSelection();
@@ -713,6 +721,12 @@ function useInventoryItem(item) {
     } else if (item === 'mate' && hasMate) {
         setHeldItem(heldItem === 'mate' ? null : 'mate');
         menus.setItemDescription(heldItem === 'mate' ? (isTouchMode ? 'Mate en la mano. Pulsa A para tomar; mantén A para seguir tomando.' : 'Mate en la mano. Clic derecho para tomar; mantenlo para seguir bebiendo.') : 'Mate guardado.');
+    } else if (item === 'telescope' && hasTelescope) {
+        setHeldItem(heldItem === 'telescope' ? null : 'telescope');
+        menus.setItemDescription(heldItem === 'telescope'
+            ? isTouchMode ? 'Telescopio en la mano. A para mirar; otra vez A intenta acercarte más.'
+                : 'Telescopio en la mano. Clic izquierdo para mirar o bajar; clic derecho intenta acercarte más.'
+            : 'Telescopio guardado.');
     } else if (item === 'map' && hasMap) {
         gameActions.map();
         menus.setItemDescription(minimap.enabled ? 'Mapa abierto al volver al juego.' : 'Mapa cerrado.');
@@ -768,6 +782,7 @@ controls.addEventListener('lock', () => {
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    telescopeView?.cancel();
     woodcutting.setVisible(false);
     jumpHeld = false;
     hud.hideInteraction();
@@ -878,6 +893,7 @@ function standFromChair() {
 
 function interact() {
     if (!controls.isLocked || isDead) return false;
+    telescopeView?.cancel();
     if (bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return false;
     if (menus.isDialogVisible() && menus.completeDialogText()) return true;
     if (seatedChair) { standFromChair(); return true; }
@@ -956,6 +972,21 @@ function interact() {
             if (targetInteractable.userData.id === 'graham-stump') {
                 if (!isFlying && !isRidingBoat && canJump && !isDialogOpen && heartLevitationHeight <= 0
                     && !musicEvents.isEventActive('forest')) woodcutting.begin(targetInteractable);
+                return true;
+            }
+            if (targetInteractable.userData.type === 'TELESCOPE_PICKUP') {
+                if (hasTelescope) return true;
+                hasTelescope=true;
+                menus.setTelescopeVisible(true);
+                hud.showReceivedItem('un telescopio');
+                const pickup=targetInteractable;
+                pickup.visible=false; pickup.userData.visibilityEnabled=false;
+                const index=interactables.indexOf(pickup);
+                if (index>=0) interactables.splice(index,1);
+                fogCulling?.unregister(pickup); pickup.removeFromParent();
+                pickup.geometry.dispose(); pickup.material.map?.dispose(); pickup.material.dispose();
+                telescopeMesh=null; targetInteractable=null; hud.hideInteraction();
+                setHeldItem('telescope');
                 return true;
             }
             if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
@@ -1321,6 +1352,7 @@ let touchMateHeld = false;
 const touchActions = {
     ...gameActions,
     holdJump(pressed) {
+        if (heldItem === 'telescope') {gameActions.holdJump(false);return;}
         if (!pressed) {
             if (touchMateHeld) heldMate?.release();
             touchMateHeld = false;
@@ -1336,6 +1368,10 @@ const touchActions = {
         gameActions.holdJump(true);
     },
     jump() {
+        if (heldItem === 'telescope') {
+            if (canUseTelescope()) telescopeView.attemptZoom();
+            return;
+        }
         if (touchMateHeld || heldItem === 'mate') return;
         gameActions.jump();
     }
@@ -1349,6 +1385,8 @@ const touchControls = isTouchMode ? bindTouchControls({
     pause: pauseGame,
     look(dx, dy) {
         if (woodcutting.active || spawnGreeting.active || grahamDap.active) return;
+        const zoomLookScale=telescopeView?.lookScale ?? 1;
+        dx*=zoomLookScale; dy*=zoomLookScale;
         touchLook.setFromQuaternion(camera.quaternion, 'YXZ');
         touchLook.y -= dx * TOUCH_LOOK_SENSITIVITY;
         touchLook.x = THREE.MathUtils.clamp(touchLook.x - dy * TOUCH_LOOK_SENSITIVITY, -Math.PI / 2 + 0.04, Math.PI / 2 - 0.04);
@@ -1468,16 +1506,32 @@ function updateHeldItemLayout() {
 }
 updateHeldItemLayout();
 heldMate = createHeldMate(THREE,camera);
+telescopeView = createTelescopeView(THREE,camera,controls,{
+    onStrainComplete: () => hud.showNotification('el zoom parece que esta trabado...')
+});
+function canUseTelescope() {
+    return hasTelescope && heldItem === 'telescope' && gameStarted && mapLoaded && controls.isLocked
+        && !isDead && !isInventoryOpen && !isDialogOpen && !spawnGreeting.active
+        && !heartPull.active && !grahamDap.active && !woodcutting.active && !caveTransitionPending;
+}
 const canDrinkMate = () => heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
     && !woodcutting.active && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
 document.addEventListener('mousedown', event => {
     if (event.button === 0 && woodcutting.active && controls.isLocked && !isDead) {
         event.preventDefault(); woodcutting.interact(); return;
     }
+    if (event.button === 0 && !isTouchMode && (event.target === renderer.domElement || event.target === document.body) && canUseTelescope()) {
+        event.preventDefault(); telescopeView.toggle(); return;
+    }
+    if (event.button === 2 && !isTouchMode && (event.target === renderer.domElement || event.target === document.body) && canUseTelescope()) {
+        event.preventDefault(); telescopeView.attemptZoom(); return;
+    }
     if (event.button === 2 && canDrinkMate()) { event.preventDefault(); heldMate.press(); }
 });
 document.addEventListener('mouseup', event => { if (event.button === 2) heldMate.release(); });
-window.addEventListener('blur', () => { heldMate.cancel(); woodcutting.holdExit(false); });
+document.addEventListener('contextmenu',event=>{if (canUseTelescope()) event.preventDefault();});
+window.addEventListener('blur', () => { heldMate.cancel(); telescopeView.cancel(); woodcutting.holdExit(false); });
+document.addEventListener('visibilitychange',()=>{if (document.hidden) telescopeView.cancel();});
 renderer.domElement.addEventListener('contextmenu', event => {
     if ((woodcutting.active && controls.isLocked) || canDrinkMate()) event.preventDefault();
 });
@@ -3133,13 +3187,35 @@ async function buildWorld(prepared, checkpoint) {
 
     const garden = createKitchenGarden(THREE, {
         x: kitchenGardenPosition.x * UNIT_SIZE, z: kitchenGardenPosition.z * UNIT_SIZE
-    }, getTerrainHeight);
+    }, getTerrainHeight, maderaTex);
     for (const model of garden) {
         { const pause = checkpoint(); if (pause) await pause; }
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
     }
+
+    telescopeMesh=createTelescope(THREE);
+    telescopeMesh.name='mountain-telescope';
+    telescopeMesh.userData={type:'TELESCOPE_PICKUP',id:telescopeMesh.name,gx:telescopePickup.x,gz:telescopePickup.z};
+    const telescopeX=telescopePickup.x*UNIT_SIZE, telescopeZ=telescopePickup.z*UNIT_SIZE;
+    const telescopeDX=Math.sin(telescopePickup.rotationY), telescopeDZ=Math.cos(telescopePickup.rotationY);
+    const telescopeRise=getTerrainHeight(telescopeX+telescopeDX*0.37,telescopeZ+telescopeDZ*0.37)
+        -getTerrainHeight(telescopeX-telescopeDX*0.37,telescopeZ-telescopeDZ*0.37);
+    telescopeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),
+        new THREE.Vector3(telescopeDX*0.74,telescopeRise,telescopeDZ*0.74).normalize());
+    telescopeMesh.rotateZ(0.22);
+    telescopeMesh.position.set(telescopeX,getTerrainHeight(telescopeX,telescopeZ),telescopeZ);
+    telescopeMesh.updateMatrixWorld(true);
+    const telescopeVertices=telescopeMesh.geometry.attributes.position, telescopeVertex=new THREE.Vector3();
+    let telescopeLift=-Infinity;
+    for (let i=0;i<telescopeVertices.count;i++) {
+        telescopeVertex.fromBufferAttribute(telescopeVertices,i).applyMatrix4(telescopeMesh.matrixWorld);
+        telescopeLift=Math.max(telescopeLift,getTerrainHeight(telescopeVertex.x,telescopeVertex.z)-telescopeVertex.y);
+    }
+    telescopeMesh.position.y+=telescopeLift+0.006;
+    telescopeMesh.updateMatrixWorld(true);
+    scene.add(telescopeMesh); interactables.push(telescopeMesh);
 
     const fenceMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0 });
     const fenceLocations = new Set(prepared.fenceCells.map(({ x, z }) => `${x},${z}`));
@@ -3305,7 +3381,9 @@ function updatePlayerPosture() {
     isCrouching = crouchRequested;
 }
 
-function treeCanopyHeight(x, z) { return getTerrainHeight(x, z) + TREE_SPRITE_HEIGHT - 0.5; }
+function treeCollisionTop(x, z) {
+    return getTerrainHeight(x, z) + TREE_SPRITE_HEIGHT * (2 / 3) - 0.5;
+}
 
 function isWall(x, z) {
     if (caveMap?.active) return caveMap.isWall(x,z);
@@ -3321,7 +3399,7 @@ function isWall(x, z) {
     return hasObstacle(isRidingBoat ? x - boatSeatOffset.x : x,
         isRidingBoat ? z - boatSeatOffset.z : z,
         mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference,
-        controlObj.position.y - eyeHeight, heartLevitationHeight > 0.15 ? treeCanopyHeight : null);
+        controlObj.position.y - eyeHeight, treeCollisionTop);
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -3899,6 +3977,13 @@ function animate(timestamp = performance.now()) {
         if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active && !isDialogOpen) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
+            if (!interactionHits.length && telescopeMesh) {
+                telescopeMesh.localToWorld(telescopeInteractionCenter.copy(telescopeMesh.geometry.boundingSphere.center));
+                const distance=telescopeInteractionOffset.subVectors(telescopeInteractionCenter,raycaster.ray.origin).length();
+                if (distance<3.5 && raycaster.ray.direction.dot(telescopeInteractionOffset)>0
+                    && raycaster.ray.distanceSqToPoint(telescopeInteractionCenter)<0.24*0.24)
+                    interactionHits.push({object:telescopeMesh,distance});
+            }
             // Amplía la zona de selección del casco a corta distancia sin tapar otros objetos.
             if (!interactionHits.length && divingHelmetMesh) {
                 divingHelmetMesh.localToWorld(helmetInteractionCenter.copy(divingHelmetMesh.geometry.boundingSphere.center));
@@ -3909,13 +3994,13 @@ function animate(timestamp = performance.now()) {
                     interactionHits.push({ object: divingHelmetMesh, distance: helmetDistance });
                 }
             }
-            // El mate es pequeño: aceptar una zona generosa alrededor del recipiente al apuntar.
+            // Añadir solo un margen pequeño alrededor del modelo del mate.
             if (!interactionHits.length && mateInteractable) {
                 mateInteractable.localToWorld(mateInteractionCenter.copy(mateInteractable.geometry.boundingSphere.center));
                 const mateDistance = mateInteractionOffset.subVectors(mateInteractionCenter, raycaster.ray.origin).length();
                 if (mateDistance < 3.5
                     && raycaster.ray.direction.dot(mateInteractionOffset) > 0
-                    && raycaster.ray.distanceSqToPoint(mateInteractionCenter) < 1.15 * 1.15) {
+                    && raycaster.ray.distanceSqToPoint(mateInteractionCenter) < 0.35 * 0.35) {
                     interactionHits.push({ object: mateInteractable, distance: mateDistance });
                 }
             }
@@ -3949,6 +4034,9 @@ function animate(timestamp = performance.now()) {
                     hud.setInteractionText(targetInteractable.userData.item === 'map' ? "Cerrado" : "Presiona E para abrir Cofre");
                     hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
                 }
+            } else if (targetInteractable.userData.type === 'TELESCOPE_PICKUP') {
+                hud.setInteractionText('Presiona E para recoger Telescopio');
+                hud.setInteractionColor('#ffeb3b');
             } else if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
                 hud.setInteractionText('Presiona E para tomar lentes de sol rosados');
                 hud.setInteractionColor('#f384b8');
@@ -4452,6 +4540,7 @@ function animate(timestamp = performance.now()) {
     dawnSkyMesh.visible = dawnSkyMesh.material.opacity !== 0;
     duskSkyMesh.visible = duskSkyMesh.material.opacity !== 0;
     hud.setUnderwaterTint(gameStarted && controls.isLocked && !isDead ? underwaterBlend * underwaterLightLevel : 0);
+    telescopeView.update(vegetationDelta,canUseTelescope());
     const fogPlane = fogCulling?.update(camera);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
     const plantGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
@@ -4500,7 +4589,7 @@ function animate(timestamp = performance.now()) {
     sunFlare.update();
     if (!controls.isLocked || isDead) hud.hideDivingAir();
     hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, !woodcutting.active && gameStarted && controls.isLocked && !isDead);
-    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && !woodcutting.active && gameStarted && controls.isLocked && !isDead;
+    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'telescope' && !woodcutting.active && gameStarted && controls.isLocked && !isDead;
     heldMate.update(controls.isLocked ? vegetationDelta : 0, canDrinkMate());
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && controls.isLocked && !isDead);
@@ -4508,6 +4597,7 @@ function animate(timestamp = performance.now()) {
     pinkSunglassesTint.value = pinkSunglassesEquipped && gameStarted && !isDead ? 1 : 0;
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();
     grahamDap.apply();
+    telescopeView.applyShake();
     const caveLighting = caveMap?.active ? {
         ambient: ambientLight.intensity,
         directional: dirLight.intensity,
@@ -4535,6 +4625,7 @@ function animate(timestamp = performance.now()) {
             scene.background.copy(caveLighting.background);
             scene.fog.color.copy(caveLighting.fogColor);
         }
+        telescopeView.restoreShake();
         grahamDap.restore();
         heartPull.restoreCameraShake();
         performancePanel?.record(timestamp, frameStart);

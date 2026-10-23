@@ -519,8 +519,11 @@ export function createMusicEvents() {
             if (!buffer) return;
             const source = context.createBufferSource();
             source.buffer = buffer;
-            // El salto usa la parte aguda del mismo rango normal, sin superar +35 cents.
-            source.detune.value = highPitch ? 18 + Math.random() * 17 : (Math.random() * 2 - 1) * 35;
+            // Variación corta en cada reproducción para que las pisadas no suenen idénticas.
+            // El salto conserva un sesgo agudo leve, dentro de un rango moderado.
+            source.detune.value = highPitch
+                ? 20 + Math.random() * 20
+                : (Math.random() * 2 - 1) * 45;
             const gain = context.createGain();
             const outdoorVolume = running ? 0.0952 : 0.0952 * (0.0816 / 0.1122);
             // La salida interior multiplica por 1.2: compensarla para duplicar el pasto.
@@ -538,6 +541,7 @@ export function createMusicEvents() {
         const pitch = highPitch ? 1.02 * (1 + Math.random() * 0.02)
             : (isLeft ? 0.98 : 1.02) * (0.98 + Math.random() * 0.04);
         oscillator.type = 'sine';
+        oscillator.detune.value = (Math.random() * 2 - 1) * 45;
         oscillator.frequency.setValueAtTime(126 * pitch, now);
         oscillator.frequency.exponentialRampToValueAtTime(53.2 * pitch, now + 0.12);
         gain.gain.setValueAtTime(0.0001, now);
