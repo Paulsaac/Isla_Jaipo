@@ -1,9 +1,12 @@
 // Mostrar la maqueta guardada antes de cargar el mundo jugable.
 import { musicEvents } from './systems/music-events.js';
+import './ui/crt-filter.js';
 import { isTouchMode } from './input/touch-mode.js';
 import { requestIslandStart, setIslandPreview } from './ui/island-start.js';
 import { createSavedIslandPreview } from './ui/saved-island-preview.js';
 import { requestGamePointerLock } from './input/pointer-lock.js';
+import { menuMusic } from './ui/menu-music.js';
+menuMusic.start();
 let loading = false;
 const startMenu = document.getElementById('main-menu');
 if (isTouchMode) {
@@ -44,10 +47,12 @@ function loadPlayableWorld() {
         document.getElementById('start-text').textContent =
             'No se pudo preparar la isla. Recarga para intentar de nuevo.';
         console.error(error);
+        menuMusic.stop();
     });
 }
 previewReady.catch(error => {
     document.getElementById('start-text').textContent =
         'No se pudo cargar la maqueta. Recarga para intentar de nuevo.';
     console.error(error);
+    menuMusic.stop();
 });

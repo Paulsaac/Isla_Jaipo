@@ -10,7 +10,7 @@ export const entities = [
         position: { x: 94, z: 279 },
         item: 'forest-heart',
         ground: 'DIRT_STONE',
-        rotationY: Math.PI
+        rotationY: 0 // Frente del corazón hacia +Z: sur de la isla; gira también la rama.
     },
     {
         id: 'island-map-chest',

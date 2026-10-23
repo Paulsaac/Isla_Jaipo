@@ -1,5 +1,6 @@
 import { UNIT_SIZE } from '../config.js';
 import { sampleMountainPath } from './mountain-path.js';
+import { sampleShorelineHeight } from './shoreline-smoothing.js';
 
 function hash2D(x, z) {
     let n = ((Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1);
@@ -83,6 +84,12 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     const y0 = y00 * (1 - tx) + y10 * tx;
     const y1 = y01 * (1 - tx) + y11 * tx;
     let y = y0 * (1 - tz) + y1 * tz;
+    const shore=elevationMap.shorelineMask;
+    if(shore){
+        const weight=(shore[r0*mapWidth+c0]*(1-tx)+shore[r0*mapWidth+c1]*tx)*(1-tz)
+            +(shore[r1*mapWidth+c0]*(1-tx)+shore[r1*mapWidth+c1]*tx)*tz;
+        if(weight>0)y+=(sampleShorelineHeight(elevationMap.shorelineHeights ?? elevationMap,c0,r0,mapWidth,mapHeight,tx,tz)-y)*weight;
+    }
 
     const interpolate = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
     const noiseWeight = (value,x,z) => mountainPathProfile?.followsTerrain && mountainPathProfile.mountainMask[z]?.[x] ? 0 : ['SAND', 'WET_SAND'].includes(value) ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
@@ -111,6 +118,16 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
         const t=Math.max(0,Math.min(1,(road.distance-core)/(radius-core)));
         const blend=t*t*(3-2*t);
         y=road.height*(1-blend)+y*blend;
+    }
+    const plateau=mountainPathProfile?.summitPlateau;
+    if(plateau) {
+        const d=Math.hypot(Math.max(plateau.minX-colF,0,colF-plateau.maxX),
+            Math.max(plateau.minZ-rowF,0,rowF-plateau.maxZ));
+        if(d<plateau.outer) {
+            const t=Math.max(0,(d-plateau.inner)/(plateau.outer-plateau.inner));
+            const blend=t*t*(3-2*t);
+            y=plateau.height*(1-blend)+y*blend;
+        }
     }
     // Mantener tierra continua bajo la madera y suavizar el encuentro exterior.
     // Las cajas de madera abarcan media celda desde su centro y terminan en Y=1.

@@ -14,11 +14,18 @@ self.onmessage = async ({data}) => {
                 ...data,
                 independentClock: true,
                 onError: error => self.postMessage({type:'error',message:error.message}),
-                onPresent: state => new Promise(resolve => {
+                onPresent: state => {
                     const id = ++frameId;
-                    presented = { id, resolve };
-                    self.postMessage({type:'frame',id,state});
-                }),
+                    if (state.phase !== 'arrival') {
+                        // El canvas se compone por sí mismo; no esperar al hilo que carga el mundo.
+                        self.postMessage({type:'frame',id,state});
+                        return;
+                    }
+                    return new Promise(resolve => {
+                        presented = { id, resolve };
+                        self.postMessage({type:'frame',id,state});
+                    });
+                },
                 loadTexture: async name => {
                     const bitmap = await loader.loadAsync(data.textureBase + name);
                     const texture = new THREE.Texture(bitmap);
@@ -35,6 +42,7 @@ self.onmessage = async ({data}) => {
             if (presented?.id === data.id) { presented.resolve(); presented = null; }
         } else if (data.type === 'resize') preview.resize(data.width,data.height);
         else if (data.type === 'loading') preview.startLoading();
+        else if (data.type === 'fade') preview.startFade();
         else if (data.type === 'arrive') {
             await preview.begin();
             self.postMessage({type:'arrived'});

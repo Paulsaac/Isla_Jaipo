@@ -84,7 +84,8 @@ export function sampleMountainPath(profile, x, z) {
         }
     }
     let bestDistance=Infinity,bestHeight=0;
-    for(let rz=cz-2;rz<=cz+2;rz++) for(let rx=cx-2;rx<=cx+2;rx++) {
+    const searchRadius=Math.ceil(profile.blendRadius ?? 1.5)+1;
+    for(let rz=cz-searchRadius;rz<=cz+searchRadius;rz++) for(let rx=cx-searchRadius;rx<=cx+searchRadius;rx++) {
         const a=rows[rz]?.[rx];
         if(!Number.isFinite(a)) continue;
         for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++) {

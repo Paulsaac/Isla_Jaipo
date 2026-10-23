@@ -1,8 +1,10 @@
+import { arrangeInventory } from './inventory-layout.js';
 // Presentación de menús. El estado y las reglas permanecen en game.js.
 export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const mainMenu = document.getElementById('main-menu');
     const pauseMenu = document.getElementById('pause-menu');
     const inventoryMenu = document.getElementById('inventory-menu');
+    const inventoryPreview = arrangeInventory(inventoryMenu);
     const dialogBox = document.getElementById('dialog-box');
     const dialogText = document.getElementById('dialog-text');
     const dialogHint = document.getElementById('dialog-hint');
@@ -23,6 +25,7 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const spokenCharacter = /[\p{L}\p{N}]/u;
 
     function setMenuVisible(menu, visible) {
+        if(menu===inventoryMenu) inventoryPreview.setVisible(visible);
         const previous = transitions.get(menu);
         if (previous?.visible === visible) return;
         if (!previous && (menu.style.display === 'flex') === visible) return;

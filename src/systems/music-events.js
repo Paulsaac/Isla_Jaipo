@@ -2,13 +2,17 @@ import { createForestHeartBeacon, FOREST_HEART_BEACON_RANGE } from './forest-hea
 import { createWaterAudio } from './water-audio.js';
 import { createForestAmbience } from './forest-ambience.js';
 import { createRiverAmbience } from './river-ambience.js';
+import { createSeaAmbience } from './sea-ambience.js';
 import { createAltarFireAudio } from './altar-fire-audio.js';
+import { createInteractionAudio } from './interaction-audio.js';
 // Audio de la partida: música única, pisadas y ambiente.
 export function createMusicEvents() {
     let context = null;
     let waterAudio = null;
     let forestAmbience = null;
+    let nightForestAmbience = null, interactionAudio = null;
     let riverAmbience = null;
+    let seaAmbience = null;
     let altarFireAudio = null;
     let forestHeartBeacon = null;
     let grassFootstep = null;
@@ -31,7 +35,7 @@ export function createMusicEvents() {
     let windFade = { from: 0, to: 0, start: 0, duration: 0 };
     let paused = false;
     let dapBuffer = null, dapLoad = null, dapSource = null, dapOffset = 0;
-    let chestUnlockBuffer = null, chestUnlockSound = null;
+    let chestUnlockSound = null;
     const musicOutputs = new Map();
     let underwaterOutput = null;
     let underwaterFilter = null;
@@ -53,7 +57,11 @@ export function createMusicEvents() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
         if (!waterAudio) waterAudio = createWaterAudio(context);
         if (!forestAmbience) forestAmbience = createForestAmbience(context);
+        if (!nightForestAmbience) nightForestAmbience = createForestAmbience(context, './sonidos/fx/bosque_noche_web.mp3');
+        if (!interactionAudio) interactionAudio = createInteractionAudio(context, () => paused);
+        interactionAudio.prepare();
         if (!riverAmbience) riverAmbience = createRiverAmbience(context);
+        if (!seaAmbience) seaAmbience = createSeaAmbience(context);
         if (!altarFireAudio) altarFireAudio = createAltarFireAudio(context);
         altarFireAudio.prepare();
         prepareGrassFootstep();
@@ -67,7 +75,9 @@ export function createMusicEvents() {
         if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
         waterAudio.unlock();
         forestAmbience.unlock();
+        nightForestAmbience.unlock();
         riverAmbience.unlock();
+        seaAmbience.unlock();
     }
 
     function prepareGrassFootstep() {
@@ -223,37 +233,19 @@ export function createMusicEvents() {
         } else panner.setPosition(position.x, position.y, position.z);
     }
     function playChestUnlock(position) {
-        if (!context || paused || !position || chestUnlockSound) return false;
-        if (!chestUnlockBuffer) {
-            const duration = 0.48;
-            chestUnlockBuffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
-            const data = chestUnlockBuffer.getChannelData(0);
-            // Pasador metálico breve seguido por el chasquido de la cerradura.
-            for (const [offset, frequency, strength, decay] of [[0,170,.38,42],[.10,1100,.22,24],[.22,260,.42,46]]) {
-                for (let i = 0; i < Math.ceil(context.sampleRate * .20); i++) {
-                    const t = i / context.sampleRate, index = Math.round(offset * context.sampleRate) + i;
-                    const attack = Math.min(1, t / .002), release = Math.max(0, 1 - t / .20);
-                    const tone = Math.sin(2 * Math.PI * frequency * t)
-                        + .28 * Math.sin(2 * Math.PI * frequency * 2.73 * t);
-                    data[index] += strength * attack * Math.exp(-t * decay) * release * tone;
-                }
-            }
-        }
-        const panner = context.createPanner();
-        panner.panningModel = 'HRTF'; panner.distanceModel = 'inverse';
-        panner.refDistance = 8; panner.maxDistance = 45; panner.rolloffFactor = 1;
-        if (panner.positionX) {
-            panner.positionX.value = position.x; panner.positionY.value = position.y; panner.positionZ.value = position.z;
-        } else panner.setPosition(position.x, position.y, position.z);
-        const source = context.createBufferSource(); source.buffer = chestUnlockBuffer;
-        source.connect(panner); panner.connect(context.destination);
-        const sound = { source, panner }; chestUnlockSound = sound;
-        source.onended = () => {
-            if (chestUnlockSound === sound) chestUnlockSound = null;
-            source.disconnect(); panner.disconnect();
-        };
-        source.start(context.currentTime); return true;
+        if (!context || paused || !position) return false;
+        interactionAudio?.play('chest',position,sound=>{
+            chestUnlockSound=sound;
+            sound.onended=()=>{if(chestUnlockSound===sound)chestUnlockSound=null;};
+        });
+        return true;
     }
+
+    function updateForestAmbience(state) {
+        forestAmbience?.update({...state,gain:state.night?0:state.gain});
+        nightForestAmbience?.update({...state,gain:state.night?state.gain:0});
+    }
+    function resetForestAmbience() {forestAmbience?.reset();nightForestAmbience?.reset();}
 
 
     function updateForestHeartBeacon(position) {
@@ -267,7 +259,9 @@ export function createMusicEvents() {
         paused = value;
         waterAudio?.setPaused(value);
         forestAmbience?.setPaused(value);
+        nightForestAmbience?.setPaused(value);
         riverAmbience?.setPaused(value);
+        seaAmbience?.setPaused(value);
         if (!context) return;
         // Suspender el reloj de audio conserva la posición de música, ráfagas y efectos.
         const operation = paused ? context.suspend() : context.resume();
@@ -674,7 +668,7 @@ export function createMusicEvents() {
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience: state => forestAmbience?.update(state),resetForestAmbience: () => forestAmbience?.reset(),updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

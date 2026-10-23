@@ -12,7 +12,7 @@ export function computeWorldFields(type, data) {
         const woodFloorMap = createWoodFloorMap(data.floorMap, data.roofMap, data.width, data.height, data.externalTorchMap);
         const waterDeckMap = createWaterDeckMap(data.floorMap, data.roofMap, data.width, data.height);
         const seaFloorHeights = createSeaFloorHeights(data.floorMap, waterDeckMap, data.width, data.height);
-        return {mountainReliefMap,woodFloorMap,waterDeckMap,seaFloorHeights,collisionMap:data.collisionMap};
+        return {mountainReliefMap,woodFloorMap,waterDeckMap,seaFloorHeights,collisionMap:data.collisionMap,floorMap:data.floorMap};
     }
     if (type === 'mountain') return createMountainHeights(data.floorMap, data.width, data.height, data.targetHeight);
     smoothMountainSlope(data.relief, data.elevations, data.mask, data.profile?.summitHeight, data.profile?.followsTerrain);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createIslandPreviewRenderer } from './island-preview-renderer.js';
+import { menuMusic } from './menu-music.js';
 
 export async function createSavedIslandPreview() {
     const menu = document.getElementById('main-menu');
@@ -20,6 +21,7 @@ export async function createSavedIslandPreview() {
     }
     let canvas = canvasElement(), driver, worker;
     const presentation = {};
+    let latestFreeFrame = null, freeFrameScheduled = false;
     const longTasks = [];
     let observer;
     if (diagnostics && globalThis.PerformanceObserver?.supportedEntryTypes?.includes('longtask')) {
@@ -84,6 +86,17 @@ export async function createSavedIslandPreview() {
             worker.onerror = event => fail(new Error(event.message || 'Falló la portada 3D.'));
             worker.onmessage = ({data}) => {
                 if (data.type === 'frame') {
+                    if (data.state.phase !== 'arrival') {
+                        latestFreeFrame = data.state;
+                        if (!freeFrameScheduled) {
+                            freeFrameScheduled = true;
+                            requestAnimationFrame(() => {
+                                freeFrameScheduled = false;
+                                recordPresentation(latestFreeFrame);
+                            });
+                        }
+                        return;
+                    }
                     // El segundo RAF confirma una oportunidad de composición entre
                     // dibujo y acuse; no confirmar desde una tarea larga de carga.
                     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -102,6 +115,7 @@ export async function createSavedIslandPreview() {
             driver = {
                 resize: (width,height) => worker.postMessage({type:'resize',width,height}),
                 startLoading: () => worker.postMessage({type:'loading'}),
+                startFade: () => worker.postMessage({type:'fade'}),
                 begin: () => { worker.postMessage({type:'arrive'}); return arrived; },
                 dispose: () => worker.postMessage({type:'dispose'})
             };
@@ -132,12 +146,14 @@ export async function createSavedIslandPreview() {
     }
     return {
         startLoading() { driver.startLoading(); },
+        startFade() { markTransition('fadeStarted'); menuMusic.fadeOut(); driver.startFade(); },
         begin() {
             markTransition('begin');
             menu.classList.add('intro-arriving');
             return driver.begin();
         },
         reveal() {
+            menuMusic.stop();
             resize.disconnect();
             menu.style.display = 'none';
             document.body.classList.remove('island-preview');

@@ -25,8 +25,8 @@ export function sampleForestSurroundings(floorMap, unitSize, x, z, radius = 20) 
 
 // Un único MP3 en streaming, repartido entre cuatro posiciones. No se crean
 // reproductores por árbol ni se decodifican los 17 minutos completos en memoria.
-export function createForestAmbience(context) {
-    const audio=new Audio('./sonidos/fx/bosque.mp3');audio.loop=true;audio.preload='metadata';
+export function createForestAmbience(context, url = './sonidos/fx/bosque.mp3') {
+    const audio=new Audio(url);audio.loop=true;audio.preload='metadata';
     const input=context.createMediaElementSource(audio),output=context.createGain();
     output.gain.value=0;output.connect(context.destination);
     const emitters=Array.from({length:4},()=>{

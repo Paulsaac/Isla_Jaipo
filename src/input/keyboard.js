@@ -8,6 +8,7 @@ export function bindKeyboard(actions, target = document) {
         if (actions.isEnabled?.() === false) return;
         if (actions.isPaused?.()) {
             sequenceIndex = 0;
+            if (!event.repeat && event.code === 'Escape' && !actions.isInventoryOpen?.()) actions.pause();
             // Inventario abierto: Q lo cierra; Esc pasa a la pausa real.
             if (actions.isInventoryOpen?.() && !event.repeat) {
                 if (event.code === 'KeyQ') actions.inventory();
@@ -16,6 +17,11 @@ export function bindKeyboard(actions, target = document) {
             return;
         }
         const code = event.code;
+        if (actions.isInventoryOpen?.() && !directions[code]
+            && !['KeyQ','Escape','Space','KeyC','ShiftLeft','ShiftRight'].includes(code)) {
+            event.preventDefault();
+            return;
+        }
         if(code.startsWith('Arrow')) event.preventDefault();
         if (code === sequence[sequenceIndex]) {
             sequenceIndex++;
@@ -41,7 +47,7 @@ export function bindKeyboard(actions, target = document) {
             case 'KeyK': if (!event.repeat) actions.teleportToForestHeart?.(); break;
             case 'KeyL': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.grantForestHeartForTesting?.(); break;
             case 'KeyT': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.torch(); break;
-            case 'KeyQ': actions.inventory(); break;
+            case 'KeyQ': if (!event.repeat) actions.inventory(); break;
         }
     }
 

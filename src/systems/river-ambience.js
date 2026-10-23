@@ -3,7 +3,8 @@ export const RIVER_SOUND_RANGE = 28;
 // Buscar la superficie del cauce más cercana, incluidos los tramos bajo puentes.
 export function sampleRiverSound(field, unitSize, x, y, z, waterHeight) {
     if (!field) return { x, y: waterHeight, z, gain: 0 };
-    const { river, width, height } = field;
+    const { width, height } = field;
+    const river = field.surface ?? field.river;
     const radius = Math.ceil(RIVER_SOUND_RANGE / unitSize) + 1;
     const gx = Math.round(x / unitSize), gz = Math.round(z / unitSize);
     let distance = RIVER_SOUND_RANGE, sourceX = x, sourceZ = z;
@@ -20,8 +21,8 @@ export function sampleRiverSound(field, unitSize, x, y, z, waterHeight) {
     return { x: sourceX, y: waterHeight, z: sourceZ, gain: (1-smooth)**2 };
 }
 
-export function createRiverAmbience(context) {
-    const audio = new Audio('./sonidos/fx/rio.mp3');
+export function createRiverAmbience(context, { url = './sonidos/fx/rio.mp3', label = 'el río', volume = 0.315 } = {}) {
+    const audio = new Audio(url);
     audio.loop = true; audio.preload = 'metadata';
     const input = context.createMediaElementSource(audio);
     const gain = context.createGain(), panner = context.createPanner();
@@ -34,14 +35,14 @@ export function createRiverAmbience(context) {
         audio.play()?.then(() => { if (paused || (prime && level === 0)) audio.pause(); })
             .catch(error => {
                 if (!prime && level > 0 && !paused && error.name !== 'AbortError')
-                    console.warn('No se pudo reproducir el río:', error);
+                    console.warn(`No se pudo reproducir ${label}:`, error);
             });
     }
     function sync() {
         cancelStop(); const now = context.currentTime;
         gain.gain.cancelScheduledValues(now);
         if (paused) { audio.pause(); gain.gain.setValueAtTime(0, now); return; }
-        gain.gain.setTargetAtTime(level * 0.315, now, 0.25);
+        gain.gain.setTargetAtTime(level * volume, now, 0.25);
         if (level > 0) { if (audio.paused) play(); }
         else stopTimer = setTimeout(() => { stopTimer = null; if (level === 0) audio.pause(); }, 1500);
     }

@@ -1,20 +1,22 @@
 import { loadMapImage } from './map-loader.js';
 import { createCaveEntrance } from './cave-entrance.js';
+import { applyWaterWaves } from './water-waves.js';
 
 // Cada color del dibujo define un material y una regla de circulación.
 const WALL_HEIGHT = 6;
+export const CAVE_SLOPE = 0.08; // Sube 8u por cada 100u hacia X+, con entrada en cota cero.
 const COLORS = new Map([
     [0x7092be, 'START'], [0x3f48cc, 'INTEREST'],
     [0x775c45, 'PASSAGE'], [0x896a4d, 'CHAMBER'],
     [0x23759f, 'RIVER'], [0x75cbd5, 'WATERFALL'], [0xa89b82, 'RIVER'],
-    [0x544136, 'RIM'], [0xb97a57, 'ROCK'], [0xffffff, 'OUTSIDE']
+    [0x544136, 'RIM'], [0xb97a57, 'ROCK'], [0xffffff, 'OUTSIDE'], [0x000000, 'VOID']
 ]);
 const WALKABLE = new Set(['START', 'INTEREST', 'PASSAGE', 'CHAMBER']);
 const WET = new Set(['RIVER', 'WATERFALL']);
 const APPEARANCE = {
     START: '#ffffff', INTEREST: '#f1dcad', PASSAGE: '#ffffff',
     CHAMBER: '#ead9bd', RIVER: '#6793a0', WATERFALL: '#a9d9dc',
-    RIM: '#d6c9ba', ROCK: '#ffffff', OUTSIDE: '#777777'
+    RIM: '#d6c9ba', ROCK: '#ffffff', OUTSIDE: '#777777', VOID: '#000000'
 };
 
 export function caveCellType(r, g, b, a = 255) {
@@ -22,17 +24,19 @@ export function caveCellType(r, g, b, a = 255) {
 }
 
 // Destino provisional aislado: conserva intactos el mundo y el progreso de la isla.
-export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTexture, floorTexture, waterMaterial }) {
+export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTexture, floorTexture, waterMaterial, waterTime = {value:0}, immersion = {value:0} }) {
     if (!rockTexture || !floorTexture || !waterMaterial?.map) {
         throw new Error('Faltan las texturas o el material de agua de la cueva.');
     }
     const image = await loadMapImage('./imagenes/Mapa/mapa_cueva.png');
+    // De pie en el fondo, los ojos quedan 0.15u sobre la superficie.
+    const riverBedHeight = -.05-playerHeight+.15;
     const canvas = document.createElement('canvas');
     canvas.width = image.width; canvas.height = image.height;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(image, 0, 0);
     const pixels = ctx.getImageData(0, 0, image.width, image.height).data;
-    const width = image.width, height = image.height, types = [], heights = [], spawnMarkers = [], interestMarkers = [], springMarkers = [], floorCells = [], riverCells = [];
+    const width = image.width, height = image.height, types = [], heights = [], spawnMarkers = [], interestMarkers = [], springMarkers = [], floorCells = [], riverCells = [], voidCells = [];
     for (let z = 0; z < height; z++) {
         types[z] = []; heights[z] = [];
         for (let x = 0; x < width; x++) {
@@ -44,21 +48,45 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
             if (type === 'WATERFALL') springMarkers.push({ x, z });
             if (WALKABLE.has(type)) floorCells.push({ x, z });
             if (WET.has(type)) riverCells.push({ x, z });
-            heights[z][x] = WET.has(type) ? -.55 : WALKABLE.has(type) ? 0 : type === 'OUTSIDE' ? 9 : WALL_HEIGHT;
+            if (type === 'VOID') voidCells.push({ x, z });
+            heights[z][x] = WET.has(type) ? riverBedHeight : WALKABLE.has(type) ? 0 : type === 'OUTSIDE' ? 9 : WALL_HEIGHT;
         }
     }
     if (!spawnMarkers.length) throw new Error('mapa_cueva.png no contiene el inicio #7092BE.');
-    if (!interestMarkers.length) throw new Error('mapa_cueva.png no contiene el punto de interés #3F48CC.');
     const center = markers => ({
         x: markers.reduce((sum, point) => sum + point.x, 0) / markers.length,
         z: markers.reduce((sum, point) => sum + point.z, 0) / markers.length
     });
-    const spawnCell = center(spawnMarkers), interestCell = center(interestMarkers);
+    const spawnCell = center(spawnMarkers), interestCell = interestMarkers.length ? center(interestMarkers) : null;
+    function sampleFloorHeight(localX,localZ) {
+        const px=localX/unitSize, pz=localZ/unitSize;
+        const gx=Math.max(0,Math.min(width-2,Math.floor(px))), gz=Math.max(0,Math.min(height-2,Math.floor(pz)));
+        const fx=THREE.MathUtils.clamp(px-gx,0,1), fz=THREE.MathUtils.clamp(pz-gz,0,1);
+        const edgeHeight=WET.has(types[Math.round(pz)]?.[Math.round(px)]) ? riverBedHeight : 0;
+        const at=(x,z)=>WALKABLE.has(types[z]?.[x]) || WET.has(types[z]?.[x]) ? heights[z][x] : edgeHeight;
+        const a=at(gx,gz),b=at(gx+1,gz),c=at(gx,gz+1),d=at(gx+1,gz+1);
+        return fx+fz<=1 ? a+fx*(b-a)+fz*(c-a) : d+(1-fx)*(c-d)+(1-fz)*(b-d);
+    }
     if (spawnMarkers.some(({ x, z }) => Math.abs(x - spawnCell.x) > 1 || Math.abs(z - spawnCell.z) > 1)) {
         throw new Error('mapa_cueva.png contiene inicios separados.');
     }
     const group = new THREE.Group();
     group.name = 'mapa-cueva-test'; group.position.set(4096, 0, 4096); group.visible = false;
+    const elevationAt = localX => (localX-spawnCell.x*unitSize)*CAVE_SLOPE;
+    // Una transformación común inclina suelo, cauce, bóveda, luces y niebla por igual.
+    group.matrixAutoUpdate = false;
+    group.matrix.set(1,0,0,group.position.x,
+        CAVE_SLOPE,1,0,-spawnCell.x*unitSize*CAVE_SLOPE,
+        0,0,1,group.position.z,
+        0,0,0,1);
+    const caveWaterMaterial = waterMaterial.clone();
+    const flowData = new Uint8Array(width*height*4);
+    for (const {x,z} of riverCells) {
+        const i=(z*width+x)*4;
+        flowData[i]=0; flowData[i+1]=128; flowData[i+2]=255; flowData[i+3]=255;
+    }
+    applyWaterWaves(THREE,caveWaterMaterial,waterTime,{data:flowData,width,height},unitSize,immersion,
+        undefined,new THREE.Vector2(group.position.x,group.position.z));
     const geometry = new THREE.PlaneGeometry((width - 1) * unitSize, (height - 1) * unitSize, width - 1, height - 1);
     geometry.rotateX(-Math.PI / 2);
     geometry.translate((width - 1) * unitSize / 2, 0, (height - 1) * unitSize / 2);
@@ -75,7 +103,7 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
     const passable = type => WALKABLE.has(type) || WET.has(type);
     for (let z = 0; z < height - 1; z++) for (let x = 0; x < width - 1; x++) {
         const corners = [types[z][x], types[z][x + 1], types[z + 1][x], types[z + 1][x + 1]];
-        if (corners.some(type => WET.has(type)) || (corners.some(passable) && corners.includes('RIM'))) continue;
+        if (corners.includes('VOID') || corners.some(type => WET.has(type)) || (corners.some(passable) && corners.includes('RIM'))) continue;
         const index = z * width + x, next = index + width;
         terrainIndices.push(index, next, index + 1, next, next + 1, index + 1);
     }
@@ -85,14 +113,15 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
     group.add(new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
         map: rockTexture, vertexColors: true, shininess: 0, side: THREE.DoubleSide
     })));
-    function addFlatCells(cells, y, material, name) {
+    function addFlatCells(cells, y, material, name, uvWidth = 4, uvDepth = 4) {
         const positions = [], uvs = [], indices = [];
         for (const { x, z } of cells) {
             const left = (x - .5) * unitSize, right = (x + .5) * unitSize;
             const near = (z - .5) * unitSize, far = (z + .5) * unitSize;
             const start = positions.length / 3;
             positions.push(left, y, near, right, y, near, left, y, far, right, y, far);
-            uvs.push(left / 4, near / 4, right / 4, near / 4, left / 4, far / 4, right / 4, far / 4);
+            uvs.push(left / uvWidth, near / uvDepth, right / uvWidth, near / uvDepth,
+                left / uvWidth, far / uvDepth, right / uvWidth, far / uvDepth);
             indices.push(start, start + 2, start + 1, start + 1, start + 2, start + 3);
         }
         const flatGeometry = new THREE.BufferGeometry();
@@ -104,9 +133,14 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
         mesh.name = name;
         group.add(mesh);
     }
-    const shoreCells = floorCells.filter(({ x, z }) =>
-        WET.has(types[z - 1]?.[x]) || WET.has(types[z + 1]?.[x])
-        || WET.has(types[z]?.[x - 1]) || WET.has(types[z]?.[x + 1]));
+    const nearType = (x,z,predicate) => {
+        for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++)
+            if(predicate(types[z+dz]?.[x+dx])) return true;
+        return false;
+    };
+    const shoreLandCells = floorCells.filter(({x,z})=>nearType(x,z,type=>WET.has(type)));
+    const shoreCells = [...shoreLandCells,
+        ...riverCells.filter(({x,z})=>nearType(x,z,type=>WALKABLE.has(type)))];
     const shoreKeys = new Set(shoreCells.map(({ x, z }) => z * width + x));
     const dirtMaterial = new THREE.MeshPhongMaterial({
         map: floorTexture, shininess: 0, side: THREE.DoubleSide
@@ -116,18 +150,11 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
     // Como en la isla, la orilla desciende bajo un plano de agua continuo.
     const shorePositions = [], shoreUvs = [], shoreIndices = [], shoreSegments = 4;
     for (const { x, z } of shoreCells) {
-        const west = WET.has(types[z][x - 1]), east = WET.has(types[z][x + 1]);
-        const north = WET.has(types[z - 1]?.[x]), south = WET.has(types[z + 1]?.[x]);
         const start = shorePositions.length / 3;
         for (let iz = 0; iz <= shoreSegments; iz++) for (let ix = 0; ix <= shoreSegments; ix++) {
             const px = (x - .5 + ix / shoreSegments) * unitSize;
             const pz = (z - .5 + iz / shoreSegments) * unitSize;
-            const edge = Math.max(west ? 1 - ix / shoreSegments * unitSize / .85 : 0,
-                east ? 1 - (shoreSegments - ix) / shoreSegments * unitSize / .85 : 0,
-                north ? 1 - iz / shoreSegments * unitSize / .85 : 0,
-                south ? 1 - (shoreSegments - iz) / shoreSegments * unitSize / .85 : 0, 0);
-            const depth = edge * (.31 + .055 * Math.sin(px * 3.4 + pz * 2.7));
-            shorePositions.push(px, .035 - depth, pz);
+            shorePositions.push(px, sampleFloorHeight(px,pz)+.035, pz);
             shoreUvs.push(px / 4, pz / 4);
         }
         for (let iz = 0; iz < shoreSegments; iz++) for (let ix = 0; ix < shoreSegments; ix++) {
@@ -143,7 +170,7 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
     const shore = new THREE.Mesh(shoreGeometry, dirtMaterial);
     shore.name = 'cave-sloped-shore';
     group.add(shore);
-    addFlatCells(riverCells, -.55, new THREE.MeshPhongMaterial({
+    addFlatCells(riverCells.filter(({x,z})=>!shoreKeys.has(z*width+x)), riverBedHeight, new THREE.MeshPhongMaterial({
         map: rockTexture, color: 0x788681, shininess: 0, side: THREE.DoubleSide
     }), 'cave-flat-riverbed');
     // La bóveda sigue la huella de la montaña y tapa las galerías a la altura de los muros.
@@ -166,7 +193,7 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
         ceilingUvs[index * 2 + 1] = z * unitSize / 8;
         if (x === width - 1 || z === height - 1) continue;
         const corners = [types[z][x], types[z][x + 1], types[z + 1][x], types[z + 1][x + 1]];
-        if (corners.includes('OUTSIDE') || !corners.some(type => WALKABLE.has(type) || WET.has(type))) continue;
+        if (corners.includes('OUTSIDE') || corners.includes('VOID') || !corners.some(type => WALKABLE.has(type) || WET.has(type))) continue;
         const next = index + width;
         ceilingIndices.push(index, index + 1, next, index + 1, next + 1, next);
     }
@@ -244,17 +271,39 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
         group.add(facets);
     }
     // El material compartido recibe los mismos fotogramas y el mismo tiempo de ondas que el agua exterior.
-    const waterGeometry = new THREE.PlaneGeometry(width * unitSize, height * unitSize);
-    const waterUv = waterGeometry.attributes.uv;
     const waterRepeat = waterMaterial.map.repeat;
-    for (let index = 0; index < waterUv.count; index++) {
-        waterUv.setXY(index, waterUv.getX(index) * width / waterRepeat.x,
-            waterUv.getY(index) * height / waterRepeat.y);
+    // Solo el cauce tiene agua: el plano anterior cubría también los nuevos vacíos.
+    addFlatCells([...riverCells,...shoreLandCells], -.05, caveWaterMaterial, 'cave-river-surface',
+        unitSize * waterRepeat.x, unitSize * waterRepeat.y);
+    if (voidCells.length) {
+        const pitPositions = [], pitUvs = [], pitColors = [];
+        for (const {x,z} of voidCells) for (const [dx,dz] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+            if (!passable(types[z+dz]?.[x+dx])) continue;
+            const cx=(x+dx*.5)*unitSize, cz=(z+dz*.5)*unitSize;
+            const ax=cx-dz*unitSize/2, az=cz+dx*unitSize/2;
+            const bx=cx+dz*unitSize/2, bz=cz-dx*unitSize/2;
+            for (const [px,py,pz,u,v] of [[ax,0,az,0,1],[ax,-8,az,0,0],[bx,0,bz,1,1],
+                [bx,0,bz,1,1],[ax,-8,az,0,0],[bx,-8,bz,1,0]]) {
+                pitPositions.push(px,py,pz); pitUvs.push(u,v);
+                const shade=py===0?.65:0;
+                pitColors.push(shade,shade,shade);
+            }
+        }
+        const pitGeometry=new THREE.BufferGeometry();
+        pitGeometry.setAttribute('position',new THREE.Float32BufferAttribute(pitPositions,3));
+        pitGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(pitUvs,2));
+        pitGeometry.setAttribute('color',new THREE.Float32BufferAttribute(pitColors,3));
+        pitGeometry.computeVertexNormals();
+        const pit=new THREE.Mesh(pitGeometry,new THREE.MeshPhongMaterial({map:rockTexture,
+            vertexColors:true,side:THREE.DoubleSide,shininess:0}));
+        pit.name='cave-void-rock-depth'; group.add(pit);
+        // Estratos negros translúcidos bajo el suelo: oscurecimiento progresivo del abismo.
+        for (const [y,opacity] of [[-.35,.10],[-1,.18],[-2,.30],[-4,.55],[-8,1]]) {
+            addFlatCells(voidCells,y,new THREE.MeshBasicMaterial({color:0x000000,
+                transparent:opacity<1,opacity,depthWrite:opacity===1,side:THREE.DoubleSide,fog:false}),
+            `cave-void-fog-${y}`);
+        }
     }
-    const water = new THREE.Mesh(waterGeometry, waterMaterial);
-    water.rotation.x = -Math.PI / 2;
-    water.position.set((width - 1) * unitSize / 2, -.05, (height - 1) * unitSize / 2);
-    group.add(water);
     if (springMarkers.length) {
         const spring = center(springMarkers);
         const waterfallGeometry = new THREE.BoxGeometry(.12, WALL_HEIGHT - .15, unitSize * 2.4);
@@ -264,7 +313,7 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
                 waterfallUv.getY(index) * 3 / waterRepeat.y);
         }
         const waterfall = new THREE.Mesh(
-            waterfallGeometry, waterMaterial
+            waterfallGeometry, caveWaterMaterial
         );
         waterfall.position.set(spring.x * unitSize, (WALL_HEIGHT - .15) / 2, spring.z * unitSize);
         waterfall.name = 'cave-rock-wall-spring';
@@ -301,7 +350,8 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
     );
     function grid(x, z) { return { x: (x - group.position.x) / unitSize, z: (z - group.position.z) / unitSize }; }
     function localPlayer(position) {
-        return { x: position.x - group.position.x, y: position.y, z: position.z - group.position.z };
+        return { x: position.x - group.position.x,
+            y: position.y-elevationAt(position.x-group.position.x), z: position.z - group.position.z };
     }
     function exitDepth(local) { return local.z - exitEntrance.group.position.z; }
     function nearExit(local) {
@@ -309,6 +359,18 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
             && exitDepth(local) >= -1.4 && exitDepth(local) <= 1.4;
     }
     return { group, spawn, width, height, spawnCell, interestCell, active: false,
+        getWaterHeight(x) { return elevationAt(x-group.position.x)-.05; },
+        syncWaterTexture() { caveWaterMaterial.map = waterMaterial.map; },
+        pushPlayer(position, eyeHeight, delta) {
+            if (!this.isWater(position.x,position.z) || position.y-eyeHeight > this.getWaterHeight(position.x)+.1) return;
+            const distance = -7.2*delta;
+            const steps = Math.max(1,Math.ceil(Math.abs(distance)/.2));
+            for (let i=0;i<steps;i++) {
+                const next=position.x+distance/steps;
+                if (this.isWall(next,position.z)) break;
+                position.x=next;
+            }
+        },
         nearExit(position) {
             return nearExit(localPlayer(position));
         },
@@ -319,7 +381,9 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
         contains(x, z) { const p = grid(x, z); return p.x >= 0 && p.z >= 0 && p.x < width - 1 && p.z < height - 1; },
         isWater(x, z) {
             const p = grid(x, z);
-            return WET.has(types[Math.round(p.z)]?.[Math.round(p.x)]);
+            const type=types[Math.round(p.z)]?.[Math.round(p.x)];
+            return (WET.has(type) || WALKABLE.has(type))
+                && sampleFloorHeight(x-group.position.x,z-group.position.z)+.035 < -.05;
         },
         isWall(x, z) {
             for (const dx of [-.3, .3]) for (const dz of [-.3, .3]) {
@@ -330,20 +394,7 @@ export async function loadCaveTestMap(THREE, unitSize, playerHeight, { rockTextu
             return false;
         },
         getHeight(x, z) {
-            const p = grid(x, z), gx = Math.max(0, Math.min(width - 2, Math.floor(p.x))), gz = Math.max(0, Math.min(height - 2, Math.floor(p.z)));
-            const fx = THREE.MathUtils.clamp(p.x - gx, 0, 1), fz = THREE.MathUtils.clamp(p.z - gz, 0, 1);
-            // Las rocas son barreras, no rampas físicas; solo el cauce cambia la altura del suelo.
-            const nearestType = types[Math.round(p.z)]?.[Math.round(p.x)];
-            const edgeHeight = WET.has(nearestType) ? -.55 : 0;
-            const floorHeight = (cx, cz) => {
-                const type = types[cz]?.[cx];
-                return WALKABLE.has(type) || WET.has(type) ? heights[cz][cx] : edgeHeight;
-            };
-            const h00 = floorHeight(gx, gz), h10 = floorHeight(gx + 1, gz);
-            const h01 = floorHeight(gx, gz + 1), h11 = floorHeight(gx + 1, gz + 1);
-            // Misma diagonal que PlaneGeometry, para conservar la transición de tierra a agua.
-            return fx + fz <= 1 ? h00 + fx * (h10 - h00) + fz * (h01 - h00)
-                : h11 + (1 - fx) * (h01 - h11) + (1 - fz) * (h10 - h11);
+            return sampleFloorHeight(x-group.position.x,z-group.position.z)+elevationAt(x-group.position.x);
         },
         localPosition(position) { return new THREE.Vector3(position.x - group.position.x, position.y, position.z - group.position.z); }
     };

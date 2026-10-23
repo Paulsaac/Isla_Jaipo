@@ -1,9 +1,21 @@
 import { waitForRenderedFrame } from './render-ready.js';
+import { createPreviewClouds } from './preview-clouds.js';
 
-const SEA_COLOR = 0x3b7495;
-const LOADING_ZOOM_RATE = 0.045;
-const FADE_START_DISTANCE = 30;
-const FADE_END_DISTANCE = 5;
+// Azul de referencia: promedio de Agua1_niebla.png del mundo jugable.
+const SEA_COLOR = 0x0172b4;
+const LOADING_ZOOM_RATE = -Math.log(0.94); // Distancia restante ×0.94 cada segundo.
+const APPROACH_ORBIT_SECONDS = 8; // Referencia para calcular la aceleración; no limita velocidad.
+const IDLE_ORBIT_SPEED = Math.PI * 2 / 90;
+const ORBIT_ACCELERATION_SECONDS = 8;
+const ORBIT_ACCELERATION = 0.5 * (Math.PI * 2 / APPROACH_ORBIT_SECONDS - IDLE_ORBIT_SPEED) / ORBIT_ACCELERATION_SECONDS;
+function loadingOrbitSpeed(seconds) {
+    return IDLE_ORBIT_SPEED + ORBIT_ACCELERATION * Math.max(0, seconds);
+}
+function loadingOrbitAngle(seconds) {
+    const elapsed = Math.max(0, seconds);
+    return IDLE_ORBIT_SPEED * elapsed + 0.5 * ORBIT_ACCELERATION * elapsed * elapsed;
+}
+const ARRIVAL_SECONDS = 2.4;
 
 function readSavedModel(buffer) {
     const view = new DataView(buffer);
@@ -48,8 +60,55 @@ export async function createIslandPreviewRenderer(THREE, options) {
     ground.computeVertexNormals();
     const groundMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     scene.add(new THREE.Mesh(ground, groundMaterial));
-    // El fondo uniforme ya representa el mar. Un segundo plano azul bajo la
-    // costa competía por profundidad con el terreno durante la vista distante.
+    // Mar debajo de la costa: sin escribir profundidad para evitar competir con el terreno distante.
+    const seaMaterial = new THREE.ShaderMaterial({
+        uniforms: { seaColor: { value: new THREE.Color(SEA_COLOR) }, seaTime: { value: 0 },
+            islandCenter: { value: new THREE.Vector2(model.width/2,model.depth/2) },
+            islandSize: { value: Math.max(model.width,model.depth) } },
+        depthWrite: false,
+        vertexShader: `varying vec3 seaPosition;
+            void main() {
+                vec4 world = modelMatrix * vec4(position,1.0);
+                seaPosition = world.xyz;
+                gl_Position = projectionMatrix * viewMatrix * world;
+            }`,
+        fragmentShader: `uniform vec3 seaColor;
+            uniform float seaTime;
+            uniform vec2 islandCenter;
+            uniform float islandSize;
+            varying vec3 seaPosition;
+            void main() {
+                vec2 p = seaPosition.xz;
+                vec3 normal = normalize(vec3(
+                    0.055*sin(p.x*0.19+p.y*0.11+seaTime*0.8), 1.0,
+                    0.04*cos(p.y*0.27-p.x*0.08-seaTime*0.65)));
+                vec3 view = normalize(cameraPosition-seaPosition);
+                vec3 light = normalize(vec3(-140.0,260.0,-100.0));
+                float shine = max(dot(normal,normalize(light+view)),0.0);
+                float broad = pow(shine,28.0);
+                float ripple = 0.5+0.5*sin(p.x*0.73+p.y*0.91+seaTime*1.1);
+                float sparkle = pow(shine,150.0)*smoothstep(0.65,0.98,ripple);
+                // Halo circular anclado a la isla, con caída suave hacia el mar abierto.
+                float ringDistance = (length(p-islandCenter)/islandSize-0.6624)/0.1872;
+                float ring = exp(-ringDistance*ringDistance*2.0);
+                // Foco viajero: una vuelta suave cada 35 segundos, siempre dentro del halo.
+                float focusAngle = -seaTime*0.18+2.4;
+                vec2 focusPosition = islandCenter+vec2(cos(focusAngle),sin(focusAngle))*islandSize*0.6624;
+                vec2 focusOffset = (p-focusPosition)/(islandSize*0.135);
+                float spotlight = exp(-dot(focusOffset,focusOffset)*1.5);
+                vec3 reflected = ring*(vec3(1.0,0.89,0.68)*0.015
+                    +vec3(1.0,0.74,0.25)*spotlight*(0.28+broad*0.25+sparkle*0.6));
+                gl_FragColor = vec4(seaColor+reflected,1.0);
+                #include <tonemapping_fragment>
+                #include <colorspace_fragment>
+            }`
+    });
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(model.width,model.depth)*16,
+        Math.max(model.width,model.depth)*16),seaMaterial);
+    sea.rotation.x = -Math.PI/2;
+    sea.position.set(model.width/2,0,model.depth/2);
+    sea.renderOrder = -1;
+    scene.add(sea);
 
     const canopyGeometry = new THREE.ConeGeometry(2.15, 8.5, 5);
     const trunkGeometry = new THREE.CylinderGeometry(0.22, 0.29, 2.2, 5);
@@ -145,6 +204,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         scene.add(house);
     }
 
+    const clouds = createPreviewClouds(THREE);
     const camera = new THREE.PerspectiveCamera(40, options.width / options.height, 0.03, 4000);
     // El negro pertenece al mismo render que la maqueta: no puede adelantarse
     // desde el DOM a un fotograma OffscreenCanvas aún pendiente en Firefox.
@@ -164,6 +224,9 @@ export async function createIslandPreviewRenderer(THREE, options) {
     let angle = 0, loadingTime = -1, arrival = -1, lastTime = 0, finished = false;
     let loadingFocus = 0, loadingScale = 1;
     let arrivalScale = 1, arrivalLogVelocity = 0, arrivalAngle = 0;
+    let arrivalSouthAngle = 0;
+    let fadeTime = -1;
+    let arrivalOrbitSpeed = IDLE_ORBIT_SPEED;
     let lastCameraReport = -Infinity;
     let resolveArrival, rejectArrival;
     const arrivalDone = new Promise((resolve, reject) => { resolveArrival = resolve; rejectArrival = reject; });
@@ -197,6 +260,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
             if (lastTime) maxLoadingGap = Math.max(maxLoadingGap,time-lastTime);
         }
         lastTime = time;
+        if (fadeTime >= 0) fadeTime += delta;
         const width = Math.max(1, viewWidth), height = Math.max(1, viewHeight);
         if (width !== lastWidth || height !== lastHeight) {
             lastWidth = width; lastHeight = height;
@@ -206,25 +270,28 @@ export async function createIslandPreviewRenderer(THREE, options) {
         const aspect = width / height;
         const fullHeight = Math.max(model.depth * 0.65, model.width / (2 * aspect) * 1.12);
         // Mantener el giro durante la carga y la llegada hasta la casa.
-        const orbitSpeed = Math.PI * 2 / (loadingTime >= 0 ? 72 : 90);
-        if (!reduced && arrival < 0) angle += delta * orbitSpeed;
+        if (!reduced && arrival < 0) angle += loadingTime < 0 ? delta * IDLE_ORBIT_SPEED
+            : loadingOrbitAngle(loadingTime + delta) - loadingOrbitAngle(loadingTime);
         if (loadingTime >= 0 && arrival < 0) {
             loadingTime += delta;
-            // Acercamiento suave y uniforme: tasa de escala del 4,5% por segundo, sin
+            // Acercamiento suave y uniforme: distancia reducida6% por segundo, sin
             // desaceleración hacia un límite que parezca una parada intermedia.
             loadingScale = Math.exp(-LOADING_ZOOM_RATE * loadingTime);
         }
         if (arrival >= 0) {
             arrival += delta;
-            // La órbita sigue a velocidad constante mientras el foco y la cámara
-            // avanzan hacia la casa, formando una trayectoria curva continua.
-            angle = arrivalAngle + (reduced ? 0 : orbitSpeed * arrival);
         }
         // La preferencia reduce la órbita automática; el viaje solicitado por Enter
         // conserva su zoom final para no sustituirlo por un corte a negro.
-        const duration = 2.4;
+        const duration = ARRIVAL_SECONDS;
         const travel = arrival < 0 ? 0 : Math.min(1, arrival / duration);
         const progress = smooth(travel);
+        if (arrival >= 0) {
+            // Continuar el giro sin salto y llegar desde el sur (+Z), mirando al norte.
+            angle = reduced ? arrivalSouthAngle
+                : arrivalAngle + (arrivalSouthAngle - arrivalAngle) * progress
+                    + arrivalOrbitSpeed * duration * travel * (1 - travel) * (1 - travel);
+        }
         const fullDistance = fullHeight / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         // Terminar bajo la cubierta de la casa, no con una vista del tejado.
         const finalDistance = 2.5;
@@ -241,8 +308,9 @@ export async function createIslandPreviewRenderer(THREE, options) {
         target.lerpVectors(center, destination, focus);
         const halfHeight = reduced && arrival < 0 ? fullHeight : fullHeight * scale;
         const distance = reduced && arrival < 0 ? fullDistance : fullDistance * scale;
-        // La cubierta llena la imagen antes del fundido; negro al cruzar al interior.
-        const shade = arrival < 0 ? 0 : smooth(Math.max(0, Math.min(1, Math.log(FADE_START_DISTANCE / distance) / Math.log(FADE_START_DISTANCE / FADE_END_DISTANCE))));
+        // Puede empezar mientras se preparan shaders; nunca volver a aclarar al llegar.
+        const loadingShade = fadeTime < 0 ? 0 : smooth(Math.min(1, fadeTime / 2));
+        const shade = Math.max(loadingShade, arrival < 0 ? 0 : progress);
         camera.aspect = aspect;
         // Precisión alta en la órbita distante y plano cercano corto al entrar.
         camera.near = Math.max(0.03, Math.min(5, distance * 0.01));
@@ -253,17 +321,20 @@ export async function createIslandPreviewRenderer(THREE, options) {
             target.y + Math.sin(inclination) * distance,
             target.z + Math.cos(angle) * Math.cos(inclination) * distance);
         camera.lookAt(target);
+        clouds.update(delta, aspect, reduced, travel, angle, inclination, camera.fov, loadingTime);
+        if (!reduced) seaMaterial.uniforms.seaTime.value += delta;
         renderer.render(scene, camera);
+        clouds.render(renderer);
         if (shade > 0) {
             fadeMaterial.opacity = shade;
             renderer.autoClear = false;
             renderer.render(fadeScene, fadeCamera);
             renderer.autoClear = true;
         }
-        // Un único fotograma en vuelo. La cámara no avanza mientras la página
-        // no haya tenido oportunidad de presentar el anterior.
+        // Solo la llegada exige confirmación del documento para conservar el fundido final.
+        // Durante carga, bloquear aquí devolvería la animación al hilo principal ocupado.
         if (options.onPresent) {
-            await waitForRenderedFrame(renderer);
+            if (arrival >= 0) await waitForRenderedFrame(renderer);
             await options.onPresent({phase:arrival < 0 ? loadingTime < 0 ? 'idle' : 'loading' : 'arrival',scale});
         }
         if (finished) return;
@@ -291,6 +362,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         startLoading() {
             if (loadingTime < 0) loadingTime = 0;
         },
+        startFade() { if (fadeTime < 0) fadeTime = 0; },
         begin() {
             if (arrival < 0) {
                 options.onStats?.({ frames: loadingFrames, seconds: loadingTime,
@@ -298,15 +370,20 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 arrivalScale = reduced ? 1 : loadingScale;
                 arrivalLogVelocity = reduced || loadingTime < 0 ? 0 : -LOADING_ZOOM_RATE;
                 arrivalAngle = angle;
+                arrivalOrbitSpeed = loadingOrbitSpeed(loadingTime);
+                const turn = Math.PI * 2;
+                const minimumArc = reduced ? 0 : arrivalOrbitSpeed * ARRIVAL_SECONDS * 0.5;
+                arrivalSouthAngle = Math.ceil((angle + minimumArc) / turn) * turn;
                 arrival = 0;
             }
             return arrivalDone;
         },
         dispose() {
             finished = true;
+            clouds.dispose();
             scene.traverse(object => object.geometry?.dispose());
             for (const material of [groundMaterial,wallMaterial,roofMaterial,doorMaterial,
-                trimMaterial,canopy.material,trunks.material]) material.dispose();
+                trimMaterial,canopy.material,trunks.material,seaMaterial]) material.dispose();
             houseTextures.forEach(texture => texture.dispose());
             fadeQuad.geometry.dispose();
             fadeMaterial.dispose();

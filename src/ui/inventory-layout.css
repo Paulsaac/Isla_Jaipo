@@ -1,0 +1,47 @@
+.touch-mode #inventory-menu {justify-content:center;}
+#inventory-menu {background-color:rgba(0,0,0,.075);padding:0!important;}
+#inventory-menu .inventory-orbit {
+    --slot-size:clamp(48px,10vmin,86px);--edge:max(28px,8vmin);--side-edge:calc(var(--edge) + 4vmin);
+    position:relative;display:block;width:100%;height:100%;max-width:none;
+    max-height:none;overflow:hidden;padding:0;background:none;border-radius:0;isolation:isolate;
+}
+#inventory-menu .inventory-orbit::before {content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+    opacity:.15;background:linear-gradient(#17211bc9,#152019dd),url('../../imagenes/Texturas/menu.png') center/128px 256px;}
+#inventory-menu .inventory-orbit #inventory-heading {
+    position:absolute;top:3%;width:100%;font-size:clamp(12px,2.4vw,20px);margin:0;
+}
+#inventory-menu .inventory-orbit .orbit-slot {
+    position:absolute;left:var(--slot-x);top:var(--slot-y);transform:translate(-50%,-50%);
+    width:var(--slot-size);height:var(--slot-size);border-radius:14px;background:#060c0a99;
+}
+#inventory-menu .inventory-orbit .heart-hex {
+    width:calc(var(--slot-size)*1.32);height:calc(var(--slot-size)*1.32);border-radius:0;
+    margin-top:calc(var(--slot-size)*-.06);
+    clip-path:polygon(50% 0,94% 25%,94% 75%,50% 100%,6% 75%,6% 25%);
+    background:linear-gradient(140deg,#7b927866,#07140ed9);
+}
+#inventory-menu .inventory-orbit .orbit-slot:has(.inventory-item:hover),
+#inventory-menu .inventory-orbit .orbit-slot:has(.inventory-item[aria-pressed="true"]) {background-color:#798d5e88;}
+#inventory-menu .inventory-orbit .inventory-item {border-radius:inherit;}
+#inventory-menu .inventory-orbit .inventory-item img,
+#inventory-menu .inventory-orbit .inventory-item svg {width:72%!important;height:72%!important;max-width:80%;max-height:80%;}
+#inventory-menu .inventory-orbit #torch-icon {transform:rotate(20deg);}
+.inventory-model-preview {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(170px,40vmin,380px);height:clamp(180px,42vmin,400px);cursor:default;}
+.inventory-model-preview canvas {display:block;width:100%;height:calc(100% - 35px);image-rendering:pixelated;}
+.inventory-preview-label {position:absolute;bottom:0;width:100%;margin:0;text-align:center;font:clamp(8px,1.6vw,12px)/1.6 'Press Start 2P',monospace;color:white;}
+#inventory-menu .inventory-orbit #inventory-item-description {position:absolute;bottom:1%;left:17%;width:66%;max-width:none;min-height:0;margin:0;font-size:clamp(7px,1.3vw,10px);}
+#inventory-menu .orbit-slot[data-inventory-item],#inventory-menu #future-heart-slot {transform:none;top:auto;left:auto;right:auto;bottom:auto;}
+#inventory-menu .orbit-slot[data-inventory-item="heart"],#inventory-menu #future-heart-slot,
+#inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:var(--edge);left:50%;transform:translateX(-50%);}
+#inventory-menu .orbit-slot[data-inventory-item="heart"] {margin-left:calc(var(--slot-size)*-1.7);}
+#inventory-menu #future-heart-slot {margin-left:calc(var(--slot-size)*1.7);}
+#inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:calc(var(--edge) + var(--slot-size)*1.05);}
+#inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*2.4);}
+#inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
+#inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
+#inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*2.4);}
+#inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
+#inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
+#inventory-menu .inventory-orbit #inventory-heading {top:var(--edge);font-size:clamp(10px,2vmin,18px);}
+#inventory-menu .inventory-orbit #inventory-item-description {left:30%;width:40%;bottom:var(--edge);}
+@media(max-width:600px) {#inventory-menu .inventory-orbit #inventory-item-description {left:10%;width:80%;bottom:calc(var(--edge) + var(--slot-size)*3.05);}}

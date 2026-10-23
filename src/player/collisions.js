@@ -3,7 +3,7 @@ import { getDoorOpening } from '../world/door-opening.js';
 import { bedSurfaces } from './bed-support.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
-export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null) {
+export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null) {
     if (collisionMap.length === 0) return true;
     if (isRidingBoat) {
         // Toda la huella del casco debe estar sobre agua libre, no solo el centro del jugador.
@@ -50,7 +50,7 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
             const cz = currentGZ + dz;
             const cx = currentGX + dx;
             if (cz >= 0 && cz < mapHeight && cx >= 0 && cx < mapWidth) {
-                if (collisionMap[cz][cx] === 'TREE') {
+                if (!forestFloating && collisionMap[cz][cx] === 'TREE') {
                     const centerX = cx * UNIT_SIZE;
                     const centerZ = cz * UNIT_SIZE;
                     // El tercio superior del árbol no bloquea el movimiento.
@@ -71,6 +71,10 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         const gX = Math.floor((pX + UNIT_SIZE/2) / UNIT_SIZE);
         const gZ = Math.floor((pZ + UNIT_SIZE/2) / UNIT_SIZE);
         if (gZ < 0 || gZ >= mapHeight || gX < 0 || gX >= mapWidth) return true;
+
+        // Barrera de orilla independiente de la altura mientras dura la flotación del Bosque.
+        if (forestFloating && ['WATER','WATER_ROCK','BOAT'].includes(floorMap[gZ][gX])
+            && !waterSupports?.has(gZ * mapWidth + gX)) return true;
 
         const cell = collisionMap[gZ][gX];
         if (['DOOR_UNLOCKED','DOOR_LOCKED'].includes(floorMap[gZ][gX])) {
