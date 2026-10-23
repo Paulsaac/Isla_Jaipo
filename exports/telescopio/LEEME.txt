@@ -8,6 +8,3 @@ También se incluye telescopio.glb para importar en otros programas y telescopio
 
 Exportado desde el modelo vigente del juego: 548 triángulos, azul morado oscuro #414b91, mapas dorados y aros oscuros. Escala original conservada (aprox. 70 cm de largo).
 Editar estos archivos no actualiza automáticamente el juego: el modelo en uso se construye en src/world/telescope.js de la copia activa.
-
-
-
