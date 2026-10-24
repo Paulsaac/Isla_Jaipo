@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createPinkSunglasses } from '../world/pink-sunglasses.js';
+import { createTelescope } from '../world/telescope.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from '../world/diving-helmet-geometry.js';
 import { createInventoryMap } from '../world/inventory-map.js';
 import { createInventoryKey } from '../world/inventory-key.js';
@@ -17,7 +18,7 @@ export function createInventoryModel(host) {
     const label=document.createElement('p'); label.className='inventory-preview-label';
     label.textContent='Señala un objeto'; host.append(label);
     const names={heart:'Corazón del Bosque','sea-heart':'Corazón del Mar',torch:'Antorcha',map:'Mapa',
-        'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave'};
+        'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave',astroscope:'Astroscopio'};
     function stopDrag() {
         if(!drag)return;
         const pointerId=drag.pointerId;drag=null;
@@ -194,6 +195,10 @@ export function createInventoryModel(host) {
             model.add(createInventoryMap(THREE,getMapTexture()));
         } else if(item==='pink-sunglasses') {
             const goggles=createPinkSunglasses(THREE);goggles.scale.setScalar(3.6);model.add(goggles);
+        } else if(item==='astroscope') {
+            const telescope=createTelescope(THREE);telescope.scale.setScalar(4);
+            telescope.rotateY(Math.PI/2);telescope.rotateOnWorldAxis(new THREE.Vector3(0,0,1),.35);
+            model.add(telescope);
         } else if(item==='helmet') {
             const damage={broken:helmetBroken,cracked:helmetCracked};
             const geometry=createDivingHelmetGeometry(THREE,damage);

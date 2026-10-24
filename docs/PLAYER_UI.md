@@ -1,5 +1,8 @@
 # Gestión de interfaz y parámetros del jugador
 
+## Ajustes vigentes de esta entrega — 2026-10-24
+Astroscopio3× basal/20× con Lente Bifrost. Omniscopio acoplado40× al entrar, Shift aumenta/Ctrl reduce1× dentro de40–50×; flechas/D-pad apuntan. Mira desde el objetivo, inclinación -0.22..1.08rad y alcance óptico1800unidades, con FOV/far/niebla normales restaurados al salir. Reparación de Bifrost limitada al perímetro de20cm de la lente, no a la mesa. Menú del Omniscopio y lectura del bloc bloquean menú contextual. Bloc del huerto por E/B, fuente Caveat local/OFL, cierra con botón/E/Enter/Escape y devuelve el control. Valores y pruebas detallados en HANDOFF.
+
 ## Función acordada — 2026-10-13
 Este chat gestiona la interfaz del jugador, HUD y sus parámetros de interacción con el entorno de Isla Jaipó. Mantiene presentación, controles, información de estado y coherencia entre lo que el jugador ve, puede hacer y encuentra en el mundo. El acuerdo asigna responsabilidad; los cambios de balance o comportamiento se implementan según pedidos concretos del usuario.
 

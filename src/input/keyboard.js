@@ -17,6 +17,15 @@ export function bindKeyboard(actions, target = document) {
             return;
         }
         const code = event.code;
+        if(actions.isObservatoryScopeActive?.()) {
+            if(['ShiftLeft','ShiftRight','ControlLeft','ControlRight'].includes(code)) {
+                event.preventDefault();actions.scopeZoom?.(code.startsWith('Shift')?1:-1);return;
+            }
+            if(code in directions) {event.preventDefault();actions.scopeAim?.(directions[code],true);return;}
+            if(code==='KeyE'&&!event.repeat) {event.preventDefault();actions.interact();return;}
+            if(code==='Escape'&&!event.repeat) {actions.pause();return;}
+            return;
+        }
         if (actions.isInventoryOpen?.() && !directions[code]
             && !['KeyQ','Escape','Space','KeyC','ShiftLeft','ShiftRight'].includes(code)) {
             event.preventDefault();
@@ -46,6 +55,7 @@ export function bindKeyboard(actions, target = document) {
             case 'KeyV': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.cycleLensView?.(); break;
             case 'KeyK': if (!event.repeat) actions.teleportToForestHeart?.(); break;
             case 'KeyL': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.grantForestHeartForTesting?.(); break;
+            case 'KeyJ': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.activateBridgeKeyEvent?.(); break;
             case 'KeyT': if (!event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) actions.torch(); break;
             case 'KeyQ': if (!event.repeat) actions.inventory(); break;
         }
@@ -53,6 +63,10 @@ export function bindKeyboard(actions, target = document) {
 
     function onKeyUp(event) {
         const code = event.code;
+        if(actions.isObservatoryScopeActive?.()) {
+            if(code in directions) {event.preventDefault();actions.scopeAim?.(directions[code],false);}
+            return;
+        }
         if (directions[code]) actions.move(directions[code], false);
         switch (code) {
             case 'KeyE': actions.holdInteract?.(false); break;

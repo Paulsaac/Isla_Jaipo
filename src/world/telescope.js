@@ -4,6 +4,102 @@ function createCartography(THREE) {
     canvas.width=256;canvas.height=128;
     const ctx=canvas.getContext('2d');
     const pixel=(x,y,color,w=1,h=1)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
+    // Siluetas de 17 píxeles: la misma paleta dorada de los mapas originales.
+    const figures={
+        wizard:[
+            '..........L......',
+            '.........LSL.....',
+            '........LSSSL....',
+            '.......LLSSLLL...',
+            '......CCSSSCC....',
+            '.......LCCL......',
+            '.......CGCL......',
+            '......CCCLSSL....',
+            '.....LSSCLSSSL...',
+            '...CCSSSCLSSSL...',
+            '..LLLLLLLLSSSL...',
+            '...LG..CCCLSSL...',
+            '...LLLLLLLLLLL...',
+            '....G.LSSL.G.L...',
+            '....G.LSSL.LLL...',
+            '....G.LSSL.G.G...',
+            '......LSS..G.G...',
+            '.....LSS...G.G...',
+            '....LSSL...G.G...',
+            '...LLL.....G.G...',
+            '....LL...........'
+        ],
+        fairy:[
+            '........SS.......',
+            '.......SSSL......',
+            '.......SCCCL.....',
+            '.......SCCL......',
+            '.......LCL.......',
+            '......LCCCL......',
+            '..LL..LCL.CCCCCC.',
+            '.LCCL.LSL.....CC.',
+            '.LCCCLLSL........',
+            '..LCCLSSL........',
+            '...LCLSSCL.......',
+            '..LCCLSSCL.......',
+            '.LCCLSSCCL.......',
+            '.LL.LSSCCL.......',
+            '....LSSCCL.......',
+            '...LSSCCCL.......',
+            '..LSSCCCL........',
+            '..LLLCCL.........',
+            '...LC.LC.........',
+            '..CC..LC.........',
+            '......CC.........'
+        ]
+    };
+    const figureColors={L:'#f0dc9e',S:'#aa9d60',C:'#e7d8a3',G:'#ad8845'};
+    function drawFigure(cx,cy,kind,vertical=1) {
+        const dot=(x,y,color)=>pixel(cx+x,cy+y*vertical,color,1,vertical);
+        if (kind==='celestial-astrolabe') {
+            // Astrolabio de la referencia: limbo, arcos de la araña y regla oblicua.
+            for (let y=-9;y<=9;y++) for (let x=-9;x<=9;x++) {
+                const d=x*x+y*y;
+                if (d>85) continue;
+                if (d>=65) {dot(x,y,'#f0dc9e');continue;}
+                const upper=x*x+(y+2)**2;
+                const left=(x+5)**2+(y-4)**2, right=(x-5)**2+(y-4)**2;
+                if ((upper>=30 && upper<=42) || (y>=1 && ((left>=38 && left<=48) || (right>=38 && right<=48)))) {
+                    dot(x,y,'#aa9d60');
+                }
+                if (y===1 && Math.abs(x)<=7) dot(x,y,'#f0dc9e');
+            }
+            for (const [x,y] of [[0,-11],[-1,-10],[1,-10],[0,-9],[-6,-6],[6,-6],[-8,0],[8,0],[-6,6],[6,6],[0,8]]) {
+                dot(x,y,'#ad8845');
+            }
+            for (const [x,y] of [[-4,-4],[3,-6],[-2,5],[5,4]]) dot(x,y,'#e7d8a3');
+            for (let x=-7;x<=8;x++) {
+                const y=1-Math.round(x*0.65);
+                dot(x,y,'#f0dc9e');dot(x,y+1,'#e7d8a3');
+            }
+            for (let y=0;y<=2;y++) for (let x=-1;x<=1;x++) dot(x,y,'#e7d8a3');
+            dot(0,1,'#ad8845');
+            return;
+        }
+        if (kind==='astrolabe') {
+            // Dos aros concéntricos, escala, alidada diagonal y anilla superior.
+            for (let y=-9;y<=9;y++) for (let x=-9;x<=9;x++) {
+                const d=x*x+y*y;
+                if ((d>=65 && d<=85) || (d>=22 && d<=32)) dot(x,y,'#f0dc9e');
+            }
+            for (let n=-7;n<=7;n++) {
+                dot(n,-n,'#ad8845');
+                if (n%3===0) {dot(n,0,'#aa9d60');dot(0,n,'#aa9d60');}
+            }
+            dot(0,0,'#e7d8a3');dot(1,0,'#e7d8a3');
+            for (const [x,y] of [[0,-11],[-1,-10],[1,-10],[0,-9],[-2,10],[-1,10],[0,10],[1,10],[2,10]]) dot(x,y,'#f0dc9e');
+            return;
+        }
+        const image=figures[kind];
+        image.forEach((row,y)=>[...row].forEach((color,x)=>{
+            if (figureColors[color]) dot(x-8,y-Math.floor(image.length/2),figureColors[color]);
+        }));
+    }
     pixel(0,0,'#414b91',256,128);
     for (let y=0;y<120;y++) for (let x=0;x<256;x++) {
         // Pocos colores planos; el grano es estable entre objetos y sesiones.
@@ -17,20 +113,9 @@ function createCartography(THREE) {
             const distance=x*x+y*y;
             if (distance>169) continue;
             let color=distance>144 ? '#ad8845' : distance>121 ? '#f0dc9e' : '#24385f';
-            if (distance<110 && (x===0 || y===0 || Math.abs(x)===7 || Math.abs(y)===7)) color='#435779';
             pixel(cx+x,cy+y,color);
         }
-        // Costas escalonadas, islas y líneas de navegación dentro de los mapas.
-        const coast=[[-5,-9,5],[-7,-8,7],[-8,-7,8],[-8,-6,6],[-7,-5,6],[-5,-4,6],[-4,-3,7],
-            [-3,-2,5],[-2,-1,4],[-1,0,4],[0,1,3],[1,2,3],[1,3,4],[2,4,3],[2,5,2],[1,6,2],
-            [-7,3,3],[-8,4,4],[-7,5,3],[-6,6,2],[6,-6,2],[7,-5,2],[6,7,2]];
-        for (const [x,y,width] of coast) {
-            const flip=(column+row)%2 ? -1 : 1;
-            for (let i=0;i<width;i++) pixel(cx+(x+i)*flip,cy+y,'#aa9d60');
-            pixel(cx+x*flip,cy+y,'#6c8a79');
-        }
-        pixel(cx-2,cy-5,'#e7d8a3',2,2);
-        pixel(cx+3,cy+2,'#d5c990',1,3);
+        drawFigure(cx,cy,['wizard','fairy','astrolabe'][(column+row)%3]);
         // Conectores y pequeñas leyendas de pergamino entre medallones.
         pixel(cx-12,cy-22,'#d5bd77',24,1);
         pixel(cx-10,cy-21,'#e9dba1',2,4);
@@ -41,29 +126,16 @@ function createCartography(THREE) {
         pixel(cx+14,cy+13,'#d5bd77',2,3);
     }
     // Una sola fila longitudinal: cuatro emblemas rodean el objetivo ancho.
-    const emblemX=128+48, emblemY=60;
-    for (let y=-25;y<=25;y++) for (let x=-14;x<=14;x++) {
-        const distance=(x/14)**2+(y/25)**2;
-        if (distance>1) continue;
-        if (distance>=0.72) pixel(emblemX+x,emblemY+y,distance>0.90 ? '#ad8845' : '#f0dc9e');
-        else pixel(emblemX+x,emblemY+y,
-            x===0 || Math.abs(x)===7 || y===0 || Math.abs(y)===11 ? '#435779' : '#24385f');
-    }
-    // Otro mapa de costas: mismo lenguaje cartográfico que los medallones pequeños.
-    const objectiveCoast=[[-5,-18,5],[-7,-16,8],[-8,-14,8],[-8,-12,6],[-7,-10,5],
-        [-6,-8,6],[-4,-6,5],[-3,-4,4],[-2,-2,3],[-1,0,3],[1,2,5],[2,4,6],
-        [3,6,5],[3,8,4],[2,10,4],[2,12,3],[1,14,3],[0,16,2],
-        [-9,6,3],[-10,8,4],[-9,10,3],[-8,12,2],[7,-12,2],[8,-10,2]];
-    for (const [x,y,w] of objectiveCoast) {
-        pixel(emblemX+x,emblemY+y,'#b5a66b',w,2);
-        pixel(emblemX+x,emblemY+y,'#e2cd8c',1,2);
-    }
-    pixel(emblemX-3,emblemY-13,'#e7d8a3',2,3);
-    pixel(emblemX+4,emblemY+5,'#d5c990',1,4);
-    // U recorre la circunferencia; V se conserva para no añadir otra fila a lo largo.
-    ctx.imageSmoothingEnabled=false;
-    for (const destinationX of [128,192,224]) {
-        ctx.drawImage(canvas,160,0,32,120,destinationX,0,32,120);
+    for (let column=0;column<4;column++) {
+        const emblemX=128+column*32+16, emblemY=60;
+        for (let y=-25;y<=25;y++) for (let x=-14;x<=14;x++) {
+            const distance=(x/14)**2+(y/25)**2;
+            if (distance>1) continue;
+            pixel(emblemX+x,emblemY+y,distance>=0.72
+                ? distance>0.90 ? '#ad8845' : '#f0dc9e' : '#24385f');
+        }
+        // Compensar las UV del objetivo sobre la cuadrícula existente, sin remuestreo.
+        drawFigure(emblemX,emblemY,['fairy','celestial-astrolabe','wizard','fairy'][column],2);
     }
     pixel(0,124,'#ffffff',256,4); // Reserva blanca para aros y lentes de color sólido.
     const texture=new THREE.CanvasTexture(canvas);

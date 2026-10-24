@@ -1,8 +1,18 @@
 import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
 import { createHeldMate } from './src/player/held-mate.js';
 import { createTelescope } from './src/world/telescope.js';
-import { createTelescopeView } from './src/player/telescope-view.js';
-import { telescopePickup } from './src/content/entities.js';
+import { createTelescopeGlare } from './src/world/telescope-glare.js';
+import { createTelescopeView, TELESCOPE_ZOOM } from './src/player/telescope-view.js';
+import { createObservatoryScope } from './src/player/observatory-scope.js';
+import { createObservatoryLadder } from './src/player/observatory-ladder.js';
+import { createHeldOverlay } from './src/player/held-overlay.js';
+import { telescopePickup, telescopeWorkshopPosition } from './src/content/entities.js';
+import { createTelescopeWorkshop } from './src/world/telescope-workshop.js';
+import { createWizardUpperFloor, isWizardHouseRoofCell } from './src/world/wizard-upper-floor.js';
+import { createWizardTelevisions } from './src/world/wizard-televisions.js';
+import { createSummitObservatory } from './src/world/summit-observatory.js';
+import { wizardHouseLayout, summitStonePlatform } from './src/content/summit-layout.js';
+import { applySummitLayout } from './src/world/summit-layout.js';
 import { createWoodcutting } from './src/systems/woodcutting.js';
 import { createWoodcuttingHud } from './src/ui/woodcutting.js';
 import { sampleForestSurroundings } from './src/systems/forest-ambience.js';
@@ -10,6 +20,7 @@ import { sampleRiverSound } from './src/systems/river-ambience.js';
 import { createSeaSoundField, sampleSeaSound } from './src/systems/sea-ambience.js';
 import { createAtticAnt, findAtticAntHome } from './src/world/attic-ant.js';
 import { createGrahamDap } from './src/systems/graham-dap.js';
+import { createGuidedLook } from './src/systems/mirada-guiada.js';
 import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/world/wood-stove-geometry.js';
 import { createWoodStoveFire } from './src/world/wood-stove-fire.js';
 import { prepareInactiveLights } from './src/world/inactive-lights.js';
@@ -29,6 +40,7 @@ import { DOOR_SIDE_MARGIN } from './src/config.js';
 import { createSunkenShipGeometry } from './src/world/sunken-ship-geometry.js';
 import { createShipwreckGeometry } from './src/world/shipwreck-geometry.js';
 import { createLogStackGeometry } from './src/world/log-stack-geometry.js';
+import { createLogStackMaterials } from './src/world/log-stack-materials.js';
 import { createWorkbenchGeometry } from './src/world/workbench-geometry.js';
 import { createStumpGeometry } from './src/world/stump-geometry.js';
 import { createEntityRegistry } from './src/world/entity-registry.js';
@@ -43,6 +55,7 @@ import { createAtticSupport, BED_CEILING_OPENING } from './src/player/attic-supp
 import { showReadyIsland, getIslandPreview, setIslandPreview } from './src/ui/island-start.js';
 import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
+import { createObservatoryMenu } from './src/ui/observatory-menu.js';
 import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
 import { requestGamePointerLock, guardPointerLockMouse } from './src/input/pointer-lock.js';
@@ -96,6 +109,7 @@ import { createDeskWritingSet } from './src/world/desk-writing-set.js';
 import { createAntiqueStoveGeometry } from './src/world/antique-stove-geometry.js';
 import { createSpiceShelfGeometry } from './src/world/spice-shelf-geometry.js';
 import { createKitchenGarden } from './src/world/kitchen-garden.js';
+import {createGardenNote} from './src/ui/garden-note.js';
 import { createWoodFenceGeometry } from './src/world/wood-fence.js';
 import { createPinkSunglasses } from './src/world/pink-sunglasses.js';
 import { createAltarBlueFire, updateAltarBlueFire } from './src/world/altar-blue-fire.js';
@@ -171,6 +185,9 @@ let bedWoodChipTime = -1;
 let bedWoodChipFadeStart = -1;
 const bedCeilingImpact = new THREE.Vector2();
 let atticSupport = null;
+let wizardUpperFloor = null;
+let wizardTelevisions = null;
+let summitObservatory = null;
 const bedDefinition = furniture.find(item => item.id === 'graham-bed');
 let isCrouching = false;
 let crouchRequested = false;
@@ -186,7 +203,9 @@ let heldItemTextures = null;
 let hasTorch = false;
 let hasMap = false;
 let hasMate = false, heldMate = null;
-let hasTelescope = false, telescopeMesh = null, telescopeView = null;
+let hasAstroscope = false, telescopeMesh = null, telescopeView = null;
+let telescopeGlare=null;
+let telescopeRepaired=false, mountainWorkshop=null, observatoryScope=null, observatoryLadder=null, astroscopeInstalled=false;
 let hasPinkSunglasses = false, pinkSunglassesEquipped = false;
 let lensViewIndex = 0;
 let hasDivingHelmet = false;
@@ -356,6 +375,7 @@ let dialogIndex = 0;
 let activeDialogs = npcDialogs;
 let activeDialogSpeaker = 'Graham';
 let deliveringHeart = false;
+let bridgeKeyEventActive = GRAHAM_BRIDGE_KEY_AVAILABLE;
 
 // --- SETUP DE THREE.JS ---
 const scene = new THREE.Scene();
@@ -545,7 +565,7 @@ function constrainDialogLook(dt) {
     camera.quaternion.setFromEuler(dialogLookEuler);
 }
 function resumeGame() {
-    if (isDead || !mapLoaded) return;
+    if (isDead || !mapLoaded || observatoryMenu.active || gardenNote.active) return;
     if (isTouchMode) {
         musicEvents.unlock();
         controls.isLocked = true;
@@ -553,6 +573,8 @@ function resumeGame() {
     } else controls.lock();
 }
 function pauseGame() {
+    if(gardenNote.active){gardenNote.hide();menus.showPause();}
+    if(observatoryMenu.active){observatoryMenu.hide();menus.showPause();}
     telescopeView?.cancel();
     const wasInventoryRunning = inventoryRunning;
     inventoryRunning = false;
@@ -575,6 +597,8 @@ const loadingScreen = document.getElementById('loading-screen');
 const mainMenu = document.getElementById('main-menu');
 const menus = createMenus({ onResume: resumeGame, onUseItem: useInventoryItem,
     onDialogueCharacter: musicEvents.playDialogueCharacter });
+const observatoryMenu=createObservatoryMenu();
+const gardenNote=createGardenNote(()=>{if(gameStarted&&!isDead)resumeGame();});
 let dapPointerSpeed = 1;
 const grahamDap = createGrahamDap(THREE, {
     onImpact: () => musicEvents.playDap(),
@@ -636,7 +660,18 @@ function openMapChestAfterThanks() {
 
 
 function showActiveDialog() {
+    if(!isDialogOpen)return;
     touchControls?.syncDialogue(true);
+    if (activeDialogs === bridgeKeyDeliveryDialogs && activeDialogs[dialogIndex]?.action === 'give-bridge-key') {
+        if (heartQuest.receiveBridgeKey(bridgeKeyEventActive)) {
+            keyInventory.add('bridge-key');
+            updateKeyInventory();
+            hud.showReceivedItem('la llave del puente');
+        }
+        dialogIndex++;
+        showActiveDialog();
+        return;
+    }
     if (activeDialogs === grahamJournal.pages) {
         menus.showBook(grahamJournal);
         return;
@@ -660,10 +695,7 @@ function showActiveDialog() {
 const spawnGreeting = createSpawnGreeting({
     door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN
 });
-const greetingStartRotation = new THREE.Quaternion();
-const greetingTargetRotation = new THREE.Quaternion();
-const greetingTarget = new THREE.Vector3();
-const greetingLookMatrix = new THREE.Matrix4();
+const guidedLook = createGuidedLook(THREE);
 const previousPlayerPosition = new THREE.Vector3();
 let greetingPointerSpeed = 1;
 
@@ -696,20 +728,17 @@ function updateSpawnGreeting(delta) {
         clearGreetingInput();
         greetingPointerSpeed = controls.pointerSpeed;
         controls.pointerSpeed = 0;
-        greetingStartRotation.copy(camera.quaternion);
-        greetingTarget.copy(grahamSprite.position);
-        greetingTarget.y += GRAHAM_HEIGHT * 0.25;
-        greetingLookMatrix.lookAt(camera.position, greetingTarget, camera.up);
-        greetingTargetRotation.setFromRotationMatrix(greetingLookMatrix);
+        const target=grahamSprite.position.clone();
+        target.y+=GRAHAM_HEIGHT*0.25;
+        guidedLook.begin(camera,target);
         targetInteractable = null;
         hud.hideInteraction();
         showGreetingPhase();
     }
     const previousPhase = spawnGreeting.phase;
     spawnGreeting.update(delta);
-    const t = spawnGreeting.turnProgress;
     if (previousPhase !== 'invitation') {
-        camera.quaternion.slerpQuaternions(greetingStartRotation, greetingTargetRotation, t * t * (3 - 2 * t));
+        guidedLook.update(spawnGreeting.turnProgress);
     }
     if (previousPhase !== spawnGreeting.phase) {
         showGreetingPhase();
@@ -725,8 +754,8 @@ function toggleDivingHelmet() {
 function setHeldItem(item) {
     if (item === 'heart' || item === 'sea-heart') return;
     heldItem = item;
-    if (item !== 'telescope') telescopeView?.cancel();
-    menus.setItemActive('telescope',item === 'telescope');
+    if (item !== 'astroscope') telescopeView?.cancel();
+    menus.setItemActive('astroscope',item === 'astroscope');
     if (item !== 'mate') heldMate?.cancel();
     menus.setItemActive('mate', item === 'mate');
     if (item !== 'key') keyInventory.clearSelection();
@@ -764,12 +793,15 @@ function useInventoryItem(item) {
     } else if (item === 'mate' && hasMate) {
         setHeldItem(heldItem === 'mate' ? null : 'mate');
         menus.setItemDescription(heldItem === 'mate' ? (isTouchMode ? 'Mate en la mano. Pulsa A para tomar; mantén A para seguir tomando.' : 'Mate en la mano. Clic derecho para tomar; mantenlo para seguir bebiendo.') : 'Mate guardado.');
-    } else if (item === 'telescope' && hasTelescope) {
-        setHeldItem(heldItem === 'telescope' ? null : 'telescope');
-        menus.setItemDescription(heldItem === 'telescope'
-            ? isTouchMode ? 'Telescopio en la mano. A para mirar; otra vez A intenta acercarte más.'
-                : 'Telescopio en la mano. Clic izquierdo para mirar o bajar; clic derecho intenta acercarte más.'
-            : 'Telescopio guardado.');
+    } else if (item === 'astroscope' && hasAstroscope) {
+        setHeldItem(heldItem === 'astroscope' ? null : 'astroscope');
+        menus.setItemDescription(heldItem === 'astroscope'
+            ? telescopeRepaired ? (isTouchMode
+                ? `Astroscopio preparado. A: zoom ${TELESCOPE_ZOOM.repaired}×; otra vez A: ${TELESCOPE_ZOOM.boosted}×; otra vez A: bajar.`
+                : `Astroscopio preparado. Clic izquierdo: mirar o bajar (${TELESCOPE_ZOOM.repaired}×); clic derecho: ${TELESCOPE_ZOOM.boosted}×.`)
+            : isTouchMode ? 'Astroscopio en la mano. A para mirar; otra vez A intenta acercarte más.'
+                : 'Astroscopio en la mano. Clic izquierdo para mirar o bajar; clic derecho intenta acercarte más.'
+            : 'Astroscopio guardado.');
     } else if (item === 'map' && hasMap) {
         gameActions.map();
         menus.setItemDescription(minimap.enabled ? 'Mapa abierto al volver al juego.' : 'Mapa cerrado.');
@@ -823,6 +855,7 @@ controls.addEventListener('lock', () => {
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    observatoryScope?.exit();
     telescopeView?.cancel();
     woodcutting.setVisible(false);
     if (!inventoryRunning) jumpHeld = false;
@@ -838,7 +871,7 @@ controls.addEventListener('unlock', () => {
     }
     keyboardBinding.resetSequence();
     touchControls?.sync(false);
-    if (gameStarted && !isDead) {
+    if (gameStarted && !isDead && !observatoryMenu.active && !gardenNote.active) {
         if (isInventoryOpen) {
             menus.showInventory();
         } else {
@@ -907,8 +940,9 @@ function sitOnChair(chair) {
     seatedChair = chair;
     canJump = false;
     bobTimer = 0;
-    player.position.set(chair.position.x, chair.position.y + chair.userData.seatHeight + PLAYER_HEIGHT * 0.5, chair.position.z);
-    camera.lookAt(player.position.x + Math.sin(chair.rotation.y), player.position.y,
+    const eyeOffset = new THREE.Vector3(0,0,chair.userData.seatEyeOffsetZ ?? 0).applyEuler(chair.rotation);
+    player.position.set(chair.position.x + eyeOffset.x, chair.position.y + chair.userData.seatHeight + PLAYER_HEIGHT * 0.5, chair.position.z + eyeOffset.z);
+    camera.lookAt(player.position.x + Math.sin(chair.rotation.y), player.position.y + (chair.userData.seatLookLift ?? 0),
         player.position.z + Math.cos(chair.rotation.y));
     targetInteractable = null;
 }
@@ -938,8 +972,33 @@ function standFromChair() {
     targetInteractable = null;
 }
 
+function showObservatoryChoice(kind) {
+    if(!observatoryLadder?.canUseScope)return;
+    if(isDialogOpen||observatoryMenu.active||spawnGreeting.active||grahamDap.active||heartPull.active||!controls.isLocked)return;
+    clearGreetingInput();targetInteractable=null;hud.hideInteraction();
+    const attaching=kind==='attach';
+    observatoryMenu.show(attaching?'¿Acoplar el Astroscopio al Omniscopio?':'Elige qué quieres hacer.',
+        attaching?['Sí','No']:['Quitar Astroscopio','Sentarse y mirar'],index=>{
+            if(attaching&&index===0) {
+                astroscopeInstalled=true;hasAstroscope=false;
+                summitObservatory.astroscopeDock.visible=true;menus.setAstroscopeVisible(false);
+                if(heldItem==='astroscope')setHeldItem(null);
+                hud.showNotification(`Astroscopio acoplado. Ahora puedes mirar por el Omniscopio a ${TELESCOPE_ZOOM.mounted}×.`);
+            } else if(!attaching&&index===0) {
+                astroscopeInstalled=false;hasAstroscope=true;
+                summitObservatory.astroscopeDock.visible=false;menus.setAstroscopeVisible(true);
+                hud.showNotification('Has guardado el Astroscopio en el inventario.');
+            } else if(!attaching&&index===1) observatoryScope.enter();
+            if(gameStarted&&!isDead)resumeGame();
+        },1);
+    if(isTouchMode){controls.isLocked=false;controls.dispatchEvent({type:'unlock'});}
+    else controls.unlock();
+}
+
 function interact() {
-    if (!controls.isLocked || isDead) return false;
+    if (!controls.isLocked || isDead || observatoryMenu.active || gardenNote.active) return false;
+    if(observatoryScope?.active){observatoryScope.exit();velocity.set(0,0,0);velocityY=0;return true;}
+    if(observatoryLadder?.active&&(!observatoryLadder.canUseScope||targetInteractable?.userData.type!=='OBSERVATORY_TELESCOPE'))return true;
     telescopeView?.cancel();
     if (bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return false;
     if (menus.isDialogVisible() && menus.completeDialogText()) return true;
@@ -972,7 +1031,6 @@ function interact() {
             } else {
                 // Cerrar diálogo
                 const completedHeartDelivery = deliveringHeart;
-                let receivedBridgeKey = false;
                 if (activeDialogs === mateOfferDialogs && !hasMate) {
                     hasMate = true; menus.setMateVisible(true); hud.showReceivedItem('un mate');
                 }
@@ -985,17 +1043,11 @@ function interact() {
                     heartQuest.deliver(); menus.setHeartVisible(false);
                     if (heldItem === 'heart') setHeldItem(null);
                 }
-                if (activeDialogs === bridgeKeyDeliveryDialogs && heartQuest.receiveBridgeKey(GRAHAM_BRIDGE_KEY_AVAILABLE)) {
-                    receivedBridgeKey = true;
-                    keyInventory.add('bridge-key');
-                    updateKeyInventory();
-                    hud.showReceivedItem('la llave del puente');
-                }
                 deliveringHeart = false;
                 isDialogOpen = false;
                 dialogLookActive = false;
                 menus.hideDialog();
-                if ((completedHeartDelivery && !GRAHAM_BRIDGE_KEY_AVAILABLE) || receivedBridgeKey) openMapChestAfterThanks();
+                if (completedHeartDelivery) openMapChestAfterThanks();
             }
             return true;
         }
@@ -1013,6 +1065,18 @@ function interact() {
             boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
+            if(targetInteractable.userData.type==='GARDEN_NOTE') {
+                clearGreetingInput();targetInteractable=null;hud.hideInteraction();gardenNote.show();
+                if(isTouchMode){controls.isLocked=false;controls.dispatchEvent({type:'unlock'});}
+                else controls.unlock();
+                return true;
+            }
+            if(targetInteractable.userData.type==='OBSERVATORY_TELESCOPE') {
+                if(astroscopeInstalled)showObservatoryChoice('installed');
+                else if(hasAstroscope)showObservatoryChoice('attach');
+                else hud.showNotification('Necesitas el Astroscopio para usar el Omniscopio.');
+                return true;
+            }
             if (targetInteractable.userData.type === 'READABLE_BOOK') {
                 deliveringHeart = false;
                 isDialogOpen = true;
@@ -1033,19 +1097,40 @@ function interact() {
                     && !musicEvents.isEventActive('forest')) woodcutting.begin(targetInteractable);
                 return true;
             }
+            if (targetInteractable.userData.type === 'WIZARD_UPPER_DOOR') {
+                wizardUpperFloor.toggleDoor(controls.getObject().position,
+                    isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
+                return true;
+            }
+            if (targetInteractable.userData.type === 'WORKSHOP_LAMP') {
+                mountainWorkshop.lamp.toggle();
+                return true;
+            }
+            if (targetInteractable.userData.type === 'TELESCOPE_WORKBENCH') {
+                if(!hasAstroscope) {
+                    hud.showNotification('Necesito encontrar el Astroscopio para instalar la Lente Bifrost.');
+                } else if(!telescopeRepaired) {
+                    telescopeRepaired=true;
+                    telescopeView.repair();mountainWorkshop.installLens();
+                    setHeldItem('astroscope');
+                    hud.showNotification(`Has instalado la Lente Bifrost. El Astroscopio ahora alcanza ${TELESCOPE_ZOOM.repaired}× y ${TELESCOPE_ZOOM.boosted}×.`);
+                } else hud.showNotification('La Lente Bifrost ya está instalada en el Astroscopio.');
+                return true;
+            }
             if (targetInteractable.userData.type === 'TELESCOPE_PICKUP') {
-                if (hasTelescope) return true;
-                hasTelescope=true;
-                menus.setTelescopeVisible(true);
-                hud.showReceivedItem('un telescopio');
+                if (hasAstroscope) return true;
+                hasAstroscope=true;
+                menus.setAstroscopeVisible(true);
+                hud.showReceivedItem('un Astroscopio');
                 const pickup=targetInteractable;
                 pickup.visible=false; pickup.userData.visibilityEnabled=false;
                 const index=interactables.indexOf(pickup);
                 if (index>=0) interactables.splice(index,1);
                 fogCulling?.unregister(pickup); pickup.removeFromParent();
+                telescopeGlare?.dispose();telescopeGlare=null;
                 pickup.geometry.dispose(); pickup.material.map?.dispose(); pickup.material.dispose();
                 telescopeMesh=null; targetInteractable=null; hud.hideInteraction();
-                setHeldItem('telescope');
+                setHeldItem('astroscope');
                 return true;
             }
             if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
@@ -1187,8 +1272,9 @@ function interact() {
 
                 deliveringHeart = hasTorch && heartQuest.hasHeart;
                 activeDialogs = !hasTorch ? npcDialogs : deliveringHeart ? heartDeliveryDialogs : heartQuest.stage === 'delivered' ? heartDeliveredDialogs : heartSearchDialogs;
-                if (hasTorch && GRAHAM_BRIDGE_KEY_AVAILABLE && heartQuest.stage === 'delivered') {
-                    activeDialogs = heartQuest.hasBridgeKey ? bridgeKeyReceivedDialogs : bridgeKeyDeliveryDialogs;
+                if (hasTorch && heartQuest.stage === 'delivered') {
+                    activeDialogs = heartQuest.hasBridgeKey ? bridgeKeyReceivedDialogs
+                        : bridgeKeyEventActive ? bridgeKeyDeliveryDialogs : heartDeliveredDialogs;
                 }
                 dialogIndex = 0;
                 showActiveDialog();
@@ -1243,6 +1329,11 @@ const gameActions = {
         woodcutting.holdExit(pressed);
         return true;
     },
+    activateBridgeKeyEvent() {
+        if (!gameStarted || !mapLoaded || isDead || !controls.isLocked || bridgeKeyEventActive) return;
+        bridgeKeyEventActive = true;
+        hud.showNotification('Evento Llave del Puente Activada');
+    },
     grantForestHeartForTesting() {
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isInventoryOpen || isRidingBoat) return;
         if (!heartQuest.collect()) return;
@@ -1267,7 +1358,52 @@ const gameActions = {
             return;
         }
     },
-    move(direction, pressed) { moveState[direction] = pressed; },
+    teleportToTelescope() {
+        if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
+            || isRidingBoat || seatedChair || woodcutting.active || caveMap?.active || !telescopeMesh) return;
+        if (!telescopeMesh.geometry.boundingSphere) telescopeMesh.geometry.computeBoundingSphere();
+        const center=telescopeMesh.localToWorld(telescopeInteractionCenter.copy(telescopeMesh.geometry.boundingSphere.center));
+        let destination=null;
+        for (const radius of [2.1,2.6,3.1]) for (let step=0;step<12&&!destination;step++) {
+            const angle=step*Math.PI/6,x=center.x+Math.sin(angle)*radius,z=center.z+Math.cos(angle)*radius;
+            const gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
+            if (!['GRASS','TALL_GRASS','BUSH','TREE','DIRT','SLAB','WOOD','SAND'].includes(floorMap[gz]?.[gx])
+                || !isSafeGroundPosition(x,z)) continue;
+            destination={x,z};
+        }
+        if (!destination) return;
+        touchControls?.reset();moveState.forward=moveState.backward=moveState.left=moveState.right=false;
+        isFlying=false;velocity.set(0,0,0);velocityY=0;canJump=true;bobTimer=0;
+        camera.position.set(destination.x,getTerrainHeight(destination.x,destination.z)+PLAYER_HEIGHT,destination.z);
+        camera.lookAt(center.x,center.y+0.04,center.z);
+        previousPlayerPosition.copy(camera.position);targetInteractable=null;hud.hideInteraction();
+    },
+    teleportToWizardHouse() {
+        if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
+            || isRidingBoat || seatedChair || woodcutting.active || caveMap?.active || !wizardUpperFloor) return;
+        const door={x:wizardHouseLayout.door.x*UNIT_SIZE,z:wizardHouseLayout.door.z*UNIT_SIZE},targetGround=getTerrainHeight(door.x,door.z);
+        let destination=null;
+        const offsets=[[0,0],[0,.65],[0,-.65],[-.45,.95],[-.45,-.95],[.45,.95],[.45,-.95]];
+        for (const [dx,dz] of offsets) {
+            const x=door.x-3.3+dx,z=door.z+dz,gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
+            if (!['GRASS','TALL_GRASS','BUSH','TREE','DIRT','SLAB','WOOD','SAND'].includes(floorMap[gz]?.[gx])
+                || !isSafeGroundPosition(x,z)) continue;
+            destination={x,z};break;
+        }
+        if (!destination) return;
+        touchControls?.reset();moveState.forward=moveState.backward=moveState.left=moveState.right=false;
+        isFlying=false;velocity.set(0,0,0);velocityY=0;canJump=true;bobTimer=0;
+        camera.position.set(destination.x,getTerrainHeight(destination.x,destination.z)+PLAYER_HEIGHT,destination.z);
+        camera.lookAt(door.x,targetGround+1.05,door.z);
+        previousPlayerPosition.copy(camera.position);targetInteractable=null;hud.hideInteraction();
+    },
+    move(direction, pressed) {
+        if(observatoryScope?.active){observatoryScope.input[direction]=pressed;return;}
+        moveState[direction] = pressed;
+    },
+    scopeAim(direction,pressed){if(observatoryScope?.active)observatoryScope.input[direction]=pressed;},
+    scopeZoom(direction){observatoryScope?.adjustZoom(direction);},
+    isObservatoryScopeActive(){return !!observatoryScope?.active;},
     holdJump(pressed) {
         jumpHeld = pressed;
         if (pressed) bedSettleIndex = -1;
@@ -1288,7 +1424,9 @@ const gameActions = {
             const atticHeight = bedCeilingHoleOpen ? atticSupport?.supportHeight(
                 player.position.x, player.position.z, player.position.y - eyeHeight, true) : -Infinity;
             const onAttic = Number.isFinite(atticHeight) && atticHeight >= getTerrainHeight(player.position.x, player.position.z);
-            const takeoffStep = footstepSurfaceAt(player.position.x, player.position.z, standingOnBed || onAttic);
+            const onWizardFloor = Number.isFinite(wizardUpperFloor?.supportHeight(
+                player.position.x, player.position.z, player.position.y - eyeHeight));
+            const takeoffStep = footstepSurfaceAt(player.position.x, player.position.z, standingOnBed || onAttic || onWizardFloor);
             if (standingOnBed) {
                 musicEvents.playBedJump();
                 bedTakeoffSoundPlayed = true;
@@ -1404,9 +1542,10 @@ const woodcutting = createWoodcutting(THREE, {
     }
 });
 // Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
-for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'grantForestHeartForTesting', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
+for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'teleportToTelescope', 'teleportToWizardHouse', 'grantForestHeartForTesting', 'activateBridgeKeyEvent', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
     gameActions[name] = (...args) => {
+        if(observatoryLadder?.active&&['toggleFlight','teleportToForestHeart','teleportToTelescope','teleportToWizardHouse','holdJump','jump','crouch','run'].includes(name))return;
         if (woodcutting.active) {
             return;
         }
@@ -1422,7 +1561,7 @@ let touchMateHeld = false;
 const touchActions = {
     ...gameActions,
     holdJump(pressed) {
-        if (heldItem === 'telescope') {gameActions.holdJump(false);return;}
+        if (heldItem === 'astroscope') {gameActions.holdJump(false);return;}
         if (!pressed) {
             if (touchMateHeld) heldMate?.release();
             touchMateHeld = false;
@@ -1438,7 +1577,7 @@ const touchActions = {
         gameActions.holdJump(true);
     },
     jump() {
-        if (heldItem === 'telescope') {
+        if (heldItem === 'astroscope') {
             if (canUseTelescope()) telescopeView.attemptZoom();
             return;
         }
@@ -1580,14 +1719,23 @@ heldMate = createHeldMate(THREE,camera);
 telescopeView = createTelescopeView(THREE,camera,controls,{
     onStrainComplete: () => hud.showNotification('el zoom parece que esta trabado...')
 });
+const heldOverlay = createHeldOverlay(THREE,renderer,camera);
+heldOverlay.group.add(heldItemSprite,heldHeartGlow,heldMate.object,telescopeView.object);
 function canUseTelescope() {
-    return hasTelescope && heldItem === 'telescope' && gameStarted && mapLoaded && controls.isLocked
+    return hasAstroscope && heldItem === 'astroscope' && gameStarted && mapLoaded && controls.isLocked
         && !isDead && !isInventoryOpen && !isDialogOpen && !spawnGreeting.active
         && !heartPull.active && !grahamDap.active && !woodcutting.active && !caveTransitionPending;
 }
 const canDrinkMate = () => heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
     && !woodcutting.active && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
 document.addEventListener('mousedown', event => {
+    if(event.button===2&&!isTouchMode&&targetInteractable?.userData.type==='OBSERVATORY_TELESCOPE'&&controls.isLocked&&!isDead) {
+        event.preventDefault();
+        if(astroscopeInstalled)return;
+        if(hasAstroscope)showObservatoryChoice('attach');
+        else hud.showNotification('Necesitas el Astroscopio para acoplarlo al Omniscopio.');
+        return;
+    }
     if (event.button === 0 && woodcutting.active && controls.isLocked && !isDead) {
         event.preventDefault(); woodcutting.interact(); return;
     }
@@ -1600,7 +1748,7 @@ document.addEventListener('mousedown', event => {
     if (event.button === 2 && canDrinkMate()) { event.preventDefault(); heldMate.press(); }
 });
 document.addEventListener('mouseup', event => { if (event.button === 2) heldMate.release(); });
-document.addEventListener('contextmenu',event=>{if (canUseTelescope()) event.preventDefault();});
+document.addEventListener('contextmenu',event=>{if (canUseTelescope()||targetInteractable?.userData.type==='OBSERVATORY_TELESCOPE') event.preventDefault();});
 window.addEventListener('blur', () => {
     heldMate.cancel(); telescopeView.cancel(); woodcutting.holdExit(false);
     if (inventoryRunning) {
@@ -1812,7 +1960,7 @@ Promise.all([
 ]).then(async ([baseImage, roofImage]) => {
     performancePanel?.mark('Capas listas');
     const checkpoint = createLoadingYield(6);
-    const prepared = await prepareMapAsync(readMapLayers(baseImage, roofImage), entities, shipwreckProps, mapCellOverrides, checkpoint);
+    const prepared = await prepareMapAsync(applySummitLayout(readMapLayers(baseImage, roofImage)), entities, shipwreckProps, mapCellOverrides, checkpoint);
     // Presentar la carga antes de la construcción síncrona de geometría.
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await buildWorld(prepared, checkpoint);
@@ -1917,18 +2065,18 @@ async function buildWorld(prepared, checkpoint) {
     const grassPlaneGeo = new THREE.PlaneGeometry(UNIT_SIZE, VEGETATION_HEIGHT * 0.8 * 1.1);
     const cubeGeo = new THREE.BoxGeometry(UNIT_SIZE, WALL_HEIGHT, UNIT_SIZE);
 
-    // Materiales Instanced (Usamos Phong para recibir la luz de la antorcha por píxel)
-    const pino1Mat = new THREE.MeshPhongMaterial({ map: pino1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const pino2Mat = new THREE.MeshPhongMaterial({ map: pino2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const alamo1Mat = new THREE.MeshPhongMaterial({ map: alamo1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const alamo2Mat = new THREE.MeshPhongMaterial({ map: alamo2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const arau1Mat = new THREE.MeshPhongMaterial({ map: arau1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const arau2Mat = new THREE.MeshPhongMaterial({ map: arau2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const arbusto1Mat = new THREE.MeshPhongMaterial({ map: arbusto1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const arbusto2Mat = new THREE.MeshPhongMaterial({ map: arbusto2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const weed1Mat = new THREE.MeshPhongMaterial({ map: weed1Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const weed2Mat = new THREE.MeshPhongMaterial({ map: weed2Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
-    const weed3Mat = new THREE.MeshPhongMaterial({ map: weed3Tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    // Follaje opaco con máscara: los huecos no escriben profundidad y las hojas no mezclan cielo.
+    const pino1Mat = new THREE.MeshPhongMaterial({ map: pino1Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const pino2Mat = new THREE.MeshPhongMaterial({ map: pino2Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const alamo1Mat = new THREE.MeshPhongMaterial({ map: alamo1Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const alamo2Mat = new THREE.MeshPhongMaterial({ map: alamo2Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const arau1Mat = new THREE.MeshPhongMaterial({ map: arau1Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const arau2Mat = new THREE.MeshPhongMaterial({ map: arau2Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const arbusto1Mat = new THREE.MeshPhongMaterial({ map: arbusto1Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const arbusto2Mat = new THREE.MeshPhongMaterial({ map: arbusto2Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const weed1Mat = new THREE.MeshPhongMaterial({ map: weed1Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const weed2Mat = new THREE.MeshPhongMaterial({ map: weed2Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
+    const weed3Mat = new THREE.MeshPhongMaterial({ map: weed3Tex, transparent: false, alphaTest: 0.5, side: THREE.DoubleSide, shininess: 0 });
     const forestMaterials = [pino1Mat, pino2Mat, alamo1Mat, alamo2Mat, arau1Mat, arau2Mat, arbusto1Mat, arbusto2Mat, weed1Mat, weed2Mat, weed3Mat];
     applyVegetationWind(THREE, forestMaterials, vegetationWindTime, heartVision);
     forestMaterials.forEach((material, index) => heartVision.apply(THREE, material, index < 6 ? 'tree' : 'vegetation'));
@@ -1985,7 +2133,9 @@ async function buildWorld(prepared, checkpoint) {
     const grassFloorMat = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 });
     const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
-    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 1, shininess: 60, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    // El mar conserva su cota real: adelantar su profundidad lo hacía invadir
+    // tierra baja e islotes al mirar la costa de lejos o en ángulo rasante.
+    aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 1, shininess: 60, side: THREE.DoubleSide, depthFunc: THREE.LessDepth });
     riverSoundField = createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight);
     seaSoundField = createSeaSoundField(floorMap, waterDeckMap, riverSoundField, mapWidth, mapHeight);
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
@@ -2046,6 +2196,9 @@ async function buildWorld(prepared, checkpoint) {
     let idxLintel = 0;
     const jambMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, DOOR_HEIGHT, 1), createDoorFrameMaterial(-lintelHeight / 2), doorCount * 2);
     let idxJamb = 0;
+    const doorStops=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
+        new THREE.MeshPhongMaterial({color:0x292725,shininess:0}),doorCount*3);
+    doorStops.name='door-frame-dark-rebates';let idxDoorStop=0;
     const roofSubdivisions = 8;
     const roofStepHeight = WALL_HEIGHT * 0.0625;
     const ceilingMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(UNIT_SIZE / roofSubdivisions, roofStepHeight, UNIT_SIZE / roofSubdivisions), roofMat, counts.ROOF * roofSubdivisions ** 2);
@@ -2212,8 +2365,9 @@ async function buildWorld(prepared, checkpoint) {
     }
 
     const shaped = await prepareWorldFields('slope', {relief:mountainReliefMap,elevations:elevationMap,
-        mask:mountainMask,profile:mountainPathProfile,floorMap});
+        mask:mountainMask,profile:mountainPathProfile,floorMap,collisionMap});
     elevationMap = shaped.elevations;
+    floorMap=shaped.floorMap;collisionMap=shaped.collisionMap;
     if (shaped.platforms) elevationMap.buildingPlatforms = shaped.platforms;
     mountainPathProfile = shaped.profile;
     // Elevar cada puente cubierto al terreno de sus accesos, antes de construir sus piezas.
@@ -2289,7 +2443,7 @@ async function buildWorld(prepared, checkpoint) {
         for (let x = 0; x < mapWidth; x++) {
             if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             const type = floorMap[z][x];
-            const rType = roofMap[z][x];
+            const rType = roofMap[z][x] === 'ROOF' && isWizardHouseRoofCell(x,z) ? null : roofMap[z][x];
             
             const posX = x * UNIT_SIZE;
             const posZ = z * UNIT_SIZE;
@@ -2382,7 +2536,7 @@ async function buildWorld(prepared, checkpoint) {
                 torchSprites.push(sprite);
             }
 
-            if (type === 'BUILDING') {
+            if (type === 'BUILDING' && !isWizardHouseRoofCell(x,z)) {
                 dummy.position.set(posX, baseH + WALL_HEIGHT / 2, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
@@ -2543,11 +2697,17 @@ async function buildWorld(prepared, checkpoint) {
                 const doorGroup = new THREE.Group();
                 doorGroup.position.set(posX + (isHorizontal?opening.centerOffset:0), baseH + DOOR_HEIGHT / 2, posZ + (isHorizontal?0:opening.centerOffset));
                 
-                const doorGeo = isHorizontal ? new THREE.BoxGeometry(opening.width, DOOR_HEIGHT, DOOR_THICKNESS) : new THREE.BoxGeometry(DOOR_THICKNESS, DOOR_HEIGHT, opening.width);
+                // Holgura visual entre hoja y marco: sus cantos no comparten plano.
+                const leafWidth=opening.width-(opening.isDouble?0:.008),leafHeight=DOOR_HEIGHT-.016;
+                const doorGeo = isHorizontal ? new THREE.BoxGeometry(leafWidth, leafHeight, DOOR_THICKNESS) : new THREE.BoxGeometry(DOOR_THICKNESS, leafHeight, leafWidth);
+                doorGeo.translate(0,-.008,0);
                 // El dintel pertenece al muro y permanece fijo cuando la hoja se abre.
-                dummy.position.set(posX, baseH + DOOR_HEIGHT + lintelHeight / 2, posZ);
-                dummy.updateMatrix();
-                lintelMesh.setMatrixAt(idxLintel++, dummy.matrix);
+                // Esta fachada ya incorpora su dintel en wizard-upper-floor.js.
+                if (!(x === wizardHouseLayout.door.x && z === wizardHouseLayout.door.z)) {
+                    dummy.position.set(posX, baseH + DOOR_HEIGHT + lintelHeight / 2, posZ);
+                    dummy.updateMatrix();
+                    lintelMesh.setMatrixAt(idxLintel++, dummy.matrix);
+                }
                 for (const [margin,sign] of [[opening.leftMargin,-1],[opening.rightMargin,1]]) {
                     if (!margin) continue;
                     const offset=sign*(UNIT_SIZE-margin)/2;
@@ -2557,17 +2717,36 @@ async function buildWorld(prepared, checkpoint) {
                     jambMesh.setMatrixAt(idxJamb++,dummy.matrix);
                 }
                 dummy.scale.set(1,1,1);
+
+                // Rebaje fijo dentro del espesor del muro. Tapa la junta por detrás
+                // de la hoja sin coincidir con sus caras ni crear un pilar entre puertas dobles.
+                const leafCenter=posX+(isHorizontal?opening.centerOffset:0);
+                const leafZ=posZ+(isHorizontal?0:opening.centerOffset);
+                for(const [margin,sign]of [[opening.leftMargin,-1],[opening.rightMargin,1]]) {
+                    if(!margin)continue;
+                    const offset=sign*(opening.width/2-.005);
+                    dummy.position.set(leafCenter+(isHorizontal?offset:0),baseH+DOOR_HEIGHT/2,leafZ+(isHorizontal?0:offset));
+                    dummy.scale.set(isHorizontal?.05:.04,DOOR_HEIGHT,isHorizontal?.04:.05);
+                    dummy.updateMatrix();doorStops.setMatrixAt(idxDoorStop++,dummy.matrix);
+                }
+                dummy.position.set(leafCenter,baseH+DOOR_HEIGHT-.005,leafZ);
+                dummy.scale.set(isHorizontal?opening.width+.04:.04,.05,isHorizontal?.04:opening.width+.04);
+                dummy.updateMatrix();doorStops.setMatrixAt(idxDoorStop++,dummy.matrix);dummy.scale.set(1,1,1);
                 
                 const matNormal = new THREE.MeshPhongMaterial({ map: puertaTex, color: tintColor, shininess: 0 });
                 const matFlipped = new THREE.MeshPhongMaterial({ map: puertaFlippedTex, color: tintColor, shininess: 0 });
+                // No comprimir el dibujo completo (incluidos herrajes claros) en
+                // los cantos de 20 cm: produce rayas brillantes al mover la cámara.
+                const edgeMaterial=new THREE.MeshPhongMaterial({color:0x46372b,shininess:0});
+                edgeMaterial.userData.doorEdge=true;
                 let mats;
                 
                 if (isHorizontal) {
-                    if (!hingeOnRight) mats = [matNormal, matNormal, matNormal, matNormal, matNormal, matFlipped];
-                    else mats = [matNormal, matNormal, matNormal, matNormal, matFlipped, matNormal];
+                    if (!hingeOnRight) mats = [edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial, matNormal, matFlipped];
+                    else mats = [edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial, matFlipped, matNormal];
                 } else {
-                    if (!hingeOnRight) mats = [matFlipped, matNormal, matNormal, matNormal, matNormal, matNormal];
-                    else mats = [matNormal, matFlipped, matNormal, matNormal, matNormal, matNormal];
+                    if (!hingeOnRight) mats = [matFlipped, matNormal, edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial];
+                    else mats = [matNormal, matFlipped, edgeMaterial, edgeMaterial, edgeMaterial, edgeMaterial];
                 }
                 
                 const doorMesh = new THREE.Mesh(doorGeo, mats);
@@ -2660,6 +2839,8 @@ async function buildWorld(prepared, checkpoint) {
     scene.add(lintelMesh);
     jambMesh.count = idxJamb;
     scene.add(jambMesh);
+    doorStops.count=idxDoorStop;scene.add(doorStops);
+    bldgMesh.count = idxBldg;
     ceilingMesh.count = idxCeil;
     falseCeilingMesh.count = idxFalseCeil;
     scene.add(mergeRoofBlocks(THREE, ceilingMesh));
@@ -3193,10 +3374,7 @@ async function buildWorld(prepared, checkpoint) {
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x987448, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x45433e, shininess: 12 }),
             new THREE.MeshPhongMaterial({ color: 0xd7dce0, specular: 0xb8c2cc, shininess: 48 })
-        ] : definition.type === 'LOG_STACK' ? [
-            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0xc6a46e, shininess: 0 }),
-            new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x594333, shininess: 0 })
-        ] : definition.type === 'BOOKSHELF' ? [
+        ] : definition.type === 'LOG_STACK' ? createLogStackMaterials(THREE) : definition.type === 'BOOKSHELF' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             ...[0x5a334a, 0x2b4565, 0x2b5143, 0x716044, 0x4c3b60].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
         ] : [
@@ -3211,8 +3389,14 @@ async function buildWorld(prepared, checkpoint) {
         model.rotation.y = definition.rotationY ?? 0;
         model.position.set(x, getTerrainHeight(x, z) + (definition.offset?.y ?? 0), z);
         model.userData = { type: definition.type, id: definition.id, gx: position.x, gz: position.z };
-        if (definition.type === 'CHAIR') {
-            model.userData.seatHeight = 0.72 * furnitureScale;
+        if (['CHAIR','RUSTIC_BEACH_CHAIR'].includes(definition.type)) {
+            const reclined = definition.type === 'RUSTIC_BEACH_CHAIR';
+            model.userData.type = 'CHAIR';
+            model.userData.seatHeight = (reclined ? 0.48 : 0.72) * furnitureScale;
+            if (reclined) {
+                model.userData.seatEyeOffsetZ = -0.58 * furnitureScale;
+                model.userData.seatLookLift = 0.12;
+            }
             interactables.push(model);
         }
         if (definition.type === 'WOOD_STOVE') {
@@ -3263,7 +3447,7 @@ async function buildWorld(prepared, checkpoint) {
         if (!['INDOOR_FLOOR', 'WOOD'].includes(floorMap[definition.position.z]?.[definition.position.x])) {
             throw new Error(`El saco ${definition.id} requiere suelo interior.`);
         }
-        const sack = createBurlapSack(THREE);
+        const sack = createBurlapSack(THREE, definition);
         sack.name = definition.id;
         sack.scale.setScalar(definition.scale);
         sack.rotation.y = definition.rotationY;
@@ -3276,12 +3460,13 @@ async function buildWorld(prepared, checkpoint) {
 
     const garden = createKitchenGarden(THREE, {
         x: kitchenGardenPosition.x * UNIT_SIZE, z: kitchenGardenPosition.z * UNIT_SIZE
-    }, getTerrainHeight, maderaTex);
+    }, getTerrainHeight, maderaTex, tierraTex);
     for (const model of garden) {
         { const pause = checkpoint(); if (pause) await pause; }
         scene.add(model);
         model.updateMatrixWorld(true);
         solidInteractables.push(model);
+        model.traverse(part=>{if(part.userData.type==='GARDEN_NOTE')interactables.push(part);});
     }
 
     telescopeMesh=createTelescope(THREE);
@@ -3305,6 +3490,36 @@ async function buildWorld(prepared, checkpoint) {
     telescopeMesh.position.y+=telescopeLift+0.006;
     telescopeMesh.updateMatrixWorld(true);
     scene.add(telescopeMesh); interactables.push(telescopeMesh);
+    telescopeGlare=createTelescopeGlare(THREE,telescopeMesh);
+
+    // Escritorio real sobre el suelo interior de la casa de la cima.
+    const workshopX=telescopeWorkshopPosition.x*UNIT_SIZE, workshopZ=telescopeWorkshopPosition.z*UNIT_SIZE;
+    mountainWorkshop=createTelescopeWorkshop(THREE,maderaTex);
+    mountainWorkshop.desk.position.set(workshopX,getTerrainHeight(workshopX,workshopZ),workshopZ);
+    mountainWorkshop.desk.rotation.y=telescopeWorkshopPosition.rotationY;
+    mountainWorkshop.desk.updateMatrixWorld(true);
+    scene.add(mountainWorkshop.desk);solidInteractables.push(mountainWorkshop.desk);
+    interactables.push(mountainWorkshop.lensTarget,mountainWorkshop.lamp.group);
+
+    wizardUpperFloor=createWizardUpperFloor(THREE,mountainWorkshop.desk.position.y,
+        {wood:maderaTex,wall:muroTex,roof:techoTex,door:puertaTex});
+    scene.add(wizardUpperFloor.group);
+    interactables.push(wizardUpperFloor.door);
+
+    const crtCeiling=wizardUpperFloor.upperLimit(wizardHouseLayout.origin.x+6.2,
+        wizardHouseLayout.origin.z-5.8,mountainWorkshop.desk.position.y)+.06-mountainWorkshop.desk.position.y;
+    wizardTelevisions=createWizardTelevisions(THREE,maderaTex,crtCeiling);
+    wizardTelevisions.group.position.set(wizardHouseLayout.origin.x+6.2,mountainWorkshop.desk.position.y,wizardHouseLayout.origin.z-5.8);
+    wizardTelevisions.group.rotation.y=-Math.PI/4;
+    scene.add(wizardTelevisions.group);wizardTelevisions.group.updateMatrixWorld(true);
+    solidInteractables.push(wizardTelevisions.collider,...wizardTelevisions.accessoryColliders);
+
+    const observatoryX=(summitStonePlatform.minX+(summitStonePlatform.cellsPerSide-1)/2)*UNIT_SIZE;
+    const observatoryZ=(summitStonePlatform.minZ+(summitStonePlatform.cellsPerSide-1)/2)*UNIT_SIZE;
+    summitObservatory=createSummitObservatory(THREE,getTerrainHeight(observatoryX,observatoryZ),{wall:muroTex,wood:maderaTex});
+    scene.add(summitObservatory.group);
+    observatoryScope=createObservatoryScope(THREE,camera,controls,summitObservatory);
+    observatoryLadder=createObservatoryLadder(THREE,camera,controls,summitObservatory,PLAYER_HEIGHT);
 
     const fenceMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0 });
     const fenceLocations = new Set(prepared.fenceCells.map(({ x, z }) => `${x},${z}`));
@@ -3315,7 +3530,8 @@ async function buildWorld(prepared, checkpoint) {
         const east = fenceLocations.has(`${x + 1},${z}`) && !gateHinge;
         const south = fenceLocations.has(`${x},${z + 1}`);
         const wallConnections = [[-1,0],[1,0],[0,-1],[0,1]].filter(([dx,dz]) => floorMap[z+dz]?.[x+dx] === 'BUILDING');
-        const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south, wallConnections), fenceMaterial);
+        const postLift = x === 226 && z === 452 ? 0.30 : 0;
+        const fence = new THREE.Mesh(createWoodFenceGeometry(THREE, east, south, wallConnections, postLift), fenceMaterial);
         fence.name = `wood-fence:${x},${z}`;
         fence.position.set(x * UNIT_SIZE, getTerrainHeight(x * UNIT_SIZE, z * UNIT_SIZE), z * UNIT_SIZE);
         fence.userData = { type: 'FENCE', gx: x, gz: z };
@@ -3456,7 +3672,10 @@ function updatePlayerPosture() {
                 || atticSupport.fitsOpening(player.position.x, player.position.z));
             const floor = floorMap[gz]?.[gx];
             let limit = Infinity;
-            if (inAttic) limit = atticSupport.upperLimit(player.position.x, player.position.z);
+            const wizardLimit=summitObservatory?.upperLimit(player.position.x,player.position.z,feetY)
+                ?? wizardUpperFloor?.upperLimit(player.position.x,player.position.z,feetY);
+            if (wizardLimit != null) limit=wizardLimit;
+            else if (inAttic) limit = atticSupport.upperLimit(player.position.x, player.position.z);
             else if (['INDOOR_FLOOR','DOOR_UNLOCKED','DOOR_LOCKED'].includes(floor)) {
                 limit = getTerrainHeight(player.position.x, player.position.z)
                     + (floor === 'INDOOR_FLOOR' ? WALL_HEIGHT : DOOR_HEIGHT) - 0.3;
@@ -3474,11 +3693,23 @@ function treeCollisionTop(x, z) {
     return getTerrainHeight(x, z) + TREE_SPRITE_HEIGHT * (2 / 3) - 0.5;
 }
 
+function isSafeGroundPosition(x,z) {
+    return !hasObstacle(x,z,mapWidth,mapHeight,collisionMap,floorMap,false,solidInteractables,null,
+        getTerrainHeight(x,z),treeCollisionTop,false,null,mountainPathProfile,getTerrainHeight);
+}
+
 function isWall(x, z) {
     if (caveMap?.active) return caveMap.isWall(x,z);
     if (caveEntrance?.contains(x,z)) return false;
     const controlObj = controls.getObject();
     const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
+    if (!isRidingBoat) {
+        const observatoryCollision=summitObservatory?.blocksMovement(x,z,controlObj.position.y-eyeHeight);
+        if(observatoryCollision!=null)return observatoryCollision;
+        const wizardCollision=wizardUpperFloor?.blocksMovement(x,z,controlObj.position.y-eyeHeight,
+            controlObj.position.x,controlObj.position.z);
+        if (wizardCollision != null) return wizardCollision;
+    }
     const atticCell = atticSupport?.cellAt(controlObj.position.x, controlObj.position.z);
     if (!isRidingBoat && bedCeilingHoleOpen && atticCell && (controlObj.position.y > atticCell.bottom || velocityY > 0)
         && (controlObj.position.y - eyeHeight >= atticCell.top - 0.08
@@ -3489,7 +3720,7 @@ function isWall(x, z) {
         isRidingBoat ? z - boatSeatOffset.z : z,
         mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables, boatReference,
         controlObj.position.y - eyeHeight, treeCollisionTop,
-        musicEvents.isEventActive('forest') && heartLevitationHeight > 0.15, slabTops);
+        musicEvents.isEventActive('forest') && heartLevitationHeight > 0.15, slabTops,mountainPathProfile,getTerrainHeight);
 }
 
 function moveBoatAxis(position, axis, distance) {
@@ -3524,14 +3755,16 @@ function footstepSurfaceAt(x, z, onWoodSupport = false) {
         || ['INDOOR_FLOOR', 'WOOD', 'DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floor)));
     const hard = wood || slab;
     const sand = !hard && ['SAND', 'WET_SAND', 'SNOW_PEAK', 'SNOW_SLOPE'].includes(floor);
-    const dirt = !hard && floor === 'DIRT';
+    const dirt = !hard && ['DIRT', 'MOUNTAIN', 'PEAK'].includes(floor);
     return { surface: wood ? 'wood' : sand ? 'sand' : dirt ? 'dirt' : hard ? 'indoor' : 'grass',
-        outdoor: !hard && (OUTDOOR_STEP_FLOORS.has(floor) || sand) };
+        outdoor: !hard && (OUTDOOR_STEP_FLOORS.has(floor) || sand || dirt) };
 }
 
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
+    gardenNote.hide();
+    observatoryMenu.hide();
     bedSettleIndex = -1;
     seatedChair = chairEntryPosition = null;
     musicEvents.resetWaterAudio();
@@ -3572,6 +3805,7 @@ window.restartGame = () => {
     if (bedWoodChipMaterial) bedWoodChipMaterial.opacity = 1;
     crouchRequested = isCrouching = false;
     isDead = false;
+    observatoryLadder?.reset();
     stamina = STAMINA_MAX;
     divingAir.reset();
     const controlObj = controls.getObject();
@@ -3810,11 +4044,13 @@ function animate(timestamp = performance.now()) {
             crouchRequested = false;
             updatePlayerPosture();
         }
-        const running = isRunning && !forestActive;
+        const running = isRunning && (!forestActive || isFlying);
         heartVision.update(delta, forestActive, musicEvents.getForestEnergy(),
             forestPlaybackTime ?? 0);
 
         heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
+        wizardUpperFloor?.update(delta,controlObj.position,isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
+        wizardTelevisions?.update(delta,controlObj.position.distanceToSquared(wizardTelevisions.group.position)<900);
         const doors = solidInteractables.filter(object => object.userData.type === 'DOOR' || object.userData.type === 'GATE');
         updateDoorAnimations(doors, delta, () => {
             const position = controlObj.position;
@@ -4073,10 +4309,23 @@ function animate(timestamp = performance.now()) {
         dirLight.intensity = 0.3 + (0.7 * dayTransition); // De 0.3 a 1.0
 
         // Raycaster para Interacciones
+        const scopeTarget=summitObservatory?.telescopeInteraction;
+        if(scopeTarget) {
+            const nearScope=observatoryLadder?.canUseScope;
+            const index=interactables.indexOf(scopeTarget);
+            if(nearScope&&index<0)interactables.push(scopeTarget);
+            else if(!nearScope&&index>=0){interactables.splice(index,1);if(targetInteractable===scopeTarget)targetInteractable=null;}
+        }
         interactionHits.length = 0;
         if (!woodcutting.active && !spawnGreeting.active && !heartPull.active && !grahamDap.active && !isDialogOpen) {
             raycaster.setFromCamera(centerVec, camera);
             raycaster.intersectObjects(interactables, true, interactionHits);
+            // La puerta del dormitorio solo se ofrece al alcanzar el piso superior.
+            if (wizardUpperFloor && controlObj.position.y-(isCrouching ? PLAYER_HEIGHT*.6 : PLAYER_HEIGHT)<wizardUpperFloor.levelY-.25) {
+                for(let i=interactionHits.length-1;i>=0;i--) {
+                    if(interactionHits[i].object.userData.type==='WIZARD_UPPER_DOOR')interactionHits.splice(i,1);
+                }
+            }
             if (!interactionHits.length && telescopeMesh) {
                 telescopeMesh.localToWorld(telescopeInteractionCenter.copy(telescopeMesh.geometry.boundingSphere.center));
                 const distance=telescopeInteractionOffset.subVectors(telescopeInteractionCenter,raycaster.ray.origin).length();
@@ -4110,11 +4359,23 @@ function animate(timestamp = performance.now()) {
         if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen) {
             targetInteractable = null;
             hud.hideInteraction();
+        } else if (observatoryScope?.active) {
+            targetInteractable = null;
+            hud.showInteraction();
+            hud.setInteractionText(isTouchMode?`Omniscopio ${observatoryScope.zoom}× · cruceta para girar · B para levantarte`
+                :`Omniscopio ${observatoryScope.zoom}× · flechas para girar · Shift + / Ctrl − zoom · E para levantarte`);
+            hud.setInteractionColor('#a9d8e7');
         } else if (seatedChair) {
             targetInteractable = null;
             hud.showInteraction();
             hud.setInteractionText('Presiona E para levantarte');
             hud.setInteractionColor('#ffeb3b');
+        } else if(observatoryLadder?.active&&(!observatoryLadder.canUseScope||intersects[0]?.object!==scopeTarget)) {
+            targetInteractable=null;hud.showInteraction();
+            hud.setInteractionText(observatoryLadder.canUseScope
+                ?(isTouchMode?'Mira hacia el Omniscopio para sentarte · ↓ para bajar':'Mira hacia el Omniscopio para sentarte · ↓ / S para bajar')
+                :(isTouchMode?'Escalera · ↑ subir · ↓ bajar hasta salir':'Escalera · ↑ / W subir · ↓ / S bajar hasta salir'));
+            hud.setInteractionColor('#a9d8e7');
         } else if (intersects.length > 0 && intersects[0].distance < 3.5
             && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
@@ -4125,6 +4386,9 @@ function animate(timestamp = performance.now()) {
             } else if (targetInteractable.userData.type === 'CHAIR') {
                 hud.setInteractionText('Presiona E para sentarte');
                 hud.setInteractionColor('#ffeb3b');
+            } else if (targetInteractable.userData.type === 'GARDEN_NOTE') {
+                hud.setInteractionText(`${isTouchMode?'Presiona B':'Presiona E'} para leer el bloc de notas`);
+                hud.setInteractionColor('#e8d6a4');
             } else if (targetInteractable.userData.id === 'graham-stump') {
                 hud.setInteractionText('Presiona E para cortar madera');
                 hud.setInteractionColor('#a6ed90');
@@ -4137,8 +4401,25 @@ function animate(timestamp = performance.now()) {
                     hud.setInteractionText(targetInteractable.userData.item === 'map' ? "Cerrado" : "Presiona E para abrir Cofre");
                     hud.setInteractionColor(mapLocked ? "#ff5555" : "#ffeb3b");
                 }
+            } else if (targetInteractable.userData.type === 'WIZARD_UPPER_DOOR') {
+                hud.setInteractionText(targetInteractable.userData.isOpen
+                    ? 'Presiona E para cerrar la puerta' : 'Presiona E para abrir la puerta');
+                hud.setInteractionColor('#ffeb3b');
+            } else if(targetInteractable.userData.type==='OBSERVATORY_TELESCOPE') {
+                hud.setInteractionText(astroscopeInstalled?'Presiona E para opciones del Omniscopio'
+                    :hasAstroscope?(isTouchMode?'Presiona B para acoplar Astroscopio al Omniscopio':'Clic derecho o E para acoplar Astroscopio al Omniscopio')
+                    :'Omniscopio · necesitas el Astroscopio');
+                hud.setInteractionColor('#a9d8e7');
+            } else if (targetInteractable.userData.type === 'WORKSHOP_LAMP') {
+                hud.setInteractionText(`${isTouchMode?'Presiona B':'Presiona E'} para ${mountainWorkshop.lamp.group.userData.isOn?'apagar':'encender'} la lámpara`);
+                hud.setInteractionColor('#ffdf9e');
+            } else if (targetInteractable.userData.type === 'TELESCOPE_WORKBENCH') {
+                hud.setInteractionText(telescopeRepaired ? 'Lente Bifrost instalada · Astroscopio preparado'
+                    : hasAstroscope ? 'Presiona E para instalar la Lente Bifrost'
+                    : 'Lente Bifrost · primero encuentra el Astroscopio');
+                hud.setInteractionColor('#a9d8e7');
             } else if (targetInteractable.userData.type === 'TELESCOPE_PICKUP') {
-                hud.setInteractionText('Presiona E para recoger Telescopio');
+                hud.setInteractionText('Presiona E para recoger Astroscopio');
                 hud.setInteractionColor('#ffeb3b');
             } else if (targetInteractable.userData.type === 'PINK_SUNGLASSES_PICKUP') {
                 hud.setInteractionText('Presiona E para tomar lentes de sol rosados');
@@ -4195,7 +4476,10 @@ function animate(timestamp = performance.now()) {
         heartPull.update(delta);
         const cuttingWood = woodcutting.active;
         woodcutting.update(delta, rawDelta);
-        if (!seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen) {
+        const ladderAllowed=!seatedChair&&!cuttingWood&&!spawnGreeting.active&&!pullingHeart&&!grahamDap.active&&!isDialogOpen&&!observatoryScope?.active&&!isDead;
+        const ladderMoved=ladderAllowed&&observatoryLadder?.update(delta,moveState,!isFlying&&!isRidingBoat&&!isCrouching&&!isInventoryOpen);
+        if(ladderMoved){velocity.set(0,0,0);velocityY=0;canJump=false;isRunning=false;jumpHeld=false;crouchRequested=false;bobTimer=0;previousPlayerPosition.copy(controlObj.position);}
+        if (!ladderMoved && !seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen && !observatoryScope?.active) {
             // Desde que queda ensartado hasta que caen las astillas no puede desplazarse.
             // La física vertical sigue activa para que se suelte y caiga normalmente.
             const trappedInBedCeiling = bedCeilingTimer > 0 || bedHoleOpeningTime >= 0;
@@ -4311,10 +4595,14 @@ function animate(timestamp = performance.now()) {
                 : getBedSupport(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight, solidInteractables);
             const ceilingSupport = isRidingBoat || isFlying || inWater || !bedCeilingHoleOpen ? -Infinity
                 : atticSupport?.supportHeight(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight, true) ?? -Infinity;
+            const wizardSupport = isRidingBoat || isFlying || inWater ? -Infinity
+                : Math.max(wizardUpperFloor?.supportHeight(controlObj.position.x, controlObj.position.z, controlObj.position.y - eyeHeight) ?? -Infinity,
+                    summitObservatory?.supportHeight(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight) ?? -Infinity);
             const currentTerrainHeight = Math.max(getTerrainHeight(controlObj.position.x, controlObj.position.z),
-                bedSupport, ceilingSupport);
+                bedSupport, ceilingSupport, wizardSupport);
             const onBed = Number.isFinite(bedSupport) && bedSupport >= currentTerrainHeight;
             const onAttic = Number.isFinite(ceilingSupport) && ceilingSupport >= currentTerrainHeight;
+            const onWizardFloor = Number.isFinite(wizardSupport) && wizardSupport >= currentTerrainHeight;
             if (!onBed || isFlying || isRidingBoat || inWater) {
                 bedBounceActive = false;
                 bedCeilingHits = 0;
@@ -4409,7 +4697,7 @@ function animate(timestamp = performance.now()) {
                         const justLanded = !canJump;
                         if (onBed && justLanded && !bedTakeoffSoundPlayed) musicEvents.playBedJump();
                         else if (justLanded && !onBed && !inWater && !isRidingBoat && !isFlying) {
-                            const landingStep = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic);
+                            const landingStep = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic || onWizardFloor);
                             if (landingStep) {
                                 musicEvents.playFootstep(false, 1.15, landingStep.outdoor,
                                     footstepIndex % 2 === 0, landingStep.surface);
@@ -4436,7 +4724,14 @@ function animate(timestamp = performance.now()) {
             // Colisión de techos (tanto normal como vuelo)
             const roofGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
             const roofGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-            if (roofGZ >= 0 && roofGZ < mapHeight && roofGX >= 0 && roofGX < mapWidth) {
+            const wizardCeiling=summitObservatory?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
+                ?? wizardUpperFloor?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight);
+            if (wizardCeiling != null) {
+                if (controlObj.position.y > wizardCeiling) {
+                    controlObj.position.y=wizardCeiling;
+                    if (velocityY > 0) velocityY=0;
+                }
+            } else if (roofGZ >= 0 && roofGZ < mapHeight && roofGX >= 0 && roofGX < mapWidth) {
                 const currentFloor = floorMap[roofGZ][roofGX];
                 if (currentFloor === 'INDOOR_FLOOR' || currentFloor === 'DOOR_UNLOCKED' || currentFloor === 'DOOR_LOCKED'
                     || (bedCeilingHoleOpen && atticSupport?.cellAt(controlObj.position.x, controlObj.position.z))) {
@@ -4506,7 +4801,7 @@ function animate(timestamp = performance.now()) {
                     if (currentStep > previousStep && moved && !inWater
                         && !(caveMap?.active && caveMap.isWater(controlObj.position.x,controlObj.position.z))) {
                         const accented = footstepIndex % 2 === 0;
-                        const step = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic);
+                        const step = footstepSurfaceAt(controlObj.position.x, controlObj.position.z, onAttic || onWizardFloor);
                         if (step) {
                             const walkingAccent = WALKING_STEP_ACCENTS[footstepIndex % WALKING_STEP_ACCENTS.length];
                             const accent = running ? (accented ? 1 : step.outdoor ? 0.72 : 0.92) : walkingAccent;
@@ -4683,7 +4978,17 @@ function animate(timestamp = performance.now()) {
     dawnSkyMesh.visible = dawnSkyMesh.material.opacity !== 0;
     duskSkyMesh.visible = duskSkyMesh.material.opacity !== 0;
     hud.setUnderwaterTint(gameStarted && (controls.isLocked || inventoryRunning) && !isDead ? underwaterBlend * underwaterLightLevel : 0);
-    telescopeView.update(vegetationDelta,canUseTelescope());
+    telescopeGlare?.update(camera,vegetationDelta,gameStarted && mapLoaded && controls.isLocked && !isDead);
+    telescopeView.update(vegetationDelta,canUseTelescope()&&!observatoryScope?.active);
+    observatoryScope?.update(vegetationDelta);
+    // Mayor alcance óptico tanto para el Omniscopio como para el Astroscopio.
+    // El fundido del terreno y el descarte de sectores usan la misma distancia.
+    const opticalRange=cameraSubmerged?1:observatoryScope?.active?6
+        :1+5*THREE.MathUtils.clamp((1/telescopeView.lookScale-1)/2,0,1);
+    scene.fog.density/=opticalRange;
+    terrainVisibilityDistance.value=WORLD_VISIBILITY_DISTANCE*opticalRange;
+    const opticalFar=Math.max(1500,terrainVisibilityDistance.value*1.2);
+    if(camera.far!==opticalFar){camera.far=opticalFar;camera.updateProjectionMatrix();}
     const fogPlane = fogCulling?.update(camera);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
     const plantGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
@@ -4732,8 +5037,8 @@ function animate(timestamp = performance.now()) {
     sunFlare.update();
     if ((!controls.isLocked && !inventoryRunning) || isDead) hud.hideDivingAir();
     hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
-    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'telescope' && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead;
-    heldMate.update((controls.isLocked || inventoryRunning) ? vegetationDelta : 0, canDrinkMate());
+    heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'astroscope' && !observatoryScope?.active && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead;
+    heldMate.update((controls.isLocked || inventoryRunning) ? vegetationDelta : 0, canDrinkMate()&&!observatoryScope?.active);
     heldHeartGlow.visible = heldItemSprite.visible && heldItem === 'heart';
     hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
     underwaterStrength.value = underwaterBlend;
@@ -4759,6 +5064,7 @@ function animate(timestamp = performance.now()) {
     }
     try {
         underwaterView.render(scene, camera);
+        heldOverlay.render();
     } finally {
         if (caveLighting) {
             ambientLight.intensity = caveLighting.ambient;

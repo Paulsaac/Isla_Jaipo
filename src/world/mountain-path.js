@@ -65,6 +65,17 @@ export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight
 
 // Proyectar sobre segmentos evita bultos transversales y escalones de celda en celda.
 export function sampleMountainPath(profile, x, z) {
+    if(profile?.contourTrail) {
+        let distance=Infinity,height=0,coreRadius=profile.coreRadius,blendRadius=profile.blendRadius,snowCut=false;
+        for(const index of profile.bins[Math.round(z)]?.[Math.round(x)]??[]) {
+            const s=profile.segments[index],t=Math.max(0,Math.min(1,((x-s.x)*s.dx+(z-s.z)*s.dz)/s.l2));
+            const d=Math.hypot(x-s.x-s.dx*t,z-s.z-s.dz*t);
+            if(d<distance){distance=d;height=s.y+s.dy*t;
+                coreRadius=(s.coreRadius??profile.coreRadius)+(s.coreDelta??0)*t;
+                blendRadius=(s.blendRadius??profile.blendRadius)+(s.blendDelta??0)*t;snowCut=s.snowCut;}
+        }
+        return distance<blendRadius?{height,distance,coreRadius,blendRadius,snowCut}:null;
+    }
     if(!profile || (profile.followsTerrain && !profile.carved)) return null;
     const rows=profile.surface,cx=Math.round(x),cz=Math.round(z);
     if(!profile.nearby[cz]?.[cx]) return null;

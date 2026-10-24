@@ -1,9 +1,10 @@
 import { UNIT_SIZE, COLLISION_RADIUS, BOAT_WIDTH } from '../config.js';
 import { getDoorOpening } from '../world/door-opening.js';
 import { bedSurfaces } from './bed-support.js';
+import { sampleMountainPath } from '../world/mountain-path.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
-export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null) {
+export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null, mountainPathProfile = null, terrainHeight = null) {
     if (collisionMap.length === 0) return true;
     if (isRidingBoat) {
         // Toda la huella del casco debe estar sobre agua libre, no solo el centro del jugador.
@@ -72,6 +73,13 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         const gZ = Math.floor((pZ + UNIT_SIZE/2) / UNIT_SIZE);
         if (gZ < 0 || gZ >= mapHeight || gX < 0 || gX >= mapWidth) return true;
 
+        // La nieve de la meseta sigue libre. En el corte, solo el piso del
+        // sendero es transitable: no convertir sus taludes en otra escalera.
+        const road=mountainPathProfile?.contourTrail&&terrainHeight
+            ?sampleMountainPath(mountainPathProfile,pX/UNIT_SIZE,pZ/UNIT_SIZE):null;
+        if(road?.snowCut&&road.distance>road.coreRadius
+            &&terrainHeight(pX,pZ)>road.height+.12)return true;
+
         // Barrera de orilla independiente de la altura mientras dura la flotación del Bosque.
         if (forestFloating && ['WATER','WATER_ROCK','BOAT'].includes(floorMap[gZ][gX])
             && !waterSupports?.has(gZ * mapWidth + gX)) return true;
@@ -86,9 +94,9 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
             // Unir tramos diagonales del camino con un corredor de ancho transitable.
             let onPath=false;
             for(let rz=gZ-1;rz<=gZ+1&&!onPath;rz++) for(let rx=gX-1;rx<=gX+1&&!onPath;rx++) {
-                if(floorMap[rz]?.[rx]!=='DIRT') continue;
+                if(!['DIRT','SNOW_SLOPE'].includes(floorMap[rz]?.[rx])) continue;
                 for(let dz=-1;dz<=1&&!onPath;dz++) for(let dx=-1;dx<=1&&!onPath;dx++) {
-                    if(floorMap[rz+dz]?.[rx+dx]!=='DIRT') continue;
+                    if(!['DIRT','SNOW_SLOPE'].includes(floorMap[rz+dz]?.[rx+dx])) continue;
                     const ax=rx*UNIT_SIZE,az=rz*UNIT_SIZE,bx=dx*UNIT_SIZE,bz=dz*UNIT_SIZE;
                     const length=bx*bx+bz*bz;
                     const t=length?Math.max(0,Math.min(1,((pX-ax)*bx+(pZ-az)*bz)/length)):0;

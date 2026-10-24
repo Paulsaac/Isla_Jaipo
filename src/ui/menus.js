@@ -212,9 +212,9 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; itemButtons.heart.style.display = visible ? 'block' : 'none'; }
     function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; itemButtons.torch.style.display = visible ? 'block' : 'none'; }
     function setMateVisible(visible) { itemButtons.mate.style.display = visible ? 'block' : 'none'; }
-    function setTelescopeVisible(visible) {
-        itemButtons.telescope.style.display = visible ? 'block' : 'none';
-        itemButtons.telescope.parentElement.style.display = visible ? 'flex' : 'none';
+    function setAstroscopeVisible(visible) {
+        itemButtons.astroscope.style.display = visible ? 'block' : 'none';
+        itemButtons.astroscope.parentElement.style.display = visible ? 'flex' : 'none';
     }
     function setPinkSunglassesState(owned, equipped) {
         const button = itemButtons['pink-sunglasses'];
@@ -250,5 +250,5 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setTelescopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

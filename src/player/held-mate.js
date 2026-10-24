@@ -7,8 +7,8 @@ export function createHeldMate(THREE, camera) {
     set.remove(object);
     set.traverse(part => part.geometry?.dispose());
     object.material.dispose();
-    // Dibujar junto a los objetos de mano, después de terreno y vegetación transparentes.
-    object.material = new THREE.MeshBasicMaterial({vertexColors:true,fog:false,transparent:true,opacity:1,depthTest:false,depthWrite:false});
+    // La pasada de mano conserva profundidad entre las piezas de este modelo.
+    object.material = new THREE.MeshBasicMaterial({vertexColors:true,fog:false,transparent:true,opacity:1,depthTest:true,depthWrite:true});
     object.name = 'held-mate'; object.position.set(0,0,0);
     object.renderOrder = 1000; object.visible = false; camera.add(object);
     let held = false, minimum = 0, blend = 0;

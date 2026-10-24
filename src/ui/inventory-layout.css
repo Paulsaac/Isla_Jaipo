@@ -48,6 +48,7 @@
 #inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
 #inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
 #inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*2.4);}
+#inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*3.65);}
 #inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
 #inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
 #inventory-menu .inventory-orbit #inventory-heading {top:var(--edge);font-size:clamp(10px,2vmin,18px);}

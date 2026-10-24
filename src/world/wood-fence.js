@@ -1,7 +1,7 @@
 import { UNIT_SIZE } from '../config.js';
 
 // Un poste por celda pintada y travesaños solo hacia vecinos positivos: sin piezas duplicadas.
-export function createWoodFenceGeometry(THREE, east, south, wallConnections = []) {
+export function createWoodFenceGeometry(THREE, east, south, wallConnections = [], postLift = 0) {
     const pieces = [];
     function add(source, tint, x, y, z) {
         const geometry = source.index ? source.toNonIndexed() : source;
@@ -18,11 +18,11 @@ export function createWoodFenceGeometry(THREE, east, south, wallConnections = []
     }
     const box = (w, h, d, x, y, z, color) => add(new THREE.BoxGeometry(w, h, d), color, x, y, z);
     box(0.32, 0.18, 0.32, 0, 0.09, 0, 0x50331f);
-    box(0.24, 1.34, 0.24, 0, 0.67, 0, 0x795034);
-    box(0.32, 0.09, 0.32, 0, 1.385, 0, 0x9b6940);
+    box(0.24, 1.34 + postLift, 0.24, 0, 0.67 + postLift / 2, 0, 0x795034);
+    box(0.32, 0.09, 0.32, 0, 1.385 + postLift, 0, 0x9b6940);
     const cap = new THREE.ConeGeometry(0.21, 0.20, 4);
     cap.rotateY(Math.PI / 4);
-    add(cap, 0x80512e, 0, 1.53, 0);
+    add(cap, 0x80512e, 0, 1.53 + postLift, 0);
 
     for (const height of [0.51, 1.04]) {
         if (east) {

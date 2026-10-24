@@ -4,7 +4,7 @@ Abre telescopio.blend directamente en Blender 4.5 o posterior.
 El material, los colores de vértices, las UV y la textura pixel art están incluidos.
 En Vista de materiales se ve la textura. El filtrado está en Closest.
 
-También se incluye telescopio.glb para importar en otros programas y telescopio-textura.png (256 x 128) para editar la textura por separado. El objetivo ancho tiene cuatro círculos dorados con interior azul alrededor de su circunferencia, todos centrados a la misma altura.
+También se incluye telescopio.glb para importar en otros programas y telescopio-textura-magos.png (256 x 128) para editar la textura por separado. El objetivo ancho tiene cuatro círculos dorados con interior azul alrededor de su circunferencia, todos centrados a la misma altura.
 
-Exportado desde el modelo vigente del juego: 548 triángulos, azul morado oscuro #414b91, mapas dorados y aros oscuros. Escala original conservada (aprox. 70 cm de largo).
+Exportado desde el modelo vigente del juego: 548 triángulos, azul morado oscuro #414b91, magos, hadas y astrolabios dorados dentro de los anillos, y aros oscuros. Escala original conservada (aprox. 70 cm de largo).
 Editar estos archivos no actualiza automáticamente el juego: el modelo en uso se construye en src/world/telescope.js de la copia activa.

@@ -1,7 +1,9 @@
 // Estado visual y colisiones de puertas. El inventario autoriza el desbloqueo en game.js.
 export function unlockDoor(door) {
     const materials = Array.isArray(door.material) ? door.material : [door.material];
-    for (const material of materials) material.color.setHex(0xffffff);
+    for (const material of materials) {
+        if(!material.userData.doorEdge)material.color.setHex(0xffffff);
+    }
     door.userData.locked = false;
 }
 

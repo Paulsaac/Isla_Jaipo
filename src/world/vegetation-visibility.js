@@ -2,6 +2,7 @@
 export function createVegetationVisibility(group, strength) {
     const materials=[...new Set(group.children.flatMap(mesh=>Array.isArray(mesh.material)?mesh.material:[mesh.material]))];
     const depthWrites=materials.map(material=>material.depthWrite);
+    const transparencies=materials.map(material=>material.transparent);
     for(const material of materials) {
         const previous=material.onBeforeCompile;
         const key=material.customProgramCacheKey();
@@ -17,7 +18,17 @@ export function createVegetationVisibility(group, strength) {
     return {
         set(value) {
             strength.value=value;
-            materials.forEach((material,index)=>material.depthWrite=value>=0.99?depthWrites[index]:false);
+            materials.forEach((material,index)=>{
+                // Solo el fundido necesita mezcla; en reposo los sprites recortados
+                // se resuelven por profundidad, incluso dentro del mismo lote.
+                const fading=value<1;
+                const transparent=fading||transparencies[index];
+                if(material.transparent!==transparent) {
+                    material.transparent=transparent;
+                    material.needsUpdate=true;
+                }
+                material.depthWrite=fading?false:depthWrites[index];
+            });
             group.visible=value>0.01;
         }
     };
