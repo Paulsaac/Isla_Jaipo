@@ -22,6 +22,7 @@ import { createAtticAnt, findAtticAntHome } from './src/world/attic-ant.js';
 import { createGrahamDap } from './src/systems/graham-dap.js';
 import { createGuidedLook } from './src/systems/mirada-guiada.js';
 import { createWoodStoveGeometry, createWoodStovePipeGeometry } from './src/world/wood-stove-geometry.js';
+import { createWoodStoveFire } from './src/world/wood-stove-fire.js';
 import { prepareInactiveLights } from './src/world/inactive-lights.js';
 import { getTerrainTextureBlend } from './src/world/terrain-textures.js';
 import { createPerformancePanel } from './src/ui/performance-panel.js';
@@ -31,6 +32,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
 import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
+import { grahamJournal } from './src/content/readables.js';
 import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
@@ -126,7 +128,7 @@ import { createWalkingRhythm } from './src/systems/walking-rhythm.js';
 import { createKeyInventory } from './src/systems/key-inventory.js';
 import { createDivingAir } from './src/systems/diving-air.js';
 import { DIVING_AIR_SECONDS, DIVING_WATER_SPEED_MOD, SEA_FLOOR_HEIGHT } from './src/config.js';
-import { createDivingHelmetGeometry } from './src/world/diving-helmet-geometry.js';
+import { createDivingHelmetGeometry, createDivingHelmetMaterials } from './src/world/diving-helmet-geometry.js';
 import { createSeaHeart } from './src/systems/sea-heart.js';
 import { createQuestSkyCycle } from './src/systems/quest-sky.js';
 import { createSunFlare } from './src/world/sun-flare.js';
@@ -142,6 +144,7 @@ let velocityY = 0;
 const NORMAL_JUMP_TIME_SCALE = 0.85;
 const WATER_GRAVITY_SCALE = 0.6;
 const WATER_FALL_GRAVITY_SCALE = 0.32;
+const UNDERWATER_MOTION_TIME_SCALE = 0.6;
 let canJump = true;
 const BED_BOUNCE_BASE_IMPULSE = 5.5;
 const BED_BOUNCE_MAX_IMPULSE = 20;
@@ -208,6 +211,9 @@ let lensViewIndex = 0;
 let hasDivingHelmet = false;
 let helmetEquipped = false;
 let helmetBroken = false;
+let helmetCracked = false;
+let helmetBreakRemaining = null;
+let helmetBreakSound = null;
 let seaHeart = null;
 const seaHeartSprites = new Map();
 const seaHeartSoundPosition = new THREE.Vector3();
@@ -275,16 +281,38 @@ function collectSeaHeartFragment(fragment) {
         }
         for (const torch of altarFireTorches) torch.enabled = true;
         musicEvents.igniteAltarFire();
-        helmetBroken = true;
-        helmetEquipped = false;
-        menus.setHelmetState(true,false,true);
-        hud.hideDivingAir();
-        hud.showNotification('¡Al unir los diez fragmentos en el altar has conseguido el corazón del mar!');
+    }
+    if (reward.count >= 8) {
+        const stage = reward.count - 7;
+        const duration = stage === 3 ? 0.8 : 1.4;
+        helmetCracked = true;
+        menus.setHelmetState(true,helmetEquipped,false,true);
+        hud.setHelmetCrackStage(stage,duration);
+        const crackSound = musicEvents.playHelmetCrack(stage);
+        if (reward.complete) {
+            helmetBreakRemaining = duration;
+            helmetBreakSound = crackSound;
+        }
+        hud.showNotification('La escafandra se esta quebrando...',{immediate:true});
     } else {
         hud.showNotification(reward.count === 1
             ? '¡Has encontrado un fragmento bajo el mar!'
             : '¡Has encontrado otro fragmento bajo el mar!');
     }
+}
+function updateHelmetBreak(delta) {
+    if (helmetBreakRemaining === null) return;
+    helmetBreakRemaining -= delta;
+    // Esperar tanto a la extensión visual como al final real del sonido.
+    if (helmetBreakRemaining > 0 || helmetBreakSound?.playing) return;
+    helmetBreakRemaining = null;
+    helmetBreakSound = null;
+    musicEvents.playHelmetGlassPop();
+    helmetBroken = true;
+    helmetEquipped = false;
+    menus.setHelmetState(true,false,true);
+    hud.hideDivingAir();
+    hud.showNotification('El cristal de la escafandra termino de romperse. Ya no puedes volver a equiparlo',{immediate:true});
 }
 const divingAir = createDivingAir(DIVING_AIR_SECONDS);
 const heartQuest = createForestHeartQuest();
@@ -303,6 +331,8 @@ const torchSprites = [];
 const altarFlames = [];
 const altarFireTorches = [];
 const altarFireSoundRelative = new THREE.Vector3();
+let woodStoveFire = null;
+const stoveFireSoundRelative = new THREE.Vector3();
 let underwaterVegetation = null;
 let underwaterVegetationPreparation = null;
 let underwaterPlantDefinitions = [];
@@ -642,6 +672,10 @@ function showActiveDialog() {
         showActiveDialog();
         return;
     }
+    if (activeDialogs === grahamJournal.pages) {
+        menus.showBook(grahamJournal);
+        return;
+    }
     if (activeDialogs[dialogIndex]?.action === 'dap') {
         menus.hideDialog();
         if (!grahamDap.active) {
@@ -712,24 +746,23 @@ function updateSpawnGreeting(delta) {
 }
 
 function toggleDivingHelmet() {
-    if (!hasDivingHelmet || helmetBroken || !isInventoryOpen || isDead) return;
+    if (!hasDivingHelmet || helmetBroken || helmetBreakRemaining !== null || !isInventoryOpen || isDead) return;
     helmetEquipped = !helmetEquipped;
-    menus.setHelmetState(hasDivingHelmet, helmetEquipped);
+    menus.setHelmetState(hasDivingHelmet, helmetEquipped, helmetBroken, helmetCracked);
 }
 
 function setHeldItem(item) {
+    if (item === 'heart' || item === 'sea-heart') return;
     heldItem = item;
     if (item !== 'astroscope') telescopeView?.cancel();
     menus.setItemActive('astroscope',item === 'astroscope');
     if (item !== 'mate') heldMate?.cancel();
     menus.setItemActive('mate', item === 'mate');
     if (item !== 'key') keyInventory.clearSelection();
-    menus.setItemActive('heart', item === 'heart');
     menus.setItemActive('key', item === 'key');
-    menus.setItemActive('sea-heart', item === 'sea-heart');
     if (heldItemSprite && item) {
         heldItemSprite.material.map = heldItemTextures[item] || heldItemTextures.heart;
-        heldItemSprite.material.rotation = item === 'heart' ? -0.12 : 0.25;
+        heldItemSprite.material.rotation = item === 'key' ? Math.PI + 1.35 : item === 'heart' ? -0.12 : 0.25;
         updateHeldItemLayout();
     }
 }
@@ -743,7 +776,7 @@ function updateKeyInventory() {
 function useInventoryItem(item) {
     if (!gameStarted || !isInventoryOpen || isDead) return;
     if (item === 'helmet' && helmetBroken) {
-        menus.setItemDescription('La escafandra se rompió al completar el Corazón del Mar.');
+        menus.setItemDescription('El cristal de la escafandra termino de romperse. Ya no puedes volver a equiparlo');
     } else if (item === 'helmet' && hasDivingHelmet) {
         toggleDivingHelmet();
         menus.setItemDescription(helmetEquipped ? 'Escafandra equipada.' : 'Escafandra guardada.');
@@ -773,10 +806,8 @@ function useInventoryItem(item) {
         gameActions.map();
         menus.setItemDescription(minimap.enabled ? 'Mapa abierto al volver al juego.' : 'Mapa cerrado.');
     } else if (item === 'heart' && heartQuest.hasHeart) {
-        setHeldItem(heldItem === 'heart' ? null : 'heart');
-        menus.setItemDescription(heldItem ? 'Corazón del Bosque en la mano.' : 'Corazón del Bosque guardado.');
+        menus.setItemDescription('Corazón del Bosque guardado en el inventario.');
     } else if (item === 'sea-heart' && seaHeart?.count) {
-        if (seaHeart.complete) setHeldItem(heldItem === 'sea-heart' ? null : 'sea-heart');
         menus.setItemDescription(seaHeart.complete ? 'Corazón del Mar completo. La escafandra está rota.' : `Fragmentos del Corazón del Mar: ${seaHeart.count}/10. Recoger otro renueva el aire.`);
     } else if (item === 'key' && keys > 0) {
         if (heldItem !== 'key') keyInventory.clearSelection();
@@ -992,6 +1023,7 @@ function interact() {
     }
     if (gameStarted) {
         if (isDialogOpen) {
+            if (activeDialogs === grahamJournal.pages) {cancelActiveDialog();return true;}
             // Avanzar al siguiente diálogo
             if (dialogIndex < activeDialogs.length - 1) {
                 dialogIndex++;
@@ -1043,6 +1075,17 @@ function interact() {
                 if(astroscopeInstalled)showObservatoryChoice('installed');
                 else if(hasAstroscope)showObservatoryChoice('attach');
                 else hud.showNotification('Necesitas el Astroscopio para usar el Omniscopio.');
+                return true;
+            }
+            if (targetInteractable.userData.type === 'READABLE_BOOK') {
+                deliveringHeart = false;
+                isDialogOpen = true;
+                clearGreetingInput();
+                beginDialogLook();
+                activeDialogs = grahamJournal.pages;
+                activeDialogSpeaker = grahamJournal.title;
+                dialogIndex = 0;
+                showActiveDialog();
                 return true;
             }
             if (targetInteractable.userData.type === 'CHAIR') {
@@ -1483,6 +1526,9 @@ let woodcuttingTorchWasEnabled = false;
 const woodcutting = createWoodcutting(THREE, {
     scene, camera, controls, hud: createWoodcuttingHud(isTouchMode),
     onImpact: broken => musicEvents.playWoodcuttingHit(broken),
+    onScore(score) {
+        if (score >= 1000 && woodStoveFire?.ignite()) musicEvents.igniteStoveFire();
+    },
     onBegin() {
         clearGreetingInput(); heldMate?.cancel();
         hud.hideStamina();
@@ -1630,7 +1676,7 @@ let resolveHeartTexture, rejectHeartTexture;
 const heartTextureReady = new Promise((resolve,reject)=>{resolveHeartTexture=resolve;rejectHeartTexture=reject;});
 heldItemTextures = {
     heart: texLoader.load('./imagenes/Sprites/corazon.png', () => {updateHeldItemLayout();resolveHeartTexture();}, undefined, rejectHeartTexture),
-    key: texLoader.load('./imagenes/Sprites/llave.png', () => updateHeldItemLayout()),
+    key: texLoader.load('./imagenes/Sprites/llave-modelo.png', () => updateHeldItemLayout()),
     'sea-heart': texLoader.load('./imagenes/Sprites/corazon-mar.png', () => updateHeldItemLayout())
 };
 for (const texture of Object.values(heldItemTextures)) {
@@ -1661,7 +1707,7 @@ function updateHeldItemLayout() {
     const imageRatio = texture.image ? texture.image.width / texture.image.height : 1;
     const height = viewRadius * 0.6;
     const width = Math.min(height * imageRatio, viewRadius * 0.65);
-    heldItemSprite.position.set(viewRadius * 0.32, -viewRadius * 0.35, -distance);
+    heldItemSprite.position.set(viewRadius * 0.32, -viewRadius * (heldItem === 'key' ? 0.52 : 0.35), -distance);
     heldItemSprite.scale.set(width, height, 1);
     if (heldHeartGlow) {
         heldHeartGlow.position.copy(heldItemSprite.position);
@@ -2597,18 +2643,11 @@ async function buildWorld(prepared, checkpoint) {
                         chestMesh.add(pickup); chestMesh.userData.sunglassesPickup = pickup;
                     }
                     if (chestMesh.userData.item === 'map') {
-                        // SVG sin dimensiones intrínsecas: rasterizar una vez para WebGL.
-                        const canvas = document.createElement('canvas');
-                        canvas.width = canvas.height = 128;
-                        const texture = new THREE.CanvasTexture(canvas);
-                        const icon = new Image();
-                        icon.onload = () => {
-                            canvas.getContext('2d').drawImage(icon,0,0,128,128);
-                            texture.needsUpdate = true;
-                        };
-                        icon.src = './imagenes/Sprites/mapa.svg';
+                        // El mismo sprite del mapa plegado usado en el inventario.
+                        const texture = texLoader.load('./imagenes/Sprites/mapa-maqueta.png');
                         texture.colorSpace = THREE.SRGBColorSpace;
-                        const pickup = new THREE.Mesh(new THREE.PlaneGeometry(.48,.32),
+                        texture.minFilter = texture.magFilter = THREE.NearestFilter;
+                        const pickup = new THREE.Mesh(new THREE.PlaneGeometry(.48,.48),
                             new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));
                         pickup.name = 'map-inside-chest';
                         pickup.position.set(0,-.235,-.015);
@@ -2887,7 +2926,6 @@ async function buildWorld(prepared, checkpoint) {
     scene.add(maderaFloorMesh);
     waterDeckMesh.count = waterDeckCount;
     scene.add(waterDeckMesh);
-    torchLighting = createTorchLighting(THREE, scene, worldTorches);
     
     // --- GENERACIÓN DE TERRENO (MONTAÑAS CONTINUAS CON TEXTURAS) ---
     const SUBDIVISIONS = 4;
@@ -3221,12 +3259,7 @@ async function buildWorld(prepared, checkpoint) {
     scene.add(submergedShip);
 
     const helmetGeometry = createDivingHelmetGeometry(THREE);
-    const helmet = new THREE.Mesh(helmetGeometry, [
-        new THREE.MeshPhongMaterial({ color: 0x9f7542, shininess: 22, flatShading: true }),
-        new THREE.MeshPhongMaterial({ color: 0xc39b58, shininess: 28, flatShading: true }),
-        new THREE.MeshPhongMaterial({ color: 0x153139, shininess: 45 }),
-        new THREE.MeshPhongMaterial({ color: 0x516c5d, shininess: 10, flatShading: true })
-    ]);
+    const helmet = new THREE.Mesh(helmetGeometry, createDivingHelmetMaterials(THREE));
     const helmetX = divingHelmet.position.x * UNIT_SIZE;
     const helmetZ = divingHelmet.position.z * UNIT_SIZE;
     helmet.name = divingHelmet.id;
@@ -3309,7 +3342,7 @@ async function buildWorld(prepared, checkpoint) {
         const x = (position.x + (size.x - 1) / 2) * UNIT_SIZE + (definition.offset?.x ?? 0);
         const z = (position.z + (size.z - 1) / 2) * UNIT_SIZE + (definition.offset?.z ?? 0);
         const isBed = definition.type === 'BED';
-        const model = new THREE.Mesh(definition.type === 'BEACH_PLANK_TABLE' ? createBeachPlankTableGeometry(THREE) : definition.type === 'RUSTIC_BEACH_CHAIR' ? createRusticBeachChairGeometry(THREE) : definition.type === 'SPICE_SHELF' ? createSpiceShelfGeometry(THREE) : definition.type === 'WOOD_STOVE' ? createWoodStoveGeometry(THREE) : definition.type === 'ANTIQUE_STOVE' ? createAntiqueStoveGeometry(THREE) : definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
+        const model = new THREE.Mesh(definition.type === 'BEACH_PLANK_TABLE' ? createBeachPlankTableGeometry(THREE) : definition.type === 'RUSTIC_BEACH_CHAIR' ? createRusticBeachChairGeometry(THREE) : definition.type === 'SPICE_SHELF' ? createSpiceShelfGeometry(THREE) : definition.type === 'WOOD_STOVE' ? createWoodStoveGeometry(THREE,{withWood:false}) : definition.type === 'ANTIQUE_STOVE' ? createAntiqueStoveGeometry(THREE) : definition.type === 'STUMP' ? createStumpGeometry(THREE) : definition.type === 'WORKBENCH' ? createWorkbenchGeometry(THREE) : definition.type === 'LOG_STACK' ? createLogStackGeometry(THREE) : isBed ? createBedGeometry(THREE) : definition.type === 'BARREL' ? createBarrelGeometry(THREE) : definition.type === 'BOOKSHELF' ? createBookshelfGeometry(THREE) : definition.type === 'TABLE' ? createTableGeometry(THREE) : definition.type === 'CHAIR' ? createChairGeometry(THREE) : definition.type === 'WARDROBE' ? createWardrobeGeometry(THREE) : definition.type === 'DESK' ? createDeskGeometry(THREE) : definition.type === 'CRATE_STACK' ? createCrateStackGeometry(THREE) : definition.type === 'SHELF' ? createShelfGeometry(THREE) : definition.type === 'DRESSER' ? createDresserGeometry(THREE) : definition.type === 'BARREL_STACK' ? createBarrelStackGeometry(THREE) : createSideTableGeometry(THREE), isBed ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0xd8ceb3, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: 0x40566b, shininess: 0 })
@@ -3343,7 +3376,7 @@ async function buildWorld(prepared, checkpoint) {
             new THREE.MeshPhongMaterial({ color: 0xd7dce0, specular: 0xb8c2cc, shininess: 48 })
         ] : definition.type === 'LOG_STACK' ? createLogStackMaterials(THREE) : definition.type === 'BOOKSHELF' ? [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
-            ...[0x783d32, 0x354e65, 0x486044, 0x716044].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
+            ...[0x5a334a, 0x2b4565, 0x2b5143, 0x716044, 0x4c3b60].map(color => new THREE.MeshPhongMaterial({ color, shininess: 0 }))
         ] : [
             new THREE.MeshPhongMaterial({ map: maderaTex, color: 0x8b5936, shininess: 0 }),
             new THREE.MeshPhongMaterial({ color: definition.type === 'CRATE_STACK' ? 0x55351f : 0x555555, shininess: 12 })
@@ -3367,6 +3400,8 @@ async function buildWorld(prepared, checkpoint) {
             interactables.push(model);
         }
         if (definition.type === 'WOOD_STOVE') {
+            woodStoveFire = createWoodStoveFire(THREE,model,torchFrames,furnitureScale);
+            worldTorches.push(woodStoveFire.torch);
             const pipeAt = new THREE.Vector3(0,0,-0.14).multiplyScalar(furnitureScale).applyEuler(model.rotation).add(model.position);
             const roofLimit = atticSupport?.upperLimit(pipeAt.x, pipeAt.z);
             // Superar la cubierta escalonada sin modificarla ni abrir un paso para el jugador.
@@ -3383,6 +3418,9 @@ async function buildWorld(prepared, checkpoint) {
             writingSet.scale.setScalar(furnitureScale);
             writingSet.position.x = -0.5; // Derecha en la vista desde la silla, junto a su desplazamiento.
             model.add(writingSet);
+            const book = writingSet.getObjectByName('graham-desk-book');
+            book.userData = { type: 'READABLE_BOOK', id: 'graham-journal' };
+            interactables.push(book);
         }
         if (definition.id === 'graham-table') {
             const mateSet = createMateSet(THREE);
@@ -3399,6 +3437,8 @@ async function buildWorld(prepared, checkpoint) {
         solidInteractables.push(model);
         if (definition.id === 'graham-stump') interactables.push(model);
     }
+
+    torchLighting = createTorchLighting(THREE, scene, worldTorches);
 
     for (const definition of kitchenSacks) {
         { const pause = checkpoint(); if (pause) await pause; }
@@ -3950,6 +3990,8 @@ function animate(timestamp = performance.now()) {
         previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const rawDelta = cameraDelta;
+        hud.updateHelmetCrack(rawDelta);
+        updateHelmetBreak(rawDelta);
         const delta = Math.min(rawDelta, 0.1);
         updateBedCeilingBreak(delta);
         vegetationDelta = delta;
@@ -3977,6 +4019,12 @@ function animate(timestamp = performance.now()) {
             .sub(seaHeartListenerPosition).applyQuaternion(seaHeartListenerRotation);
         musicEvents.updateAltarFirePosition({x:altarFireSoundRelative.x,y:altarFireSoundRelative.y,z:altarFireSoundRelative.z,
             enabled:!caveMap?.active && !isDead});
+        if (woodStoveFire) {
+            stoveFireSoundRelative.copy(woodStoveFire.position).sub(seaHeartListenerPosition)
+                .applyQuaternion(seaHeartListenerRotation);
+            musicEvents.updateStoveFirePosition({x:stoveFireSoundRelative.x,y:stoveFireSoundRelative.y,z:stoveFireSoundRelative.z,
+                enabled:woodStoveFire.lit && !caveMap?.active && !isDead});
+        }
         musicEvents.update(delta);
         if (mapChestSoundSource) {
             if (musicEvents.isChestUnlockPlaying()) musicEvents.updateChestUnlockPosition(getMapChestSoundPosition());
@@ -4332,7 +4380,10 @@ function animate(timestamp = performance.now()) {
             && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
-            if (targetInteractable.userData.type === 'CHAIR') {
+            if (targetInteractable.userData.type === 'READABLE_BOOK') {
+                hud.setInteractionText('Presiona E para leer la bitácora');
+                hud.setInteractionColor('#ffeb3b');
+            } else if (targetInteractable.userData.type === 'CHAIR') {
                 hud.setInteractionText('Presiona E para sentarte');
                 hud.setInteractionColor('#ffeb3b');
             } else if (targetInteractable.userData.type === 'GARDEN_NOTE') {
@@ -4601,7 +4652,8 @@ function animate(timestamp = performance.now()) {
                     ? BED_BOUNCE_INITIAL_TIME_SCALE + (1 - BED_BOUNCE_INITIAL_TIME_SCALE) * bedBuild * bedBuild * (3 - 2 * bedBuild)
                     : 1;
                 // Dar algo más de aire al salto normal sin aumentar su impulso ni tocar la cama.
-                const airTempo = !onBed && !inWater && !isRidingBoat ? NORMAL_JUMP_TIME_SCALE : bedTempo;
+                const airTempo = inWater && !isRidingBoat && isPlayerUnderwater() ? UNDERWATER_MOTION_TIME_SCALE
+                    : !onBed && !inWater && !isRidingBoat ? NORMAL_JUMP_TIME_SCALE : bedTempo;
                 const verticalDelta = delta * airTempo;
                 // Flotar más al saltar o caer en el agua; los botes conservan su gravedad.
                 const waterGravityScale = velocityY < 0 ? WATER_FALL_GRAVITY_SCALE : WATER_GRAVITY_SCALE;
@@ -4737,7 +4789,8 @@ function animate(timestamp = performance.now()) {
             if (!isFlying) {
                 if (speed > 1.0 && canJump && !isRidingBoat) {
                     const previousBob = bobTimer;
-                    const underwaterCadence = isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 1;
+                    const underwaterCadence = isPlayerUnderwater()
+                        ? DIVING_WATER_SPEED_MOD * (running ? UNDERWATER_MOTION_TIME_SCALE : 1) : 1;
                     bobTimer += delta * (running ? 16.9 : 8.0) * bobCadence * underwaterCadence;
                     controlObj.position.y = targetEyesHeight + Math.sin(bobTimer) * 0.04;
                     // Un golpe al cruzar el punto más bajo; sigue la cadencia del balanceo.
@@ -4885,6 +4938,7 @@ function animate(timestamp = performance.now()) {
         // Animar las antorchas del mundo
         altarFlameTime += delta;
         altarFlames.forEach(flame => updateAltarBlueFire(flame,altarFlameTime));
+        woodStoveFire?.update(altarFlameTime);
         const frameIndex = Math.floor(altarFlameTime / 0.15) % 5;
         if (torchFrames.length === 5) {
             for (let i = 0; i < torchSprites.length; i++) {

@@ -3,7 +3,8 @@ export function createInteractionAudio(context, isPaused) {
     const buffers = new Map();
     const reversedBuffers = new Map();
     let loading = null;
-    const files = {chest:'cofre_abrir_web.mp3', door:'puerta_abrir_web.mp3', key:'puerta_llave_web.mp3'};
+    const files = {chest:'cofre_abrir_web.mp3', door:'puerta_abrir_web.mp3', key:'puerta_llave_web.mp3',
+        helmetCrack:'trizadura.wav', helmetCrack2:'trizadura2.wav', helmetCrack3:'trizadura3.wav', helmetGlassPop:'vidrio_pop.mp3'};
     function prepare() {
         if (!loading) loading = Promise.all(Object.entries(files).map(async ([id,file]) => {
             try {

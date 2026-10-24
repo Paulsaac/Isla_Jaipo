@@ -19,7 +19,12 @@ export async function createSavedIslandPreview() {
         menu.prepend(canvas);
         return canvas;
     }
-    let canvas = canvasElement(), driver, worker;
+    let canvas = canvasElement(), driver, worker, night = false, themeHint = null;
+    function reportTheme(enabled) {
+        night=Boolean(enabled);
+        document.body.dataset.previewTheme=night ? 'night' : 'day';
+        if(themeHint)themeHint.textContent=night ? '[L] Ver día' : '[L] Ver noche';
+    }
     const presentation = {};
     let latestFreeFrame = null, freeFrameScheduled = false;
     const longTasks = [];
@@ -106,6 +111,7 @@ export async function createSavedIslandPreview() {
                 } else if (data.type === 'ready') readyResolve();
                 else if (data.type === 'arrived') resolveArrival();
                 else if (data.type === 'shade') updateShade(data.opacity);
+                else if (data.type === 'theme') reportTheme(data.night);
                 else if (data.type === 'stats') reportStats(data.stats);
                 else if (data.type === 'camera') reportCamera(data.state);
                 else if (data.type === 'error') fail(new Error(data.message));
@@ -113,6 +119,7 @@ export async function createSavedIslandPreview() {
             worker.postMessage({type:'init',...settings,threeUrl,canvas:offscreen},[offscreen]);
             await ready;
             driver = {
+                setNight: enabled => worker.postMessage({type:'night',enabled}),
                 resize: (width,height) => worker.postMessage({type:'resize',width,height}),
                 startLoading: () => worker.postMessage({type:'loading'}),
                 startFade: () => worker.postMessage({type:'fade'}),
@@ -132,7 +139,7 @@ export async function createSavedIslandPreview() {
         const loader = new THREE.TextureLoader();
         driver = await createIslandPreviewRenderer(THREE,{
             ...settings,canvas,loadTexture: name => loader.loadAsync(settings.textureBase+name),
-            onShade:updateShade,onStats:reportStats,onCamera:reportCamera
+            onShade:updateShade,onStats:reportStats,onCamera:reportCamera,onTheme:reportTheme
         });
     }
     const resize = new ResizeObserver(() => driver.resize(
@@ -140,19 +147,37 @@ export async function createSavedIslandPreview() {
     resize.observe(menu);
     document.body.classList.add('island-preview');
     menu.classList.add('intro-ready');
+    themeHint = document.createElement('p');
+    themeHint.className = 'preview-theme-hint';reportTheme(night);
+    menu.append(themeHint);
+    function toggleTheme(event) {
+        if (event.code !== 'KeyL' || event.repeat || event.ctrlKey || event.altKey || event.metaKey
+            || event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+        event.preventDefault();
+        reportTheme(!night);
+        driver.setNight(night);
+    }
+    document.addEventListener('keydown',toggleTheme);
+    function stopThemeSwitch() {
+        document.removeEventListener('keydown',toggleTheme);
+        themeHint.hidden = true;
+    }
     if (diagnostics) {
         document.body.dataset.previewRenderer = worker ? 'worker' : 'principal';
         console.info('[Portada] render',document.body.dataset.previewRenderer);
     }
     return {
-        startLoading() { driver.startLoading(); },
+        startLoading() { stopThemeSwitch(); driver.startLoading(); },
         startFade() { markTransition('fadeStarted'); menuMusic.fadeOut(); driver.startFade(); },
         begin() {
+            stopThemeSwitch();
             markTransition('begin');
             menu.classList.add('intro-arriving');
             return driver.begin();
         },
         reveal() {
+            stopThemeSwitch();
+            themeHint.remove();
             menuMusic.stop();
             resize.disconnect();
             menu.style.display = 'none';

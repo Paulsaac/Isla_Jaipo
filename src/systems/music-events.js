@@ -13,7 +13,7 @@ export function createMusicEvents() {
     let nightForestAmbience = null, interactionAudio = null;
     let riverAmbience = null;
     let seaAmbience = null;
-    let altarFireAudio = null;
+    let altarFireAudio = null, stoveFireAudio = null;
     let forestHeartBeacon = null;
     let grassFootstep = null;
     let grassFootstepLoad = null;
@@ -64,6 +64,8 @@ export function createMusicEvents() {
         if (!seaAmbience) seaAmbience = createSeaAmbience(context);
         if (!altarFireAudio) altarFireAudio = createAltarFireAudio(context);
         altarFireAudio.prepare();
+        if (!stoveFireAudio) stoveFireAudio = createAltarFireAudio(context,{ignitionVolume:0.75,loopVolume:0.075});
+        stoveFireAudio.prepare();
         prepareGrassFootstep();
         prepareSandFootstep();
         prepareExtraFootsteps();
@@ -239,6 +241,18 @@ export function createMusicEvents() {
             sound.onended=()=>{if(chestUnlockSound===sound)chestUnlockSound=null;};
         });
         return true;
+    }
+    function playHelmetCrack(stage = 1) {
+        const id = stage === 3 ? 'helmetCrack3' : stage === 2 ? 'helmetCrack2' : 'helmetCrack';
+        const playback = {playing:false};
+        interactionAudio?.play(id,{x:0.2,y:0.15,z:-0.3},sound=>{
+            playback.playing = true;
+            sound.onended = () => { playback.playing = false; };
+        });
+        return playback;
+    }
+    function playHelmetGlassPop() {
+        return interactionAudio?.play('helmetGlassPop',{x:0.2,y:0.15,z:-0.3});
     }
 
     function updateForestAmbience(state) {
@@ -668,7 +682,7 @@ export function createMusicEvents() {
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
     function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
-    return {unlock,setPaused,igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {unlock,setPaused,playHelmetCrack,playHelmetGlassPop,igniteStoveFire: () => stoveFireAudio?.ignite(),updateStoveFirePosition: state => stoveFireAudio?.updatePosition(state),igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

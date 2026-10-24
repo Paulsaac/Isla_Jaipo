@@ -13,7 +13,7 @@ function start() {
     if (!context) {
         context = new (window.AudioContext || window.webkitAudioContext)();
         gain = context.createGain();
-        gain.gain.value = 0.45;
+        gain.gain.value = 0.2205;
         context.createMediaElementSource(audio).connect(gain);
         gain.connect(context.destination);
     }

@@ -4,6 +4,9 @@ Rol de esta sesión: diseño estético e interacciones solicitadas por Clawshoot
 
 Respaldo previo a publicación: `.coordination/backups/Jaipo_2026-10-24_antes_PR.zip`. Incluye archivos del juego, Git, recursos locales, referencias y auxiliares de esta copia; excluye `.coordination/backups/` y `.coordination/session.json`. Se conserva el ZIP del 23. Las referencias `.codex-remote-attachments/`, las pruebas/capturas de `.coordination/` y `exports/telescopio/telescopio.blend1` quedan en el respaldo local; no son archivos de ejecución que deban publicarse en el PR.
 
+## Combinación con main y validación de publicación
+
+Se combinó origin/main 69fa791 en la rama de entrega, conservando sus 44 archivos nuevos/modificados. Conflictos resueltos en game.js, src/ui/inventory-model.js y src/ui/menus.js: permanecen la bitácora de Graham, el lector de libros, el giro manual y modelos nuevos de inventario y todas las funciones de Astroscopio/Omniscopio de esta sesión. Comprobación posterior: sintaxis de 175 módulos sin fallos; check-scope-variable-zoom.cjs y check-garden-notebook.cjs pasan sobre el árbol combinado. check-pr-main-compat.cjs confirma abrir/cerrar bitácora y previsualizar/rotar mapa, llave y Astroscopio sin errores de navegador. Licencia Caveat conserva su texto; se retiró solo un espacio final. El respaldo previo fue verificado por CRC: 2291 archivos, 604083068 bytes; SHA256 f94f7edd5f513b7886129d93d41014b9a7089fe9cb13b2a9fc21c248fa51eb46.
 ## Estado final que prevalece sobre las entradas históricas
 
 - **Astroscopio:** 3× basal antes y después de repararlo; Lente Bifrost desbloquea 20×. Reparación por E/B únicamente al apuntar a la lente o a su perímetro de radio 0.20 m, nunca al escritorio/libro/herramientas completos. Se retira la lente de la mesa y se instala en el objeto de mano.

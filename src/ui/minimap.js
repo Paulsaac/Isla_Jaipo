@@ -47,16 +47,17 @@ export function createMinimap() {
         minimapImg.style.imageRendering = 'pixelated';
         minimapContainer.appendChild(minimapImg);
 
-        // Ambos mapas cubren la misma extensión X/Z: escalar sin recortar
-        // conserva las coordenadas normalizadas del indicador sobre el dibujo.
+        // Toma cenital de la portada: X crece a la derecha y Z hacia abajo.
+        // Cubre toda la extensión del mapa, sin márgenes ni recortes adicionales.
         const illustratedMap = document.createElement('img');
-        illustratedMap.src = './imagenes/Mapa/mapa_menu.png?v=6';
+        illustratedMap.src = './imagenes/Mapa/isla-cenital.png';
         illustratedMap.alt = '';
         illustratedMap.style.position = 'absolute';
         illustratedMap.style.inset = '0';
         illustratedMap.style.width = '100%';
         illustratedMap.style.height = '100%';
         illustratedMap.style.objectFit = 'fill';
+        illustratedMap.style.imageRendering = 'pixelated';
         illustratedMap.style.pointerEvents = 'none';
         illustratedMap.addEventListener('error', () => { illustratedMap.style.display = 'none'; });
         minimapContainer.appendChild(illustratedMap);

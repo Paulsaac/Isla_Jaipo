@@ -1,5 +1,7 @@
+// Altar y estufa comparten buffers, con reproducción y posición independientes.
+const fireBufferLoads = new WeakMap();
 // Programar ambos buffers en el mismo reloj sincroniza el encendido y el bucle.
-export function createAltarFireAudio(context) {
+export function createAltarFireAudio(context, { ignitionVolume = 1, loopVolume = 0.2 } = {}) {
     const output = context.createGain(), panner = context.createPanner();
     output.gain.value = 0;
     panner.panningModel = 'HRTF'; panner.rolloffFactor = 0;
@@ -7,13 +9,19 @@ export function createAltarFireAudio(context) {
     let loading = null, buffers = null, requested = false, started = false, lastGain = -1;
 
     function prepare() {
-        if (!loading) loading = Promise.all(['fuego_encender.wav','fuego_loop.wav'].map(file =>
-            fetch('./sonidos/fx/'+file).then(response => {
-                if (!response.ok) throw new Error('No se pudo cargar '+file);
-                return response.arrayBuffer();
-            }).then(data => context.decodeAudioData(data))))
-            .then(result => { buffers = result; return true; })
-            .catch(error => { console.warn('Error al cargar el fuego del altar:',error); return false; });
+        if (!loading) {
+            let shared=fireBufferLoads.get(context);
+            if(!shared) {
+                shared=Promise.all(['fuego_encender.wav','fuego_loop.wav'].map(file =>
+                    fetch('./sonidos/fx/'+file).then(response => {
+                        if (!response.ok) throw new Error('No se pudo cargar '+file);
+                        return response.arrayBuffer();
+                    }).then(data => context.decodeAudioData(data))));
+                fireBufferLoads.set(context,shared);
+            }
+            loading=shared.then(result => { buffers = result; return true; })
+                .catch(error => { console.warn('Error al cargar el fuego:',error); return false; });
+        }
         return loading;
     }
     function start() {
@@ -22,7 +30,7 @@ export function createAltarFireAudio(context) {
         const ignition = context.createBufferSource(), loop = context.createBufferSource();
         ignition.buffer = buffers[0]; loop.buffer = buffers[1]; loop.loop = true;
         const ignitionGain = context.createGain(), loopGain = context.createGain();
-        ignitionGain.gain.value = 1; loopGain.gain.value = 0.2;
+        ignitionGain.gain.value = ignitionVolume; loopGain.gain.value = loopVolume;
         ignition.connect(ignitionGain); ignitionGain.connect(output);
         loop.connect(loopGain); loopGain.connect(output);
         ignition.onended = () => { ignition.disconnect(); ignitionGain.disconnect(); };

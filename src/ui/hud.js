@@ -10,6 +10,14 @@ export function createHud() {
     const itemNotification = document.getElementById('item-notification');
     const pendingItems = [];
     const helmetView = document.getElementById('diving-helmet-view');
+    const helmetCrackSegments = [...helmetView.querySelectorAll('[data-crack-start]')].map(group => ({
+        paths: [...group.querySelectorAll('path')],
+        stage: Number(group.dataset.crackStage || 1),
+        start: Number(group.dataset.crackStart) / 1000,
+        duration: Number(group.dataset.crackDuration) / 1000
+    }));
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    let helmetCrackStage = 0, helmetCrackTime = 0, helmetCrackDuration = 1.4, helmetCrackComplete = true;
     const underwaterTint = document.getElementById('underwater-tint');
     const lensModeName = document.getElementById('lens-mode-name');
     let lensModeTimer = null;
@@ -26,26 +34,45 @@ export function createHud() {
     const airTrack = document.getElementById('diving-air-track');
     let displayedAir = null;
     let helmetViewVisible = false;
-    let itemTimer = null;
+    let itemAnimation = null, itemVersion = 0;
 
     function showNextItem() {
+        const version = ++itemVersion;
         if (!pendingItems.length) {
             itemNotification.style.display = 'none';
-            itemTimer = null;
             return;
         }
         itemNotification.textContent = pendingItems.shift();
         itemNotification.style.display = 'block';
-        itemTimer = setTimeout(showNextItem, 3500);
+        const reduced = reducedMotion.matches;
+        const enter = reduced ? 200 : 650, hold = 2000, exit = reduced ? 180 : 350;
+        const duration = enter + hold + exit;
+        const rest = 'translate(-50%, -50%)';
+        itemAnimation = itemNotification.animate([
+            {opacity:0,transform:reduced ? rest : 'translate(-50%, calc(25dvh + 100%))',offset:0,easing:'cubic-bezier(0.22,1,0.36,1)'},
+            {opacity:1,transform:rest,offset:enter/duration},
+            {opacity:1,transform:rest,offset:(enter+hold)/duration,easing:'cubic-bezier(0.4,0,1,1)'},
+            {opacity:0,transform:reduced ? rest : 'translate(-50%, calc(-25dvh - 50%))',offset:1}
+        ],{duration,fill:'both'});
+        itemAnimation.finished.then(() => {
+            if (version !== itemVersion) return;
+            itemAnimation.cancel();itemAnimation = null;
+            showNextItem();
+        }).catch(() => {});
     }
 
     function showReceivedItem(name) {
         showNotification(`Has recibido ${name}`);
     }
 
-    function showNotification(text) {
+    function showNotification(text, { immediate = false } = {}) {
+        if (immediate) {
+            itemVersion++;
+            itemAnimation?.cancel();itemAnimation = null;
+            pendingItems.length = 0;
+        }
         pendingItems.push(text);
-        if (itemTimer === null) showNextItem();
+        if (itemAnimation === null) showNextItem();
     }
 
     function showInteraction() { message.style.display = 'block'; }
@@ -67,6 +94,25 @@ export function createHud() {
         if (visible === helmetViewVisible) return;
         helmetViewVisible = visible;
         helmetView.style.display = visible ? 'block' : 'none';
+    }
+    function setHelmetCrackStage(stage, duration = 1.4) {
+        if (helmetCrackStage === stage) return;
+        helmetCrackStage = stage;
+        helmetView.classList.toggle('helmet-glass-cracked',stage > 0);
+        helmetCrackDuration = duration;
+        helmetCrackTime = reducedMotion.matches ? duration : 0;
+        helmetCrackComplete = false;
+        updateHelmetCrack(0);
+    }
+    function updateHelmetCrack(delta) {
+        if (helmetCrackComplete) return;
+        helmetCrackTime = reducedMotion.matches ? helmetCrackDuration : Math.min(helmetCrackDuration,helmetCrackTime + delta);
+        for (const segment of helmetCrackSegments) {
+            const progress = segment.stage < helmetCrackStage ? 1 : segment.stage > helmetCrackStage || helmetCrackStage === 0 ? 0
+                : Math.max(0,Math.min(1,(helmetCrackTime / helmetCrackDuration * 1.4 - segment.start) / segment.duration));
+            for (const path of segment.paths) path.style.strokeDashoffset = String(1 - progress);
+        }
+        helmetCrackComplete = helmetCrackTime >= helmetCrackDuration;
     }
     function showDivingAir(remaining, maximum) {
         airContainer.style.display = 'block';
@@ -101,5 +147,5 @@ export function createHud() {
         coordinates.textContent = text;
     }
 
-    return { showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
+    return { showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, setHelmetCrackStage, updateHelmetCrack, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
 }

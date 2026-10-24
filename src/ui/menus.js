@@ -1,4 +1,5 @@
 import { arrangeInventory } from './inventory-layout.js';
+import { createBookReader } from './book-reader.js';
 // Presentación de menús. El estado y las reglas permanecen en game.js.
 export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const mainMenu = document.getElementById('main-menu');
@@ -8,6 +9,7 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const dialogBox = document.getElementById('dialog-box');
     const dialogText = document.getElementById('dialog-text');
     const dialogHint = document.getElementById('dialog-hint');
+    const bookReader = createBookReader();
     const keyCountDisplay = document.getElementById('key-count');
     const keyIcon = document.getElementById('key-icon');
     const heartIcon = document.getElementById('forest-heart-icon');
@@ -112,6 +114,7 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         return true;
     }
     function showDialog(text, { automatic = false, blurBackdrop = true, anonymous = false, smooth = false, speaker = 'Graham' } = {}) {
+        bookReader.hide();
         const version = ++dialogVersion;
         const waitForControls = !anonymous && document.body.classList.contains('touch-mode')
             && dialogBox.style.display !== 'block';
@@ -126,11 +129,12 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
             setDialogText(text);
             document.getElementById('dialog-name').hidden = anonymous;
             document.getElementById('dialog-name').textContent = speaker;
+            document.getElementById('dialog-name').style.color = speaker === 'Graham' ? '#7b9278' : '#ffeb3b';
             dialogBox.style.textAlign = anonymous ? 'center' : '';
             dialogHint.hidden = automatic;
             if (document.body.classList.contains('touch-mode'))
                 dialogHint.textContent = anonymous ? '[B] Continuar' : '(Tocar para continuar)';
-            dialogBox.style.backdropFilter = blurBackdrop ? 'blur(4px)' : 'none';
+            dialogBox.style.setProperty('--dialog-backdrop-filter',blurBackdrop ? 'blur(4px)' : 'none');
             dialogBox.style.visibility = 'hidden';
             dialogBox.style.display = 'block';
             dialogText.style.minHeight = `${dialogText.getBoundingClientRect().height}px`;
@@ -191,12 +195,14 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         reveal();
     }
     function hideDialog() {
+        bookReader.hide();
         ++dialogVersion;
         stopDialogTyping();
         dialogAnimation?.cancel();
         dialogAnimation = null;
         dialogBox.style.display = 'none';
     }
+    function showBook(book) {hideDialog();bookReader.show(book);}
     function setKeyCount(count) {
         keyCountDisplay.innerText = count;
         keyIcon.style.display = count > 0 ? 'block' : 'none';
@@ -217,23 +223,32 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         button.setAttribute('aria-label', equipped ? 'Quitar lentes de sol rosados' : 'Equipar lentes de sol rosados');
     }
     function setMapVisible(visible) { mapIcon.style.display = visible ? 'block' : 'none'; itemButtons.map.style.display = visible ? 'block' : 'none'; }
-    function setItemActive(item, active) { itemButtons[item]?.setAttribute('aria-pressed', String(active)); }
+    function setItemActive(item, active) {
+        itemButtons[item]?.setAttribute('aria-pressed', String(active));
+        if(item==='torch')inventoryPreview.setTorchLit(active);
+    }
     function setItemDescription(text) { description.textContent = text; }
     function setSeaHeartState(count, complete) {
         itemButtons['sea-heart'].style.display = count > 0 ? 'block' : 'none';
         seaHeartIcon.src = complete ? './imagenes/Sprites/corazon-mar.png' : './imagenes/Sprites/fragmento-mar.png';
         seaHeartCount.textContent = complete ? '' : `${count}/10`;
         seaHeartIcon.alt = complete ? 'Corazón del Mar' : 'Fragmentos del Corazón del Mar';
-        itemButtons['sea-heart'].setAttribute('aria-label',complete ? 'Seleccionar Corazón del Mar' : `Fragmentos del Corazón del Mar: ${count} de 10`);
+        itemButtons['sea-heart'].setAttribute('aria-label',complete ? 'Ver Corazón del Mar' : `Ver fragmentos del Corazón del Mar: ${count} de 10`);
+        inventoryPreview.setSeaHeartComplete(complete);
     }
-    function setHelmetState(owned, equipped, broken = false) {
+    function setHelmetState(owned, equipped, broken = false, cracked = broken) {
         helmetItem.style.display = owned ? 'block' : 'none';
         helmetItem.setAttribute('aria-pressed', String(equipped));
-        helmetItem.style.opacity = broken ? '0.4' : '1';
-        const label = broken ? 'Escafandra rota — ya no puede equiparse.' : equipped ? 'Casco de escafandra — equipado. Pulsa para quitarlo.' : 'Casco de escafandra — pulsa para equiparlo.';
+        helmetItem.dataset.broken = String(broken);
+        helmetItem.dataset.cracked = String(cracked || broken);
+        helmetItem.style.opacity = broken ? '0.85' : '1';
+        inventoryPreview.setHelmetDamage(cracked,broken);
+        const label = broken ? 'Escafandra rota — ya no puede equiparse.' : cracked
+            ? (equipped ? 'Escafandra agrietada — equipada. Pulsa para quitarla.' : 'Escafandra agrietada — pulsa para equiparla.')
+            : equipped ? 'Casco de escafandra — equipado. Pulsa para quitarlo.' : 'Casco de escafandra — pulsa para equiparlo.';
         helmetItem.title = label;
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { isDialogVisible() { return dialogBox.style.display === 'block'; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

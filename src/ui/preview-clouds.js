@@ -1,4 +1,5 @@
 // Velo 2D de portada, fijo al encuadre y compatible con el worker de la maqueta.
+const CLOUD_ROTATION_SPEED = Math.PI * 2 / 90;
 export function createPreviewClouds(THREE) {
     const scene = new THREE.Scene();
     const camera = new THREE.Camera();
@@ -6,7 +7,7 @@ export function createPreviewClouds(THREE) {
         transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
         uniforms: { time: { value: 0 }, aspect: { value: 1 }, orbitAngle: { value: 0 },
             viewTilt: { value: Math.PI * 0.27 }, halfFov: { value: Math.PI / 9 }, passage: { value: 0 },
-            visibility: { value: 1 }, opacity: { value: 0.48 } },
+            visibility: { value: 1 }, opacity: { value: 0.48 }, nightMix: { value: 0 } },
         vertexShader: `
             varying vec2 cloudUv;
             void main() {
@@ -23,6 +24,7 @@ export function createPreviewClouds(THREE) {
             uniform float opacity;
             uniform float passage;
             uniform float visibility;
+            uniform float nightMix;
             float hash(vec2 p) {
                 vec3 q = fract(vec3(p.xyx) * 0.1031);
                 q += dot(q, q.yzx + 33.33);
@@ -44,10 +46,11 @@ export function createPreviewClouds(THREE) {
                 vec2 p = vec2(screen.x * aspect, screen.y / tiltSin) * 3.6 / perspective;
                 // Zoom centrado en pantalla: no elegir ni perseguir manchas de nube.
                 p *= mix(1.0, 0.10, passage);
-                // Deriva en pantalla; el dibujo gira con la órbita de la isla.
-                p -= vec2(0.045, 0.045) * time;
+                // Girar sobre el centro fijo antes de aplicar la deriva. Si se rota
+                // también el desplazamiento acumulado, la velocidad crece con el tiempo.
                 float c = cos(orbitAngle), s = sin(orbitAngle);
                 p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+                p -= vec2(0.045, 0.045) * time;
                 // Cuadrícula en el dibujo: los bordes escalonados giran con el velo.
                 p = (floor(p * 12.0) + 0.5) / 12.0;
                 // Deformar el dibujo rompe las franjas: grupos, remolinos y jirones.
@@ -66,6 +69,7 @@ export function createPreviewClouds(THREE) {
                 density = floor(density * 5.0 + 0.5) / 5.0;
                 // Mantener variaciones del dibujo incluso cuando cubre todo el encuadre.
                 vec3 color = mix(vec3(0.84, 0.88, 0.92), vec3(1.0), cloud);
+                color *= mix(vec3(1.0),vec3(0.22,0.30,0.46),nightMix);
                 float alpha = density * opacity * visibility;
                 gl_FragColor = vec4(color, alpha);
             }`
@@ -78,10 +82,14 @@ export function createPreviewClouds(THREE) {
     scene.add(quad);
     let passageTime = -1;
     return {
-        update(delta, aspect, reduced, arrivalProgress, orbitAngle = 0, viewTilt = Math.PI * 0.27, fov = 40, loadingSeconds = -1) {
-            if (!reduced) material.uniforms.time.value += delta;
+        setNightMix(amount) {material.uniforms.nightMix.value = amount;},
+        update(delta, aspect, reduced, viewTilt = Math.PI * 0.27, fov = 40, loadingSeconds = -1) {
+            if (!reduced) {
+                material.uniforms.time.value += delta;
+                // Reloj propio: no heredar la aceleración de la cámara durante la carga.
+                material.uniforms.orbitAngle.value = (material.uniforms.orbitAngle.value + delta * CLOUD_ROTATION_SPEED) % (Math.PI * 2);
+            }
             material.uniforms.aspect.value = aspect;
-            material.uniforms.orbitAngle.value = orbitAngle;
             material.uniforms.viewTilt.value = viewTilt;
             material.uniforms.halfFov.value = fov * Math.PI / 360;
             // Reloj propio: continúa aunque la carga termine y comience la llegada.

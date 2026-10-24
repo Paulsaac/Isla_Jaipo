@@ -58,7 +58,7 @@ export function splitWoodGeometry(THREE, source, normal, offset) {
     });
 }
 
-export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin, onEnd, onImpact, random = Math.random }) {
+export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin, onEnd, onImpact, onScore, random = Math.random }) {
     const group = new THREE.Group(); group.name = 'stump-woodcutting'; group.visible = false; scene.add(group);
     const bark = new THREE.MeshPhongMaterial({ color: 0x64442d, flatShading: true, shininess: 0 });
     const endgrain = new THREE.MeshPhongMaterial({ color: 0xc7a06b, flatShading: true, shininess: 0 });
@@ -163,6 +163,7 @@ export function createWoodcutting(THREE, { scene, camera, controls, hud, onBegin
         if (hp === 0) {
             const points = woodLogPoints(hits);
             score += points;
+            onScore?.(score);
             message += ` · ${hits} ${hits === 1 ? 'golpe' : 'golpes'} · +${points} ${points === 1 ? 'punto' : 'puntos'}`;
             const inverse = log.quaternion.clone().invert();
             localNormal.copy(right).applyQuaternion(inverse);

@@ -26,9 +26,17 @@
 #inventory-menu .inventory-orbit .inventory-item img,
 #inventory-menu .inventory-orbit .inventory-item svg {width:72%!important;height:72%!important;max-width:80%;max-height:80%;}
 #inventory-menu .inventory-orbit #torch-icon {transform:rotate(20deg);}
+/* Las primeras nueve filas del sprite incluyen la llama; conservar el mango en su posición. */
+#torch-item[aria-pressed="false"] #torch-icon {clip-path:inset(45% 0 0);}
 .inventory-model-preview {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(170px,40vmin,380px);height:clamp(180px,42vmin,400px);cursor:default;}
-.inventory-model-preview canvas {display:block;width:100%;height:calc(100% - 35px);image-rendering:pixelated;}
+.inventory-model-preview canvas {display:block;width:100%;height:calc(100% - 35px);image-rendering:pixelated;cursor:grab;user-select:none;}
+.inventory-model-preview canvas.is-rotating {cursor:grabbing;}
 .inventory-preview-label {position:absolute;bottom:0;width:100%;margin:0;text-align:center;font:clamp(8px,1.6vw,12px)/1.6 'Press Start 2P',monospace;color:white;}
+#diving-helmet-item .helmet-icon-cracks {display:none;}
+#diving-helmet-item[data-cracked="true"] .helmet-icon-cracks {display:inline;}
+#diving-helmet-item .helmet-icon-final-cracks {display:none;}
+#diving-helmet-item[data-broken="true"] .helmet-icon-final-cracks {display:inline;}
+#diving-helmet-item[data-broken="true"] .helmet-icon-glass {fill:#1a292d;}
 #inventory-menu .inventory-orbit #inventory-item-description {position:absolute;bottom:1%;left:17%;width:66%;max-width:none;min-height:0;margin:0;font-size:clamp(7px,1.3vw,10px);}
 #inventory-menu .orbit-slot[data-inventory-item],#inventory-menu #future-heart-slot {transform:none;top:auto;left:auto;right:auto;bottom:auto;}
 #inventory-menu .orbit-slot[data-inventory-item="heart"],#inventory-menu #future-heart-slot,

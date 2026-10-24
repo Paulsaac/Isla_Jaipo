@@ -90,9 +90,10 @@
         }
 
         #main-menu.intro-ready { background: transparent; }
-        #saved-island-preview { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; image-rendering: auto; }
+        #saved-island-preview { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; z-index: 0; image-rendering: pixelated; }
+        .preview-theme-hint {position:absolute;left:max(18px,env(safe-area-inset-left));top:max(18px,env(safe-area-inset-top));z-index:1;margin:0;color:#d7e6f3;font:10px/1.6 'Press Start 2P',serif;text-shadow:1px 2px 2px #000;pointer-events:none;}
         #main-menu #start-text { z-index: 1; }
-        body.island-preview > canvas { image-rendering: auto; }
+        body.island-preview > canvas { image-rendering: pixelated; }
         #main-menu.intro-arriving #start-text,
         #main-menu.intro-arriving ~ #hardware-acceleration-hint,
         #main-menu[style*="display: none"] ~ #hardware-acceleration-hint { visibility: hidden; }
@@ -214,6 +215,62 @@
             font-family: 'Press Start 2P', cursive;
             backdrop-filter: blur(4px);
         }
+        #pause-menu .game-menu-box {
+            position: relative;
+            isolation: isolate;
+            display: grid;
+            grid-template-rows: 1fr 2fr 1fr;
+            width: min(660px, 90vw);
+            height: min(520px, 92dvh);
+            box-sizing: border-box;
+            padding: 0 clamp(20px, 6vw, 60px);
+            border-radius: 0;
+            background: none;
+            backdrop-filter: none;
+        }
+        #pause-menu .game-menu-box::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+            opacity: .8;
+            background: radial-gradient(ellipse at 25% 18%, #bdd0a018, transparent 65%),
+                linear-gradient(140deg, #7b927866, #07140ed9);
+            backdrop-filter: blur(4px);
+        }
+        #pause-menu .pause-menu-bevel {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+            pointer-events: none;
+        }
+        #pause-menu .pause-menu-content {
+            position: relative;
+            grid-row: 2;
+            align-self: center;
+            min-height: 0;
+            max-height: 100%;
+            overflow: auto;
+            overscroll-behavior: contain;
+        }
+        .touch-mode #pause-menu { justify-content: center; }
+        .touch-mode #pause-menu .game-menu-box {
+            max-width: 90vw;
+            max-height: none;
+            height: min(560px, 68vh, calc(100dvh - 180px));
+            padding: 0 clamp(20px, 6vw, 60px) !important;
+            overflow: hidden;
+        }
+        .touch-mode #pause-menu .pause-menu-content > p:first-child {
+            font-size: 26px !important;
+            margin-bottom: 20px;
+        }
+        .touch-mode #pause-menu #resume-hint { font-size: 12px !important; }
+        .touch-mode #pause-menu #touch-guide { font-size: 11px !important; }
         #pause-menu, #pause-menu *, #inventory-menu, #inventory-menu * {
             -webkit-text-stroke: 2px #000;
             paint-order: stroke fill;
@@ -289,8 +346,41 @@
         #diving-helmet-view {
             display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none;
             background: radial-gradient(ellipse 60% 120% at 50% 50%,
-                transparent 65%, rgba(33,25,9,0.9) 78%, #211909 86%);
+                transparent 64%, #c39b5866 65%, #9f7542b3 67%, #322820e6 72%, #211909 86%);
         }
+        .helmet-visor-grid {
+            --visor-grid-unit: min(2.6vw, 5vh);
+            position: absolute; inset: 0; opacity: .3;
+            clip-path: ellipse(39% 78% at 50% 50%);
+        }
+        .helmet-visor-grid span {
+            position: absolute; border-radius: 1px;
+            box-shadow: 1px 2px 2px #21190980;
+        }
+        .helmet-visor-grid .visor-bar-vertical {
+            top: 0; height: 100%; width: clamp(15px, 3.6vmin, 34.5px);
+            transform: translateX(-50%);
+            background: linear-gradient(90deg, #62482b, #e1bd74 35%, #9f7542 62%, #322820);
+        }
+        .helmet-visor-grid .visor-bar-horizontal {
+            left: 0; width: 100%; height: clamp(15px, 3.6vmin, 34.5px);
+            transform: translateY(-50%);
+            background: linear-gradient(#62482b, #e1bd74 35%, #9f7542 62%, #322820);
+        }
+        .helmet-visor-damage {
+            display: none; position: absolute; inset: 0;
+            clip-path: ellipse(39% 78% at 50% 50%);
+        }
+        .helmet-glass-cracked .helmet-visor-damage { display: block; }
+        .helmet-visor-crack {
+            position: absolute; top: 8%; right: 13%;
+            width: clamp(75px, 22vmin, 210px); height: clamp(90px, 28vmin, 260px);
+            opacity: .45; overflow: visible;
+        }
+        .helmet-visor-crack path { stroke-dasharray: 1; stroke-dashoffset: 1; }
+        .visor-crack-shadow { stroke: #102025; stroke-opacity: .65; stroke-width: 1.3; }
+        .visor-crack-highlight { stroke: #d9ebe7; stroke-opacity: .9; stroke-width: .6; }
+        .visor-crack-hairline { stroke: #c5dedc; stroke-opacity: .65; stroke-width: .28; }
         #underwater-tint {
             position: fixed; inset: 0; z-index: 3; pointer-events: none;
             background: rgba(20, 105, 205, 0.22); opacity: 0;
@@ -408,16 +498,20 @@
             pointer-events: none;
         }
         #item-notification {
-            position: absolute;
-            top: 14%;
+            position: fixed;
+            top: 75dvh;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
+            opacity: 0;
             width: max-content;
             max-width: 90%;
+            box-sizing: border-box;
             padding: 12px 18px;
-            background: rgba(0, 0, 0, 0.7);
+            background: transparent;
             color: #ffeb3b;
-            font-size: 18px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: clamp(12px, 1.6vw, 18px);
+            font-weight: bold;
             line-height: 1.5;
             text-align: center;
             text-shadow: 2px 2px 0 #000;
@@ -442,16 +536,47 @@
             height: 100%;
             background: #6b8e23; /* Verde Musgo */
         }
+        #dialog-box {
+            isolation: isolate;
+            background: transparent;
+            border: 0;
+            --dialog-cloud-opacity: .94;
+            --dialog-fog-x: clamp(18px, 5vw, 70px);
+        }
+        #dialog-box::before, #dialog-box::after {
+            content: '';
+            position: absolute;
+            pointer-events: none;
+        }
+        #dialog-box::before {
+            inset: -6px -10px;
+            z-index: -1;
+            border-radius: 24px;
+            background: rgb(2 7 5 / var(--dialog-cloud-opacity));
+            backdrop-filter: var(--dialog-backdrop-filter, blur(4px));
+            filter: blur(10px);
+        }
+        #dialog-box::after {
+            inset: -40px calc(-1 * var(--dialog-fog-x));
+            z-index: -2;
+            background: radial-gradient(ellipse 30% 38% at 26% 38%, #9bb69a1a, transparent 100%),
+                radial-gradient(ellipse 34% 40% at 66% 62%, #030a07a6, transparent 100%),
+                radial-gradient(ellipse 24% 32% at 80% 38%, #8caa9214, transparent 100%);
+            filter: blur(18px);
+        }
+        #dialog-box > * {
+            position: relative;
+            z-index: 1;
+            text-shadow: 1px 2px 2px #000, -1px 0 2px #000;
+        }
         #dialog-box.thought-dialog {
             box-sizing: border-box;
             left: 50% !important;
             bottom: clamp(56px, 12vh, 150px) !important;
             width: min(620px, calc(100vw - 32px)) !important;
             padding: 16px 22px !important;
-            border-width: 3px !important;
             translate: -50% 0;
-            background: rgba(0, 0, 0, 0.78) !important;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            --dialog-cloud-opacity: .86;
         }
         #dialog-box.thought-dialog #dialog-text {
             margin: 0 0 8px !important;
@@ -466,6 +591,7 @@
         }
     </style>
     <link rel="stylesheet" href="./src/ui/inventory-layout.css">
+    <link rel="stylesheet" href="./src/ui/book-reader.css">
 </head>
 <body>
     <div id="game-version">Isla 0.4.1 (Version de prueba)</div>
@@ -511,7 +637,62 @@
     
     <button type="button" id="touch-dialog-continue" aria-label="Tocar para continuar" hidden></button>
     <!-- Pantallas de UI -->
-    <div id="diving-helmet-view" aria-hidden="true"></div>
+    <div id="diving-helmet-view" aria-hidden="true">
+        <div class="helmet-visor-damage">
+            <svg class="helmet-visor-crack" viewBox="0 0 100 120" aria-hidden="true">
+                <g fill="none" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(92 3) scale(1.15) translate(-92 -3)">
+                    <g data-crack-start="0" data-crack-duration="1400">
+                        <path pathLength="1" class="visor-crack-shadow" d="M92 3L86 8L84 13L75 17L70 23L66 25L68 31L67 35L72 39L73 44L65 46L60 52L53 53L47 57L49 63L48 69L53 75L55 82L48 86L45 93L37 96L34 104L25 111"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M92 3L86 8L84 13L75 17L70 23L66 25L68 31L67 35L72 39L73 44L65 46L60 52L53 53L47 57L49 63L48 69L53 75L55 82L48 86L45 93L37 96L34 104L25 111"/>
+                    </g>
+                    <g data-crack-start="320" data-crack-duration="260">
+                        <path pathLength="1" class="visor-crack-shadow" d="M66 25L59 24L56 20L45 20L41 14L36 12L31 7"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M66 25L59 24L56 20L45 20L41 14L36 12L31 7"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M56 20L53 14L54 9M41 14L39 8L34 5M59 24L55 28L49 29"/>
+                    </g>
+                    <g data-crack-start="510" data-crack-duration="280">
+                        <path pathLength="1" class="visor-crack-shadow" d="M73 44L78 46L80 50L86 49L92 52L99 48"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M73 44L78 46L80 50L86 49L92 52L99 48"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M80 50L78 58L81 64M92 52L94 59L98 61M86 49L88 43L92 41"/>
+                    </g>
+                    <g data-crack-start="790" data-crack-duration="300">
+                        <path pathLength="1" class="visor-crack-shadow" d="M47 57L39 58L35 54L29 55L22 52L17 58L13 59L9 64"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M47 57L39 58L35 54L29 55L22 52L17 58L13 59L9 64"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M35 54L34 47L29 43M22 52L21 46L16 42M17 58L20 65L18 71"/>
+                    </g>
+                    <g data-crack-start="1040" data-crack-duration="300">
+                        <path pathLength="1" class="visor-crack-shadow" d="M55 82L63 85L65 90L72 91L76 95L74 103L78 113"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M55 82L63 85L65 90L72 91L76 95L74 103L78 113"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M65 90L70 84L77 82M74 103L68 107L65 114M48 86L42 83L39 78"/>
+                    </g>
+                    <g data-crack-stage="2" data-crack-start="0" data-crack-duration="1400">
+                        <path pathLength="1" class="visor-crack-shadow" d="M25 111L17 113L13 117L7 116L3 119L5 126L4 131L9 138L2 141L-3 146L-9 146L-15 151"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M25 111L17 113L13 117L7 116L3 119L5 126L4 131L9 138L2 141L-3 146L-9 146L-15 151"/>
+                    </g>
+                    <g data-crack-stage="2" data-crack-start="480" data-crack-duration="400">
+                        <path pathLength="1" class="visor-crack-shadow" d="M3 119L-3 116L-6 111L-12 109L-18 112L-23 111L-27 114"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M3 119L-3 116L-6 111L-12 109L-18 112L-23 111L-27 114"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M-6 111L-5 105L-8 100M4 131L-3 132L-7 128M-3 146L-1 152L-4 157"/>
+                    </g>
+                    <g data-crack-stage="3" data-crack-start="0" data-crack-duration="1400">
+                        <path pathLength="1" class="visor-crack-shadow" d="M-15 151L-23 150L-27 146L-32 148L-37 145L-39 152L-38 157L-43 164L-51 166L-55 170L-61 169L-65 173"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M-15 151L-23 150L-27 146L-32 148L-37 145L-39 152L-38 157L-43 164L-51 166L-55 170L-61 169L-65 173"/>
+                    </g>
+                    <g data-crack-stage="3" data-crack-start="500" data-crack-duration="500">
+                        <path pathLength="1" class="visor-crack-shadow" d="M-37 145L-41 139L-40 134L-45 127L-51 126L-54 121L-60 119"/>
+                        <path pathLength="1" class="visor-crack-highlight" d="M-37 145L-41 139L-40 134L-45 127L-51 126L-54 121L-60 119"/>
+                        <path pathLength="1" class="visor-crack-hairline" d="M-40 134L-48 136L-52 133M-51 126L-50 120L-53 116M-43 164L-39 170L-41 177"/>
+                    </g>
+                </g>
+            </svg>
+        </div>
+        <div class="helmet-visor-grid">
+            <span class="visor-bar-vertical" style="left:calc(50% - 6 * var(--visor-grid-unit))"></span>
+            <span class="visor-bar-vertical" style="left:calc(50% + 6 * var(--visor-grid-unit))"></span>
+            <span class="visor-bar-horizontal" style="top:calc(50% - 5 * var(--visor-grid-unit))"></span>
+            <span class="visor-bar-horizontal" style="top:calc(50% + 5 * var(--visor-grid-unit))"></span>
+        </div>
+    </div>
     <div id="underwater-tint" aria-hidden="true"></div>
     <div id="lens-mode-name" role="status" aria-live="polite"></div>
     <div id="loading-screen" role="status" aria-label="Cargando mundo">
@@ -525,15 +706,27 @@
     <div id="intro-shade" aria-hidden="true"></div>
 
     <div id="pause-menu">
-        <div class="game-menu-box" style="padding: 25px 40px;">
-            <p style="font-size:30px; font-weight:bold; margin-top:0; color:#fff;">PAUSA</p>
-            <p id="resume-hint" style="font-size:16px; color:#fff; margin-bottom: 25px;">Clic izquierdo para continuar</p>
-            <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar · Y: correr hasta soltar la cruceta<br>Mapa y antorcha: desde el inventario</p>
-            <div id="keyboard-controls" style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
-                <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
-                <span>Correr</span><span style="text-align:right;">[Shift]</span>
-                <span>Inventario</span><span style="text-align:right;">[Q]</span>
-                <span>Antorcha</span><span style="text-align:right;">[T]</span>
+        <div class="game-menu-box">
+            <svg class="pause-menu-bevel" viewBox="0 0 100 100" preserveAspectRatio="none" opacity=".288" aria-hidden="true" focusable="false">
+                <!-- Bisel iluminado desde arriba a la izquierda; una cara por arista. -->
+                <polygon points="50,0 94,25 86,30.6 50,11.2" fill="#a2b48d" fill-opacity=".36"/>
+                <polygon points="94,25 94,75 86,69.4 86,30.6" fill="#17241b" fill-opacity=".75"/>
+                <polygon points="94,75 50,100 50,88.8 86,69.4" fill="#020805" fill-opacity=".9"/>
+                <polygon points="50,100 6,75 14,69.4 50,88.8" fill="#25382b" fill-opacity=".8"/>
+                <polygon points="6,75 6,25 14,30.6 14,69.4" fill="#839b75" fill-opacity=".45"/>
+                <polygon points="6,25 50,0 50,11.2 14,30.6" fill="#c9d5ac" fill-opacity=".6"/>
+                <path d="M6 75V25L50 0L94 25" fill="none" stroke="#d8e3c3" stroke-opacity=".28" stroke-width="8" vector-effect="non-scaling-stroke"/>
+            </svg>
+            <div class="pause-menu-content">
+                <p style="font-size:30px; font-weight:bold; margin-top:0; color:#fff;">PAUSA</p>
+                <p id="resume-hint" style="font-size:16px; color:#fff; margin-bottom: 25px;">Clic izquierdo para continuar</p>
+                <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar · Y: correr hasta soltar la cruceta<br>Mapa y antorcha: desde el inventario</p>
+                <div id="keyboard-controls" style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
+                    <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
+                    <span>Correr</span><span style="text-align:right;">[Shift]</span>
+                    <span>Inventario</span><span style="text-align:right;">[Q]</span>
+                    <span>Antorcha</span><span style="text-align:right;">[T]</span>
+                </div>
             </div>
         </div>
     </div>
@@ -544,12 +737,12 @@
             <section class="game-menu-box" aria-label="Corazones">
                 <div class="inventory-slots" id="heart-slots">
                 <div class="inv-slot" id="forest-heart-slot">
-                    <button id="forest-heart-item" class="inventory-item" type="button" data-item="heart" aria-pressed="false" aria-label="Seleccionar Corazón del Bosque">
+                    <button id="forest-heart-item" class="inventory-item" type="button" data-item="heart" aria-label="Ver Corazón del Bosque">
                         <img id="forest-heart-icon" src="./imagenes/Sprites/corazon.png" alt="Corazón del Bosque" title="Corazón del Bosque" style="display:none;">
                     </button>
                 </div>
                 <div class="inv-slot">
-                    <button id="sea-heart-item" class="inventory-item" data-item="sea-heart" type="button" aria-label="Fragmentos del Corazón del Mar" aria-pressed="false">
+                    <button id="sea-heart-item" class="inventory-item" data-item="sea-heart" type="button" aria-label="Ver fragmentos del Corazón del Mar">
                         <img id="sea-heart-icon" src="./imagenes/Sprites/fragmento-mar.png" alt="Fragmentos del Corazón del Mar" style="width:64px;height:64px;image-rendering:pixelated;">
                         <span id="sea-heart-count" style="position:absolute;bottom:4px;right:4px;font-size:12px;color:#fff;text-shadow:1px 1px #000;"></span>
                     </button>
@@ -566,7 +759,15 @@
                             <path d="M22 44L20 51L44 51L42 44Z" fill="#c39b58"/>
                             <path d="M12 29C12 3 52 3 52 29L50 42L43 48H21L14 42Z" fill="#9f7542" stroke="#322820" stroke-width="2"/>
                             <path d="M14 20L21 10L32 6L44 11L51 21" fill="none" stroke="#c39b58" stroke-width="2"/>
-                            <circle cx="32" cy="31" r="15" fill="#153139" stroke="#c39b58" stroke-width="5"/>
+                            <circle class="helmet-icon-glass" cx="32" cy="31" r="15" fill="#153139" stroke="#c39b58" stroke-width="5"/>
+                            <g class="helmet-icon-cracks" fill="none" stroke-linecap="square" stroke-linejoin="miter">
+                                <path d="M42 21L38 25L40 29L37 32M38 25L35 24L34 20M40 29L44 28" stroke="#071416" stroke-width="2.2"/>
+                                <path d="M42 21L38 25L40 29L37 32M38 25L35 24L34 20M40 29L44 28" stroke="#b6cbbf" stroke-width=".8"/>
+                                <g class="helmet-icon-final-cracks">
+                                    <path d="M22 24L29 28L31 32L37 34L34 39L39 43M31 32L25 34L22 39M37 34L42 31L45 32" stroke="#071416" stroke-width="2.2"/>
+                                    <path d="M22 24L29 28L31 32L37 34L34 39L39 43M31 32L25 34L22 39M37 34L42 31L45 32" stroke="#b6cbbf" stroke-width=".8"/>
+                                </g>
+                            </g>
                             <path d="M26 19V44M38 19V44M19 26H45M19 36H45" stroke="#c39b58" stroke-width="2.5"/>
                             <path d="M14 52V55M24 52V55M40 52V55M50 52V55" stroke="#e1bd74" stroke-width="3"/>
                         </svg>
@@ -593,12 +794,12 @@
                 </div>
                 <div class="inv-slot">
                     <button id="map-item" class="inventory-item" type="button" data-item="map" aria-pressed="false" aria-label="Abrir o cerrar mapa">
-                        <img id="map-icon" src="./imagenes/Sprites/mapa.svg" alt="Mapa de la isla" title="Mapa — pulsa para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
+                        <img id="map-icon" src="./imagenes/Sprites/mapa-maqueta.png" alt="Mapa de la isla" title="Mapa — pulsa para abrir o cerrar" style="display:none; width:64px; height:64px; image-rendering:pixelated;">
                     </button>
                 </div>
                 <div class="inv-slot">
                     <button id="key-item" class="inventory-item" type="button" data-item="key" aria-pressed="false" aria-label="Seleccionar llave">
-                        <img id="key-icon" src="./imagenes/Sprites/llave.png" alt="Llave" style="display:none;">
+                        <img id="key-icon" src="./imagenes/Sprites/llave-modelo.png" alt="Llave" style="display:none; image-rendering:pixelated;">
                         <span id="key-count" style="display:none;">0</span>
                     </button>
                 </div>
@@ -613,8 +814,8 @@
         </div>
     </div>
 
-    <div id="dialog-box" style="display:none; position:absolute; bottom:5%; left:15%; width:70%; background:rgba(0,0,0,0.85); border:6px solid #fff; color:white; font-family:'Press Start 2P', cursive; padding:30px; z-index:200; backdrop-filter: blur(4px);">
-        <h3 id="dialog-name" style="margin-top:0; color:#ffeb3b; font-size: 22px;">Graham</h3>
+    <div id="dialog-box" style="display:none; position:absolute; bottom:5%; left:15%; width:70%; color:white; font-family:'Press Start 2P', cursive; padding:30px; z-index:200;">
+        <h3 id="dialog-name" style="margin-top:0; color:#7b9278; font-size: 22px;">Graham</h3>
         <p id="dialog-text" style="font-family:'Super Legend Boy', 'Press Start 2P', cursive; font-size: 18px; line-height:1.8; margin-bottom: 30px;">...</p>
         <p id="dialog-hint" style="font-size: 12px; color:#aaa; text-align:right; margin-bottom:0; animation: blinker 1.5s linear infinite;">[E] Continuar</p>
     </div>

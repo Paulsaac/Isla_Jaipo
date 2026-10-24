@@ -34,6 +34,7 @@ self.onmessage = async ({data}) => {
                     return texture;
                 },
                 onShade: opacity => self.postMessage({type:'shade',opacity}),
+                onTheme: night => self.postMessage({type:'theme',night}),
                 onStats: stats => self.postMessage({type:'stats',stats}),
                 onCamera: state => self.postMessage({type:'camera',state})
             });
@@ -41,6 +42,7 @@ self.onmessage = async ({data}) => {
         } else if (data.type === 'presented') {
             if (presented?.id === data.id) { presented.resolve(); presented = null; }
         } else if (data.type === 'resize') preview.resize(data.width,data.height);
+        else if (data.type === 'night') preview.setNight(data.enabled);
         else if (data.type === 'loading') preview.startLoading();
         else if (data.type === 'fade') preview.startFade();
         else if (data.type === 'arrive') {
