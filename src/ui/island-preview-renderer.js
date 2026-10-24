@@ -1,8 +1,15 @@
 import { waitForRenderedFrame } from './render-ready.js';
 import { createPreviewClouds } from './preview-clouds.js';
+import { createPreviewCoastDistance } from './preview-coast-distance.js';
+import { createPreviewTrees } from './preview-trees.js';
+import { densifyPreviewForest } from './preview-forest-density.js';
+import { carvePreviewRiver } from './preview-river.js';
 
 // Azul de referencia: promedio de Agua1_niebla.png del mundo jugable.
 const SEA_COLOR = 0x0172b4;
+const DEEP_SEA_COLOR = 0x09548c;
+const PREVIEW_RENDER_SCALE = 0.40;
+const THEME_PHASE_MS = 30 * 60 * 1000; // Día y noche completan un ciclo de una hora.
 const LOADING_ZOOM_RATE = -Math.log(0.94); // Distancia restante ×0.94 cada segundo.
 const APPROACH_ORBIT_SECONDS = 8; // Referencia para calcular la aceleración; no limita velocidad.
 const IDLE_ORBIT_SPEED = Math.PI * 2 / 90;
@@ -42,14 +49,16 @@ function readSavedModel(buffer) {
 export async function createIslandPreviewRenderer(THREE, options) {
     const response = await fetch(options.modelUrl, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`No se pudo cargar la maqueta guardada (${response.status}).`);
-    const model = readSavedModel(await response.arrayBuffer());
+    const model = carvePreviewRiver(readSavedModel(await response.arrayBuffer()));
+    const coast = createPreviewCoastDistance(THREE,model);
     const renderer = new THREE.WebGLRenderer({
-        canvas: options.canvas, antialias: true, powerPreference: 'low-power'
+        canvas: options.canvas, antialias: false, powerPreference: 'low-power'
     });
     let viewWidth = options.width, viewHeight = options.height;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(SEA_COLOR);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.45));
+    scene.background = new THREE.Color(DEEP_SEA_COLOR);
+    const ambient = new THREE.AmbientLight(0xffffff, 1.45);
+    scene.add(ambient);
     const sun = new THREE.DirectionalLight(0xffeed5, 1.1);
     sun.position.set(-140, 260, -100);
     scene.add(sun);
@@ -62,7 +71,9 @@ export async function createIslandPreviewRenderer(THREE, options) {
     scene.add(new THREE.Mesh(ground, groundMaterial));
     // Mar debajo de la costa: sin escribir profundidad para evitar competir con el terreno distante.
     const seaMaterial = new THREE.ShaderMaterial({
-        uniforms: { seaColor: { value: new THREE.Color(SEA_COLOR) }, seaTime: { value: 0 },
+        uniforms: { seaColor: { value: new THREE.Color(SEA_COLOR) }, deepSeaColor: { value: new THREE.Color(DEEP_SEA_COLOR) }, seaTime: { value: 0 }, nightMix: { value: 0 },
+            coastDistanceMap: { value: coast.texture }, coastOrigin: { value: coast.origin },
+            coastSpan: { value: coast.span }, coastRange: { value: coast.range },
             islandCenter: { value: new THREE.Vector2(model.width/2,model.depth/2) },
             islandSize: { value: Math.max(model.width,model.depth) } },
         depthWrite: false,
@@ -73,12 +84,22 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 gl_Position = projectionMatrix * viewMatrix * world;
             }`,
         fragmentShader: `uniform vec3 seaColor;
+            uniform vec3 deepSeaColor;
+            uniform sampler2D coastDistanceMap;
+            uniform vec2 coastOrigin;
+            uniform vec2 coastSpan;
+            uniform float coastRange;
             uniform float seaTime;
+            uniform float nightMix;
             uniform vec2 islandCenter;
             uniform float islandSize;
             varying vec3 seaPosition;
             void main() {
                 vec2 p = seaPosition.xz;
+                // La distancia a tierra sigue el contorno real, también dentro de bahías.
+                float coastDistance = texture2D(coastDistanceMap,(p-coastOrigin)/coastSpan).r*coastRange;
+                float offshore = smoothstep(islandSize*0.04,islandSize*0.10,coastDistance);
+                vec3 waterColor = mix(seaColor,deepSeaColor,offshore);
                 vec3 normal = normalize(vec3(
                     0.055*sin(p.x*0.19+p.y*0.11+seaTime*0.8), 1.0,
                     0.04*cos(p.y*0.27-p.x*0.08-seaTime*0.65)));
@@ -91,14 +112,17 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 // Halo circular anclado a la isla, con caída suave hacia el mar abierto.
                 float ringDistance = (length(p-islandCenter)/islandSize-0.6624)/0.1872;
                 float ring = exp(-ringDistance*ringDistance*2.0);
-                // Foco viajero: una vuelta suave cada 35 segundos, siempre dentro del halo.
-                float focusAngle = -seaTime*0.18+2.4;
+                // Foco viajero: una vuelta suave cada 70 segundos, siempre dentro del halo.
+                float focusAngle = seaTime*0.09+2.4;
                 vec2 focusPosition = islandCenter+vec2(cos(focusAngle),sin(focusAngle))*islandSize*0.6624;
                 vec2 focusOffset = (p-focusPosition)/(islandSize*0.135);
                 float spotlight = exp(-dot(focusOffset,focusOffset)*1.5);
                 vec3 reflected = ring*(vec3(1.0,0.89,0.68)*0.015
                     +vec3(1.0,0.74,0.25)*spotlight*(0.28+broad*0.25+sparkle*0.6));
-                gl_FragColor = vec4(seaColor+reflected,1.0);
+                vec3 moonReflection = ring*(vec3(0.42,0.58,0.86)*0.006
+                    +vec3(0.48,0.66,1.0)*spotlight*(0.07+broad*0.14+sparkle*0.32));
+                reflected = mix(reflected,moonReflection,nightMix);
+                gl_FragColor = vec4(waterColor+reflected,1.0);
                 #include <tonemapping_fragment>
                 #include <colorspace_fragment>
             }`
@@ -110,26 +134,8 @@ export async function createIslandPreviewRenderer(THREE, options) {
     sea.renderOrder = -1;
     scene.add(sea);
 
-    const canopyGeometry = new THREE.ConeGeometry(2.15, 8.5, 5);
-    const trunkGeometry = new THREE.CylinderGeometry(0.22, 0.29, 2.2, 5);
-    const canopy = new THREE.InstancedMesh(canopyGeometry,
-        new THREE.MeshLambertMaterial({ color: 0x315c38, flatShading: true }), model.trees.length / 4);
-    const trunks = new THREE.InstancedMesh(trunkGeometry,
-        new THREE.MeshLambertMaterial({ color: 0x584632, flatShading: true }), model.trees.length / 4);
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < model.trees.length / 4; i++) {
-        const [x, y, z, scale] = model.trees.subarray(i * 4, i * 4 + 4);
-        dummy.position.set(x, y + 5.0 * scale, z);
-        dummy.scale.setScalar(scale);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        canopy.setMatrixAt(i, dummy.matrix);
-        dummy.position.y = y + 1.1 * scale;
-        dummy.updateMatrix();
-        trunks.setMatrixAt(i, dummy.matrix);
-    }
-    canopy.instanceMatrix.needsUpdate = trunks.instanceMatrix.needsUpdate = true;
-    scene.add(canopy, trunks);
+    const trees = createPreviewTrees(THREE,densifyPreviewForest(model));
+    scene.add(trees.group);
 
     // Reutilizar los materiales originales con mipmaps para que no parpadeen en la órbita.
     const houseTextures = await Promise.all(['muro.png', 'techo.jpg', 'puerta.png'].map(async name => {
@@ -205,6 +211,44 @@ export async function createIslandPreviewRenderer(THREE, options) {
     }
 
     const clouds = createPreviewClouds(THREE);
+    const dayColors=[DEEP_SEA_COLOR,0xffffff,0xffeed5,SEA_COLOR].map(color=>new THREE.Color(color));
+    const nightColors=[0x020b1c,0x8299c7,0xb4ccff,0x082e50].map(color=>new THREE.Color(color));
+    const dayLightPosition=new THREE.Vector3(-140,260,-100),nightLightPosition=new THREE.Vector3(140,260,100);
+    const themeDuration=options.reduced ? 0.2 : 1.2;
+    let nightBlend=0,nightFrom=0,nightTarget=0,themeElapsed=themeDuration;
+    let themeCycleStart=null,themeCycleNight=false,themeCycleEnabled=true;
+    function beginTheme(enabled) {
+        nightFrom=nightBlend;nightTarget=enabled ? 1 : 0;themeElapsed=0;
+        options.onTheme?.(Boolean(enabled));
+    }
+    function setNight(enabled) {
+        themeCycleStart=performance.now();themeCycleNight=Boolean(enabled);
+        beginTheme(enabled);
+    }
+    function updateThemeCycle(time) {
+        if(!themeCycleEnabled)return;
+        if(themeCycleStart===null)themeCycleStart=time;
+        // Tiempo real: al volver a una pestaña inactiva se recupera la fase correcta.
+        const oddPhase=Math.floor(Math.max(0,time-themeCycleStart)/THEME_PHASE_MS)%2===1;
+        const nextNight=themeCycleNight!==oddPhase;
+        if(nextNight!==Boolean(nightTarget))beginTheme(nextNight);
+    }
+    function updateTheme(delta) {
+        if(themeElapsed>=themeDuration)return;
+        themeElapsed=Math.min(themeDuration,themeElapsed+delta);
+        const t=themeElapsed/themeDuration,eased=t*t*(3-2*t);
+        nightBlend=THREE.MathUtils.lerp(nightFrom,nightTarget,eased);
+        scene.background.lerpColors(dayColors[0],nightColors[0],nightBlend);
+        ambient.color.lerpColors(dayColors[1],nightColors[1],nightBlend);
+        ambient.intensity=THREE.MathUtils.lerp(1.45,0.75,nightBlend);
+        sun.color.lerpColors(dayColors[2],nightColors[2],nightBlend);
+        sun.intensity=THREE.MathUtils.lerp(1.1,0.6,nightBlend);
+        sun.position.lerpVectors(dayLightPosition,nightLightPosition,nightBlend);
+        seaMaterial.uniforms.seaColor.value.lerpColors(dayColors[3],nightColors[3],nightBlend);
+        seaMaterial.uniforms.deepSeaColor.value.copy(scene.background);
+        seaMaterial.uniforms.nightMix.value=nightBlend;
+        clouds.setNightMix(nightBlend);
+    }
     const camera = new THREE.PerspectiveCamera(40, options.width / options.height, 0.03, 4000);
     // El negro pertenece al mismo render que la maqueta: no puede adelantarse
     // desde el DOM a un fotograma OffscreenCanvas aún pendiente en Firefox.
@@ -255,6 +299,8 @@ export async function createIslandPreviewRenderer(THREE, options) {
         if (finished) return;
         // Tiempo de fotogramas dibujados: una pausa no salta de golpe el trayecto.
         const delta = lastTime ? Math.min(1 / 30, Math.max(0, (time - lastTime) / 1000)) : 0;
+        updateThemeCycle(time);
+        updateTheme(delta);
         if (loadingTime >= 0 && arrival < 0) {
             loadingFrames++;
             if (lastTime) maxLoadingGap = Math.max(maxLoadingGap,time-lastTime);
@@ -264,7 +310,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         const width = Math.max(1, viewWidth), height = Math.max(1, viewHeight);
         if (width !== lastWidth || height !== lastHeight) {
             lastWidth = width; lastHeight = height;
-            renderer.setPixelRatio(Math.min(1, Math.sqrt(1920 * 1080 / (width * height))));
+            renderer.setPixelRatio(PREVIEW_RENDER_SCALE * Math.min(1, Math.sqrt(1920 * 1080 / (width * height))));
             renderer.setSize(width, height, false);
         }
         const aspect = width / height;
@@ -321,7 +367,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
             target.y + Math.sin(inclination) * distance,
             target.z + Math.cos(angle) * Math.cos(inclination) * distance);
         camera.lookAt(target);
-        clouds.update(delta, aspect, reduced, travel, angle, inclination, camera.fov, loadingTime);
+        clouds.update(delta, aspect, reduced, inclination, camera.fov, loadingTime);
         if (!reduced) seaMaterial.uniforms.seaTime.value += delta;
         renderer.render(scene, camera);
         clouds.render(renderer);
@@ -358,12 +404,15 @@ export async function createIslandPreviewRenderer(THREE, options) {
     }
     schedule(frame);
     return {
+        setNight,
         resize(width,height) { viewWidth = width; viewHeight = height; },
         startLoading() {
+            themeCycleEnabled=false;
             if (loadingTime < 0) loadingTime = 0;
         },
         startFade() { if (fadeTime < 0) fadeTime = 0; },
         begin() {
+            themeCycleEnabled=false;
             if (arrival < 0) {
                 options.onStats?.({ frames: loadingFrames, seconds: loadingTime,
                     maxGapMs: maxLoadingGap, focus: loadingFocus, scale: loadingScale });
@@ -381,10 +430,13 @@ export async function createIslandPreviewRenderer(THREE, options) {
         dispose() {
             finished = true;
             clouds.dispose();
+            trees.group.removeFromParent();
+            trees.dispose();
             scene.traverse(object => object.geometry?.dispose());
             for (const material of [groundMaterial,wallMaterial,roofMaterial,doorMaterial,
-                trimMaterial,canopy.material,trunks.material,seaMaterial]) material.dispose();
+                trimMaterial,seaMaterial]) material.dispose();
             houseTextures.forEach(texture => texture.dispose());
+            coast.texture.dispose();
             fadeQuad.geometry.dispose();
             fadeMaterial.dispose();
             renderer.dispose();

@@ -20,12 +20,12 @@ export function createBookshelfGeometry(THREE) {
     add(0.12, 2.1, 0.65, 1.69, 1.05, 0, 0);
     add(3.5, 2.1, 0.07, 0, 1.05, -0.29, 0);
     for (const y of [0.1, 0.75, 1.4, 2.05]) add(3.5, 0.1, 0.65, 0, y, 0, 0);
-    const rows = [ [-1.4,-1.18,-0.94,-0.68,0.5,0.74,1.02], [-1.3,-1.04,-0.78,0.1,0.34,0.6,1.3], [-1.42,-1.18,-0.94,-0.7,-0.46,0.65,0.9] ];
+    const rows = [ [-1.31,-1.14,-0.97,-0.8,0.58,0.75,0.92], [-1.21,-1.04,-0.87,0.18,0.35,0.52,1.3], [-1.28,-1.11,-0.94,-0.77,-0.6,0.69,0.86] ];
     rows.forEach((positions, row) => positions.forEach((x, i) => {
         const height = 0.38 + ((i + row) % 3) * 0.06;
         const width = 0.14 + (i % 2) * 0.04;
         const bottom = [0.15,0.8,1.45][row];
-        const material = 1 + ((i + row) % 3);
+        const material = [1,2,3,5][(i + row) % 4]; // El material 4 conserva hojas y dorados envejecidos.
         // Hojas retraídas entre tapas gruesas; el lomo conserva el color original.
         add(width-0.026, height-0.024, 0.32, x, bottom+height/2, 0.014, 4);
         for (const side of [-1, 1]) {
@@ -67,7 +67,7 @@ export function createBookshelfGeometry(THREE) {
         result.setAttribute(name, new THREE.BufferAttribute(values, pieces[0].geometry.attributes[name].itemSize));
     }
     let start = 0;
-    for (let material=0; material<5; material++) {
+    for (let material=0; material<6; material++) {
         const count = pieces.filter(piece => piece.material===material).reduce((sum, piece) => sum+piece.geometry.attributes.position.count, 0);
         result.addGroup(start, count, material);
         start += count;

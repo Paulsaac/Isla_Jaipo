@@ -48,7 +48,7 @@ function partsBuilder(THREE) {
     return { add, box, tube, finish };
 }
 
-export function createWoodStoveGeometry(THREE) {
+export function createWoodStoveGeometry(THREE, { withWood = true } = {}) {
     const { add, box, tube, finish } = partsBuilder(THREE);
     // Cuatro patas de fundición curvas, con rodilla ancha y pie abierto.
     for (const side of [-1,1]) for (const z of [-.28,.28]) {
@@ -64,7 +64,7 @@ export function createWoodStoveGeometry(THREE) {
     }
     box(1.01,.075,.79,0,.46,0);
     box(.91,.09,.69,0,.535,0);
-    // Hogar hueco: se ven exactamente las dos leñas a través de la reja.
+    // Hogar hueco: admite las variantes vacía y con dos leñas detrás de la reja.
     box(.98,.72,.055,0,.94,-.345);
     for (const x of [-.465,.465]) box(.05,.72,.72,x,.94,0);
     box(.90,.10,.67,0,.655,0);
@@ -143,7 +143,7 @@ export function createWoodStoveGeometry(THREE) {
         { a: [-.21,.80,-.18], b: [.08,.85,.28], r: .115, angle: .2, bark: 0x65482f, cut: 0xb78d54 },
         { a: [.15,.91,-.06], b: [.07,1.01,.25], r: .078, angle: -.45, bark: 0x745038, cut: 0xc09760 }
     ];
-    for (const { a,b,r,angle,bark,cut } of logs) {
+    for (const { a,b,r,angle,bark,cut } of withWood ? logs : []) {
         tube(a,b,r,2,6,bark);
         const direction = new THREE.Vector3(...b).sub(new THREE.Vector3(...a)).normalize();
         const cutRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),direction);

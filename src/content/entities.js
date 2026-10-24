@@ -16,7 +16,7 @@ export const entities = [
         id: 'island-map-chest',
         type: 'CHEST',
         position: { x: 231, z: 444 },
-        offset: { x: -0.1 },
+        offset: { x: 0.2 }, // Más cerca del muro, conservando espacio para abrir la tapa.
         sourcePosition: { x: 229, z: 448 },
         item: 'map',
         rotationY: Math.PI / 2

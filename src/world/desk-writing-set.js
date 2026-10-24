@@ -61,5 +61,11 @@ export function createDeskWritingSet(THREE) {
         vertexColors: true, flatShading: true, shininess: 0, side: THREE.DoubleSide
     }));
     mesh.name = 'graham-desk-writing-set';
+    // Zona de lectura ajustada al libro, sin incluir el tintero ni la pluma.
+    const book = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.14, 0.7),
+        new THREE.MeshBasicMaterial({ visible: false, fog: false }));
+    book.name = 'graham-desk-book';
+    book.position.set(bookX, deskTop + 0.07, bookZ);
+    mesh.add(book);
     return mesh;
 }
