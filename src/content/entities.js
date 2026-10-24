@@ -1,7 +1,11 @@
+import { wizardHouseLayout } from './summit-layout.js';
+
 // Entidades específicas por celda del mapa. Ver tools/world-map.html.
 // Cada entrada: { id, type: 'CHEST', position: { x, z }, item: 'forest-heart', rotationY opcional }.
 // Cofre del corazón trasladado en capa1 por el usuario a (94,279).
 export const entities = [
+    // Rincón del fondo de la planta baja; deja libre la entrada a la escalera.
+    { id: 'mountain-wizard-chest', type: 'CHEST', position: wizardHouseLayout.chest, offset: { x: 4, z: 5 }, item: 'key', rotationY: Math.PI/2 },
     { id: 'lake-house-sunglasses', type: 'CHEST', position: { x: 361, z: 283 }, item: 'pink-sunglasses' },
     {
         id: 'forest-heart-chest',
@@ -32,20 +36,23 @@ export const spawnRoomExit = { x: 235, z: 442 };
 export const grahamRoomDivider = { fromX: 231.5, toX: 229, z: 446, torchX: 230.5 };
 
 export const kitchenSacks = [
-    { id: 'graham-kitchen-sack-1', position: { x: 230, z: 447 }, offset: { x: 0, z: -0.55 }, rotationY: -0.22, scale: 1 },
-    { id: 'graham-kitchen-sack-2', position: { x: 230, z: 447 }, offset: { x: 0.45, z: 0.45 }, rotationY: 0.32, scale: 0.85 }
+    { id: 'graham-kitchen-sack-1', position: { x: 230, z: 447 }, offset: { x: 0.5, z: -1.3 }, rotationY: Math.PI, scale: 1, open: false },
+    { id: 'graham-kitchen-sack-2', position: { x: 231, z: 447 }, offset: { x: 0.1, z: -1.18 }, rotationY: Math.PI, scale: 1, open: true }
 ];
 
 export const kitchenGardenPosition = { x: 237, z: 452 };
 
 // Pie occidental de la montaña, junto al punto marcado por AxByZ en el mapa.
 export const telescopePickup = { x: 55, z: 188, rotationY: -0.75 };
+// Pared norte interior de la casa de la cima; frente del escritorio hacia el sur.
+export const telescopeWorkshopPosition = { ...wizardHouseLayout.workshop, rotationY: Math.PI };
 
 // Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
 // La puerta posterior ocupa un muro pintado; el cambio queda localizado aquí.
 export const mapCellOverrides = [
     { id: 'graham-divider-old-torch', position: { x: 231, z: 446 }, expectedType: 'TORCH', type: 'INDOOR_FLOOR' },
-    { id: 'kitchen-rear-door', position: { x: 229, z: 450 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' }
+    { id: 'kitchen-rear-door', position: { x: 229, z: 450 }, expectedType: 'BUILDING', type: 'DOOR_UNLOCKED' },
+    { id: 'mountain-wizard-workshop-door', position: wizardHouseLayout.door, expectedType: 'DOOR_LOCKED', type: 'DOOR_UNLOCKED' }
 ];
 
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
@@ -87,9 +94,9 @@ export const doorOverrides = [
 ];
 
 export const furniture = [
-    // Rincón de playa de AxByZ (261,443): silla hacia el mar, al este.
-    { id: 'shore-rustic-chair', type: 'RUSTIC_BEACH_CHAIR', position: { x: 261, z: 443 }, size: { x: 1, z: 1 }, offset: { z: 0.1 }, rotationY: Math.PI / 2 },
-    { id: 'shore-plank-table', type: 'BEACH_PLANK_TABLE', position: { x: 261, z: 442 }, size: { x: 1, z: 1 }, offset: { z: 0.45 }, rotationY: 0 },
+    // Rincón de playa junto a la ensenada: silla orientada al sureste, hacia el agua.
+    { id: 'shore-rustic-chair', type: 'RUSTIC_BEACH_CHAIR', position: { x: 256, z: 457 }, size: { x: 1, z: 1 }, offset: { x: 0.6, z: -1 }, rotationY: 0.50 },
+    { id: 'shore-plank-table', type: 'BEACH_PLANK_TABLE', position: { x: 257, z: 457 }, size: { x: 1, z: 1 }, offset: { x: -0.166, z: -0.932 }, rotationY: -1.4708 },
     // Esquina noroeste de la sala, entre librero y entrada: frente hacia el interior.
     { id: 'graham-living-room-wood-stove', type: 'WOOD_STOVE', position: { x: 228, z: 438 }, size: { x: 1, z: 1 }, offset: { x: 0.1, z: 0.15 }, rotationY: Math.PI / 4 },
     { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 449 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },

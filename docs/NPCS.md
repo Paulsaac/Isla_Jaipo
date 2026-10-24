@@ -1,5 +1,8 @@
 # Gestión de NPC, conversaciones e interacciones
 
+## Graham: correcciones vigentes — 2026-10-24
+Las secuencias de despertar, misión del Corazón del Bosque y recompensa usan los textos solicitados por Clawshoot en esta entrega. Mate: «Ten. Cuidado que está caliente.». Graham no ejecuta dap; datos y módulo reutilizable conservados. Llave inicialmente desactivada por GRAHAM_BRIDGE_KEY_AVAILABLE=false; J habilita el evento en memoria y avisa «Evento Llave del Puente Activada». Entregar el corazón no da automáticamente la llave: se habla nuevamente con Graham tras activar el evento, y se añade la llave al entregar «Aquí tienes». El cofre del mapa se habilita tras el agradecimiento del corazón. No hay persistencia. Estos valores sustituyen las descripciones anteriores de dap/mate/llave en esta guía; no cambian los triggers de cielo acordados.
+
 ## Alcance acordado — 2026-10-13
 El chat donde el usuario pidió este documento está dedicado a gestionar los NPC de Isla Jaipó, sus conversaciones y sus interacciones con el jugador, las misiones y el mundo. Puede implementar los pedidos del usuario dentro de este ámbito; esta dedicación no autoriza inventar personajes, recompensas o cambios de diseño sin un pedido concreto. El chat de pruebas complejas conserva su función independiente.
 

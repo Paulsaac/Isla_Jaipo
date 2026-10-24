@@ -1,3 +1,11 @@
+## 2026-10-24 — Óptica, observatorio y revisión acumulada de Clawshoot
+- Valores definitivos: Astroscopio 3× basal y 20× con Bifrost; Omniscopio acoplado empieza a40× cada uso, Shift/Ctrl ajustan1× entre40–50×. Sustituye los valores experimentales30/32/64× del historial.
+- Bifrost se instala mirando su modelo/perímetro de20cm; el resto de la mesa no repara. El Astroscopio instalado en el ocular del Omniscopio se retira del inventario y vuelve al extraerlo.
+- Óptica desde el objetivo, niebla/fundido coherentes a1800 unidades durante zoom, restitución al salir; se permite mirar ligeramente bajo el horizonte. Centro de giro fijo, soporte de pistón, escalerilla vertical metálica y transmisión visible a caja inferior.
+- Graham no usa dap; se conservan sus datos para reutilización. Llave inicialmente desactivada, activación manual J durante esta demo, sin guardado persistente. Se conservan condiciones de misión y ciclo acordadas salvo los pedidos explícitos registrados en HANDOFF.
+- Terreno del camino solo se excava, se redondean taludes sin convertir paredes en superficie caminable; sprites originales preservados. Follaje opaco recortado en reposo y agua con LessDepth.
+- Publicación de este trabajo autorizada expresamente como PR a main; no implica autorización para merge.
+
 # Decisiones del proyecto
 
 ## 2026-10-16 — Forma de montaña según nieve vigente
@@ -272,3 +280,8 @@
 - Por pedido de AxByZ, la portada carga una maqueta simplificada guardada del mapa vigente (IJM2), regenerada únicamente por señal explícita del usuario. No sustituye la carga propia del mundo jugable. Procedimiento y archivos a incluir en PR: docs/PORTADA_ISLA.md.
 - La animación de la maqueta usa Worker/OffscreenCanvas cuando está disponible para que construir el mundo en el hilo principal no congele giro/zoom. Respaldo compatible con la limitación de compartir ese hilo.
 - CRT activo en portada/carga; Cargando mundo con puntos en salto, giro y acercamiento lento durante carga, zoom final rápido con fundido al estar listo. Estado y evidencia en CONTINUAR_AXBYZ.md.
+
+## 2026-10-23 — Astroscopio acoplable al telescopio del observatorio
+- El nombre definitivo del telescopio de mano es **Astroscopio** en inventario, modelo y mensajes. El telescopio del observatorio puede acoplarlo mediante confirmación Sí/No; instalado, el objeto persiste en la base y el menú E ofrece retirarlo o mirar por la mira.
+- La mira del telescopio de observatorio ofrece zoom 30× y control con flechas/D-pad. Su montura responde más despacio y conserva una pequeña inercia amortiguada para sugerir engranajes pesados, independiente del zoom y movimiento del telescopio de mano.
+- El piso elevado de las casas debe tener espesor geométrico y caras inferiores, para evitar que muros y techo se vean atravesando un plano delgado.

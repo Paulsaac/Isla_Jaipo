@@ -1,6 +1,9 @@
+import {createGardenNotebook} from './garden-notebook.js';
 // Huerto de Graham: cultivos, yerba mate y herramientas, con una malla por elemento.
-export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture = null) {
+export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture = null, soilTexture = null) {
     const material = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0 });
+    const soilMaterial = new THREE.MeshPhongMaterial({map:soilTexture,color:0xb5a28e,shininess:0});
+    const planterWoodMaterial = new THREE.MeshPhongMaterial({map:woodTexture,color:0xffd9a5,shininess:0});
     const colors = { soil: 0x513827, wood: 0x80603d, edge: 0x62472e, green: 0x42713a, light: 0x77a44b, red: 0xb83b24, orange: 0xc87429 };
     let pieces = [];
     const models = [];
@@ -11,6 +14,14 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
         const tint = new THREE.Color(color), data = new Float32Array(geometry.attributes.position.count * 3);
         for (let i=0; i<data.length; i+=3) { data[i]=tint.r; data[i+1]=tint.g; data[i+2]=tint.b; }
         geometry.setAttribute('color', new THREE.BufferAttribute(data,3));
+        geometry.userData.gardenMaterial=color===colors.soil?1:0;
+        const p=geometry.attributes.position,n=geometry.attributes.normal,uv=new Float32Array(p.count*2);
+        for(let i=0;i<p.count;i++) {
+            const vertical=Math.abs(n.getY(i))<.5;
+            uv[i*2]=(vertical&&Math.abs(n.getX(i))>.5?p.getZ(i):p.getX(i))/.8;
+            uv[i*2+1]=(vertical?p.getY(i):p.getZ(i))/.8;
+        }
+        geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));
         pieces.push(geometry);
     }
     const box = (w,h,d,x,y,z,color) => add(new THREE.BoxGeometry(w,h,d),color,g=>g.translate(x,y,z));
@@ -71,23 +82,38 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
         geometry.computeVertexNormals();
         add(geometry,color);
     }
-    function finish(id,x,z) {
+    function finish(id,x,z,parent=null) {
         const geometry=new THREE.BufferGeometry();
-        for(const attribute of ['position','normal','color']) {
+        for(const attribute of ['position','normal','color','uv']) {
             const data=new Float32Array(pieces.reduce((sum,g)=>sum+g.attributes[attribute].array.length,0));
             let offset=0;
             for(const part of pieces) {data.set(part.attributes[attribute].array,offset);offset+=part.attributes[attribute].array.length;}
-            geometry.setAttribute(attribute,new THREE.BufferAttribute(data,3));
+            geometry.setAttribute(attribute,new THREE.BufferAttribute(data,attribute==='uv'?2:3));
         }
+        let first=0;
+        for(const part of pieces){geometry.addGroup(first,part.attributes.position.count,part.userData.gardenMaterial);first+=part.attributes.position.count;}
         for(const part of pieces) part.dispose();
         pieces=[];
         geometry.computeBoundingBox(); geometry.computeBoundingSphere();
-        const model=new THREE.Mesh(geometry,material);
+        const model=new THREE.Mesh(geometry,[material,soilMaterial,planterWoodMaterial]);
         model.name=`graham-garden-${id}`;
-        model.position.set(origin.x+x,getTerrainHeight(origin.x+x,origin.z+z),origin.z+z);
         model.userData={type:'GARDEN',id:model.name};
-        models.push(model);
+        if(parent) {
+            model.position.set(x,0,z);parent.add(model);
+        } else {
+            model.position.set(origin.x+x,getTerrainHeight(origin.x+x,origin.z+z),origin.z+z);
+            models.push(model);
+        }
         return model;
+    }
+    function soilClearance(x,z,width,depth) {
+        const base=getTerrainHeight(origin.x+x,origin.z+z);
+        let high=base;
+        // Cubrir toda la huella, incluidos los vértices del borde, sin planos coplanares.
+        for(let dz=-depth/2;dz<=depth/2+.001;dz+=depth/12)
+            for(let dx=-width/2;dx<=width/2+.001;dx+=width/12)
+                high=Math.max(high,getTerrainHeight(origin.x+x+dx,origin.z+z+dz));
+        return Math.max(.14,high-base+.055);
     }
     for(let row=0;row<3;row++) {
         // La base penetra en el terreno; los bordes de madera quedan bajos.
@@ -137,7 +163,51 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
                 }
             }
         }
-        finish(['tomatoes','lettuce','carrots'][row],(row-1)*1.85,0);
+        const bedX=(row-1)*1.85,soilTop=soilClearance(bedX,0,1.17,2.72);
+        for(const part of pieces)part.translate(0,soilTop-.12,0);
+        const bed=finish(['tomatoes','lettuce','carrots'][row],bedX,0);
+        bed.userData.soilBed={width:1.1,depth:2.65,top:soilTop};
+    }
+    // Jardinera elevada de seis compartimentos, junto a los canteros existentes.
+    {
+        const x=4.2,z=-2.5,soilTop=Math.max(.43,soilClearance(x,z,2.26,2.76));
+        box(2.2,.55,2.7,0,soilTop-.275,0,colors.soil);
+        const plank=(w,h,d,px,py,pz)=>{box(w,h,d,px,py,pz,colors.wood);pieces.at(-1).userData.gardenMaterial=2;};
+        for(let tier=0;tier<3;tier++) {
+            const y=soilTop-.37+tier*.17;
+            for(const side of [-1,1]){plank(.09,.16,2.86,side*1.15,y,0);plank(2.4,.16,.09,0,y,side*1.385);}
+        }
+        for(const px of [-1.14,1.14])for(const pz of [-1.38,1.38])plank(.13,.57,.13,px,soilTop-.13,pz);
+        plank(.045,.10,2.7,0,soilTop+.035,0);
+        for(const pz of [-.45,.45])plank(2.2,.10,.045,0,soilTop+.035,pz);
+        for(let row=0;row<3;row++)for(let col=0;col<2;col++) {
+            const px=col? .56:-.56,pz=(row-1)*.9;
+            // Albahaca, orégano y menta: matas ramificadas y pares de hojas,
+            // con tamaños y tonos distintos, sin frutos ni rosetas de hortaliza.
+            for(let branch=0;branch<6;branch++) {
+                const angle=branch*Math.PI/3+col*.45,dx=Math.cos(angle),dz=Math.sin(angle);
+                const height=[.52,.36,.58][row]+(branch%3)*.055+col*.025;
+                const reach=row===1?.19:.13;
+                const bx=px+dx*.06,bz=pz+dz*.06;
+                stem([bx,soilTop,bz],[bx+dx*reach,soilTop+height,bz+dz*reach],row===1?.006:.009,0x4e7138);
+                for(let tier=0;tier<4;tier++)for(const side of [-1,1]) {
+                    const t=.25+tier*.2,y=soilTop+height*t;
+                    const sx=bx+dx*reach*t,sz=bz+dz*reach*t;
+                    const a=angle+tier*.8+side*Math.PI/2;
+                    const length=[.20,.10,.17][row],lx=Math.sin(a),lz=Math.cos(a);
+                    if(row===2)mateLeaf([sx,y,sz],[sx+lx*length,y+.035,sz+lz*length],.058,
+                        (tier+branch)%2?0x3e783d:0x649c4b);
+                    else leaf(sx+lx*length*.48,y+.018,sz+lz*length*.48,length*.58,a,-.20,
+                        row===0?((tier+branch)%2?0x578b3e:0x84ae53):((tier+branch)%2?0x597448:0x78915b));
+                }
+            }
+        }
+        const bed=finish('mixed-planter',x,z);bed.userData.soilBed={width:2.2,depth:2.7,top:soilTop};
+        const uv=bed.geometry.attributes.uv;
+        for(const group of bed.geometry.groups)if(group.materialIndex===2)
+            for(let i=group.start;i<group.start+group.count;i++)
+                uv.setXY(i,((uv.getX(i)%1)+1)%1,.565+(((uv.getY(i)%1)+1)%1)*.115);
+        uv.needsUpdate=true;
     }
     for(let crate=0;crate<2;crate++) {
         box(0.66,0.06,0.48,0,0.03,0,colors.edge);
@@ -153,7 +223,7 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
     for (let plant=0;plant<3;plant++) {
         const height = [1.04,1.19,0.96][plant];
         add(new THREE.IcosahedronGeometry(0.34,1),colors.soil,g=>{
-            g.scale(1,0.19,0.9); g.translate(0,-0.015,0);
+            g.scale(1,0.33,0.9); g.translate(0,.025,0);
         });
         stem([0,0,0],[0.025,height*0.72,0],0.023,colors.edge);
         stem([0.025,height*0.55,0],[0.015,height,0.02],0.012,0x53733b);
@@ -174,42 +244,30 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
     }
 
     const iron = 0x626c6d, darkIron = 0x404b4c, handle = 0xa17c4c;
-    for (const tool of ['shovel','rake']) {
-        if (tool === 'shovel') {
-            const blade = new THREE.Shape();
-            blade.moveTo(-0.12,0.43); blade.lineTo(-0.18,0.32);
-            blade.lineTo(-0.16,0.12); blade.lineTo(0,0.015);
-            blade.lineTo(0.16,0.12); blade.lineTo(0.18,0.32);
-            blade.lineTo(0.12,0.43); blade.closePath();
-            add(new THREE.ExtrudeGeometry(blade,{depth:0.035,bevelEnabled:true,
-                bevelSize:0.008,bevelThickness:0.008,bevelSegments:1,steps:1}),iron);
-            box(0.065,0.22,0.065,0,0.44,0.018,darkIron);
-            stem([0,0.44,0.018],[0,1.38,0.018],0.026,handle);
-            for (const side of [-1,1]) {
-                stem([0,1.36,0.018],[side*0.11,1.47,0.018],0.018,darkIron);
-                stem([side*0.11,1.47,0.018],[side*0.11,1.60,0.018],0.018,darkIron);
-            }
-            stem([-0.11,1.60,0.018],[0.11,1.60,0.018],0.025,handle);
-        } else {
-            box(0.61,0.045,0.05,0,0.18,0,iron);
-            for (let tooth=0;tooth<10;tooth++) {
-                const x = -0.27+tooth*0.06;
-                stem([x,0.18,0],[x,0.026,0.075],0.010,darkIron);
-                stem([x,0.026,0.075],[x,0.02,0.12],0.010,iron);
-            }
-            stem([0,0.18,0],[0,0.40,0],0.026,darkIron);
-            stem([0,0.36,0],[0,1.76,0],0.024,handle);
+    {
+        const blade = new THREE.Shape();
+        blade.moveTo(-0.12,0.43); blade.lineTo(-0.18,0.32);
+        blade.lineTo(-0.16,0.12); blade.lineTo(0,0.015);
+        blade.lineTo(0.16,0.12); blade.lineTo(0.18,0.32);
+        blade.lineTo(0.12,0.43); blade.closePath();
+        add(new THREE.ExtrudeGeometry(blade,{depth:0.035,bevelEnabled:true,
+            bevelSize:0.008,bevelThickness:0.008,bevelSegments:1,steps:1}),iron);
+        box(0.065,0.22,0.065,0,0.44,0.018,darkIron);
+        stem([0,0.44,0.018],[0,1.38,0.018],0.026,handle);
+        for (const side of [-1,1]) {
+            stem([0,1.36,0.018],[side*0.11,1.47,0.018],0.018,darkIron);
+            stem([side*0.11,1.47,0.018],[side*0.11,1.60,0.018],0.018,darkIron);
         }
+        stem([-0.11,1.60,0.018],[0.11,1.60,0.018],0.025,handle);
         // Inclinar hacia la casa y apoyar el extremo superior en su cara sur (z=448.5 celdas).
-        const lean = tool === 'shovel' ? -0.23 : -0.20;
         for (const part of pieces) {
-            part.rotateZ(tool === 'shovel' ? -0.055 : 0.04);
-            part.rotateX(lean);
+            part.rotateZ(-0.055);
+            part.rotateX(-0.23);
             part.computeBoundingBox();
         }
         const back = Math.min(...pieces.map(part=>part.boundingBox.min.z));
         const bottom = Math.min(...pieces.map(part=>part.boundingBox.min.y));
-        const model = finish(tool,tool === 'shovel' ? 2.3 : 3.3,-7-back+0.025);
+        const model = finish('shovel',2.3,-7-back+0.025);
         model.position.y -= bottom;
     }
 
@@ -265,5 +323,19 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
         bench.material = new THREE.MeshPhongMaterial({map:benchWoodTexture,vertexColors:true,
             flatShading:true,shininess:0});
     }
+    // Rastrillo de mano dejado de lado sobre un extremo del asiento.
+    stem([-0.22,0.025,0],[0.10,0.025,0],0.019,handle);
+    stem([0.09,0.025,0],[0.155,0.025,0],0.013,darkIron);
+    box(0.035,0.025,0.18,0.15,0.025,0,iron);
+    for(const z of [-0.075,-0.025,0.025,0.075]) {
+        stem([0.16,0.025,z],[0.22,0.012,z],0.007,darkIron);
+        stem([0.22,0.012,z],[0.24,-0.005,z],0.007,iron);
+    }
+    for(const part of pieces)part.rotateY(-0.43);
+    const handRake=finish('hand-rake',0.50,0.015,bench);
+    handRake.position.y=bench.geometry.boundingBox.max.y-handRake.geometry.boundingBox.min.y+0.001;
+    const notebook=createGardenNotebook(THREE);
+    notebook.position.set(-.48,bench.geometry.boundingBox.max.y+.002,.01);notebook.rotation.y=-.16;
+    bench.add(notebook);
     return models;
 }

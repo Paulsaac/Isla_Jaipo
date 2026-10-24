@@ -1,5 +1,8 @@
 # Gestión de diseño estético
 
+## Ajustes vigentes de esta entrega — 2026-10-24
+Observatorio central con horquilla/cojinetes unidos, pistón deslizante, escalerilla metálica vertical, silla elevada24cm y engranajes hacia caja abierta inferior; aro de asiento continuo entre cúpula/piedra y UV de madera corregidas. CRT con un atlas pixelado animado a12FPS y Luna_B original reducido, consola/audífonos y cableado posterior hasta techo. Huerto de especias y tierra texturada, bloc manuscrito, sacos/papas irregulares, troncos con corteza y mobiliario de playa reajustado. Camino excavado y taludes de nieve redondeados; no se editan PNG originales. Follaje con alphaTest opaco en reposo. Corrección vigente de agua: LessDepth, sin polygonOffset (sustituye esa técnica anterior en esta guía). Alcance, parámetros y verificaciones en HANDOFF.
+
 ## Rol y límites
 El chat de este acuerdo gestiona sprites, texturas, materiales, apariencia del terreno, iluminación y efectos visuales de Isla Jaipó. Leer AGENTS.md, docs/PROTOCOL.md, HANDOFF.md, DECISIONS.md y esta guía antes de intervenir. Son pedidos visuales concretos, no autorización para inventar contenido o alterar misiones. Los ajustes de sonido de pasto fueron pedidos explícitos del usuario.
 

@@ -7,6 +7,14 @@ export function createLogStackGeometry(THREE) {
         const source = new THREE.CylinderGeometry(radius, radius, length, 10);
         const geometry = source.toNonIndexed();
         source.dispose();
+        const uv=geometry.attributes.uv,index=parts.length;
+        for(const group of geometry.groups)for(let i=group.start;i<group.start+group.count;i++) {
+            if(group.materialIndex===0)uv.setXY(i,uv.getX(i)*1.5+index*.23,uv.getY(i)*2.2+index*.17);
+            else {
+                const u=uv.getX(i)-.5,v=uv.getY(i)-.5,a=index*.61;
+                uv.setXY(i,u*Math.cos(a)-v*Math.sin(a)+.5,u*Math.sin(a)+v*Math.cos(a)+.5);
+            }
+        }
         geometry.rotateX(Math.PI / 2);
         geometry.translate(x, y, 0);
         parts.push(geometry);

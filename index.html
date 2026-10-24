@@ -145,6 +145,13 @@
             pointer-events: none;
         }
 
+        /* En teléfono, el doble de scanlines con la mitad de grosor. */
+        @media (pointer: coarse) {
+            body::before {
+                background-size: 100% calc(2.5px / 0.729), 3px 100%;
+            }
+        }
+
         body::after {
             content: " ";
             display: block;
@@ -477,6 +484,8 @@
         <div class="touch-utilities">
             <button type="button" class="touch-heart-shortcut touch-heart-grant" data-action="grantForestHeartForTesting" aria-label="Atajo temporal: obtener el Corazón del Bosque" title="Obtener corazón sin activar la escena">♥+</button>
             <button type="button" class="touch-heart-shortcut" data-action="teleportToForestHeart" aria-label="Atajo temporal: ir al Corazón del Bosque" title="Ir al Corazón del Bosque">♥</button>
+          <button type="button" class="touch-location-shortcut" data-action="teleportToTelescope" aria-label="Ir cerca del telescopio" title="Ir cerca del telescopio">TEL</button>
+          <button type="button" class="touch-location-shortcut" data-action="teleportToWizardHouse" aria-label="Ir frente a la casa del mago de la montaña" title="Ir frente a la casa del mago">CASA</button>
         <button type="button" class="touch-fullscreen" aria-label="Pantalla completa" aria-pressed="false">
             <span aria-hidden="true">⛶</span> <span class="touch-fullscreen-label" hidden>Pantalla completa</span>
         </button>
@@ -594,8 +603,8 @@
                     </button>
                 </div>
                 <div class="inv-slot" style="display:none;">
-                    <button id="telescope-item" class="inventory-item" type="button" data-item="telescope" aria-pressed="false" aria-label="Sacar o guardar telescopio" style="display:none;">
-                        <img src="./imagenes/Sprites/telescopio.png?v=17e077d450a7" alt="Telescopio" style="width:64px;height:64px;image-rendering:pixelated;">
+                    <button id="astroscope-item" class="inventory-item" type="button" data-item="astroscope" aria-pressed="false" aria-label="Sacar o guardar Astroscopio" title="Astroscopio" style="display:none;">
+                        <img src="./imagenes/Sprites/telescopio.png?v=17e077d450a7" alt="Astroscopio" style="width:64px;height:64px;image-rendering:pixelated;">
                     </button>
                 </div>
                 </div>

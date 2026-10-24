@@ -52,7 +52,7 @@ export function smoothMountainSlope(floorMap, heights, mountainMask, plateauHeig
     // Las laderas se anclan al borde ya nivelado de la nieve.
     const snow=distances((x,z)=>floorMap[z][x]==='SNOW_PEAK',true);
     for(let z=0;z<height;z++) for(let x=0;x<width;x++) {
-        if(floorMap[z][x]!=='MOUNTAIN'||!Number.isFinite(snow.field[z][x])) continue;
+        if(!(floorMap[z][x]==='MOUNTAIN'||followTerrain&&floorMap[z][x]==='PEAK')||!Number.isFinite(snow.field[z][x])) continue;
         const total=foot.field[z][x]+snow.field[z][x];
         if(!total) continue;
         const progress=foot.field[z][x]/total;
@@ -61,5 +61,16 @@ export function smoothMountainSlope(floorMap, heights, mountainMask, plateauHeig
         const t=followTerrain?1:Math.max(0,Math.min(1,(road.field[z][x]-3)/7));
         const blend=t*t*(3-2*t);
         heights[z][x]=heights[z][x]*(1-blend)+slopeHeight*blend;
+    }
+    if(followTerrain) {
+        // Suavizar también los cambios de banda y las esquinas del campo de
+        // distancia. La senda se trazará después sobre esta ladera continua.
+        for(let pass=0;pass<20;pass++) {
+            const source=heights.map(row=>row.slice());
+            for(let z=1;z<height-1;z++)for(let x=1;x<width-1;x++) {
+                if(!mountainMask[z][x]||!['MOUNTAIN','PEAK','SNOW_PEAK'].includes(floorMap[z][x]))continue;
+                heights[z][x]=(source[z][x]*4+source[z-1][x]+source[z+1][x]+source[z][x-1]+source[z][x+1])/8;
+            }
+        }
     }
 }

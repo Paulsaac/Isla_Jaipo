@@ -1,160 +1,171 @@
+import { MOUNTAIN_RELIEF_RUNS } from '../content/mountain-relief.js';
 import { UNIT_SIZE } from '../config.js';
-import { sampleMountainPath } from './mountain-path.js';
+import { wizardHouseLayout } from '../content/summit-layout.js';
 
-// Tallar solo el camino pintado y su talud inmediato, después del relieve natural.
-export function carveMountainTrail(floorMap, heights, mountainMask, profile) {
-    if (!profile) return profile;
-    const height = floorMap.length, width = floorMap[0].length;
-    const surface = Array.from({length:height},()=>new Float32Array(width).fill(NaN));
-    const nearby = Array.from({length:height},()=>new Uint8Array(width));
-    const road = (x,z) => (floorMap[z]?.[x]==='DIRT' || floorMap.snowTrail?.has(z*width+x)) && mountainMask[z]?.[x];
-    const directions = [];
-    for (let dz=-1;dz<=1;dz++) for (let dx=-1;dx<=1;dx++) if (dx || dz) directions.push([dx,dz]);
-    const structures = new Set(['BUILDING','INDOOR_FLOOR','WOOD','DOOR_UNLOCKED','DOOR_LOCKED']);
-    const summitStructures=[];
-    for(let z=0;z<height;z++) for(let x=0;x<width;x++)
-        if(mountainMask[z][x] && structures.has(floorMap[z][x]) && heights[z][x]>=profile.summitHeight*.95)
-            summitStructures.push({x,z});
-    const plateau=summitStructures.length ? {
-        minX:Math.min(...summitStructures.map(p=>p.x)),maxX:Math.max(...summitStructures.map(p=>p.x)),
-        minZ:Math.min(...summitStructures.map(p=>p.z)),maxZ:Math.max(...summitStructures.map(p=>p.z)),
-        height:profile.summitHeight,inner:6,outer:10
-    } : null;
-    const plateauDistance=(x,z)=>plateau ? Math.hypot(Math.max(plateau.minX-x,0,x-plateau.maxX),
-        Math.max(plateau.minZ-z,0,z-plateau.maxZ)) : Infinity;
-    const visited = new Set(), trails = [];
-    for (let z=0;z<height;z++) for (let x=0;x<width;x++) {
-        const start = z*width+x;
-        if (!road(x,z) || visited.has(start)) continue;
-        const cells = [start]; visited.add(start);
-        for (let head=0;head<cells.length;head++) {
-            const cx=cells[head]%width, cz=Math.floor(cells[head]/width);
-            for (const [dx,dz] of directions) {
-                const nx=cx+dx,nz=cz+dz,key=nz*width+nx;
-                if (!road(nx,nz) || visited.has(key)) continue;
-                visited.add(key); cells.push(key);
-            }
-        }
-        const at = key => heights[Math.floor(key/width)][key%width];
-        const minimum = Math.min(...cells.map(at)), maximum = Math.max(...cells.map(at));
-        if (maximum-minimum < 2) continue;
-        let entries = cells.filter(key => {
-            const cx=key%width,cz=Math.floor(key/width);
-            return at(key)<=minimum+1 && directions.some(([dx,dz]) =>
-                floorMap[cz+dz]?.[cx+dx]==='DIRT' && !mountainMask[cz+dz]?.[cx+dx]);
-        });
-        if (!entries.length) entries = cells.filter(key=>at(key)<=minimum+0.01);
-        const distance = new Map(entries.map(key=>[key,0])), queue = entries.slice();
-        for (let head=0;head<queue.length;head++) {
-            const key=queue[head],cx=key%width,cz=Math.floor(key/width);
-            for (const [dx,dz] of directions) {
-                const nx=cx+dx,nz=cz+dz,next=nz*width+nx;
-                if (!road(nx,nz)) continue;
-                const value=distance.get(key)+Math.hypot(dx,dz)*UNIT_SIZE;
-                if (value >= (distance.get(next) ?? Infinity)) continue;
-                distance.set(next,value); queue.push(next);
-            }
-        }
-        // Llegar a la cota de la casa antes de su entrada, aunque la senda siga más arriba.
-        const goals = cells.filter(key => {
-            if (at(key)<profile.summitHeight*0.95) return false;
-            const cx=key%width,cz=Math.floor(key/width);
-            for (let dz=-2;dz<=2;dz++) for (let dx=-2;dx<=2;dx++)
-                if (structures.has(floorMap[cz+dz]?.[cx+dx])) return true;
-            return false;
-        });
-        const accessDistance = goals.length ? Math.min(...goals.map(key=>distance.get(key))) : Math.max(...distance.values());
-        if (!(accessDistance>0) || !Number.isFinite(accessDistance)) continue;
-        const base = Math.min(...entries.map(at));
-        const top = goals.length ? Math.min(...goals.map(at)) : maximum;
-        // Subida uniforme y suave hasta la nieve; el tramo final duplica la pendiente.
-        const plateauRoad=cells.filter(key=>at(key)>=profile.summitHeight*.95
-            && plateauDistance(key%width,Math.floor(key/width))<=6);
-        const length = plateauRoad.length ? Math.min(accessDistance,...plateauRoad.map(key=>distance.get(key))) : accessDistance;
-        const snowDistances = cells.filter(key => {
-            const cx=key%width,cz=Math.floor(key/width),d=distance.get(key);
-            return d>0 && d<length && at(key)>=profile.summitHeight*.7
-                && directions.some(([dx,dz])=>floorMap[cz+dz]?.[cx+dx]==='SNOW_PEAK');
-        }).map(key=>distance.get(key));
-        const snowDistance = snowDistances.length ? Math.min(...snowDistances) : length*.8;
-        const split = Math.max(length*.1,Math.min(length*.95,snowDistance));
-        const transition = Math.min(8,split*.2,(length-split)*.4);
-        const gentleGrade = (top-base)/(split+2*(length-split));
-        const maxSlopeDegrees = Math.atan(gentleGrade*2)*180/Math.PI;
-        for (const key of cells) {
-            const cx=key%width,cz=Math.floor(key/width),d=Math.min(length,distance.get(key));
-            const t=Math.max(0,Math.min(1,(d-split+transition/2)/transition));
-            const extra=d>=split+transition/2 ? d-split : transition*(t*t*t-.5*t*t*t*t);
-            surface[cz][cx]=base+gentleGrade*(d+extra);
-            for (let dz=-8;dz<=8;dz++) for (let dx=-8;dx<=8;dx++)
-                if (nearby[cz+dz] && cx+dx>=0 && cx+dx<width) nearby[cz+dz][cx+dx]=1;
-        }
-        // Acercar el perfil a la ladera sin heredar sus paredes: mezcla natural del45%.
-        const gradeAt=d=>{
-            const t=Math.max(0,Math.min(1,(d/length-.3)/.6));
-            return Math.tan((20+22*t*t*(3-2*t))*Math.PI/180);
-        };
-        const upper = new Map(), lower = new Map();
-        for (const key of cells) {
-            const cx=key%width,cz=Math.floor(key/width),d=distance.get(key);
-            const t=Math.max(0,Math.min(1,(d/length-.3)/.35));
-            const terrainWeight=.45+.4*t*t*(3-2*t);
-            upper.set(key,d===0 ? base : d>=length ? top
-                : Math.min(at(key),Math.max(base,Math.min(top,
-                    surface[cz][cx]*(1-terrainWeight)+at(key)*terrainWeight)))-.15);
-            lower.set(key,d>=length ? top : base);
-        }
-        // Envolventes de pendiente sobre la misma huella; conservan extremos y limitan escalones.
-        function relax(field, rising) {
-            const queue=cells.slice();
-            for(let head=0;head<queue.length;head++) {
-                const key=queue[head],cx=key%width,cz=Math.floor(key/width);
-                for(const [dx,dz] of directions) {
-                    const next=(cz+dz)*width+cx+dx;
-                    if(!road(cx+dx,cz+dz) || !field.has(next)) continue;
-                    const slopeLimit=gradeAt(Math.min(distance.get(key),distance.get(next)));
-                    const step=slopeLimit*UNIT_SIZE*Math.hypot(dx,dz);
-                    const candidate=field.get(key)+(rising ? -step : step);
-                    if(rising ? candidate>field.get(next)+1e-7 : candidate<field.get(next)-1e-7) {
-                        field.set(next,candidate); queue.push(next);
-                    }
-                }
-            }
-        }
-        relax(upper,false); relax(lower,true);
-        for(const key of cells) surface[Math.floor(key/width)][key%width]=
-            distance.get(key)>=length && plateauDistance(key%width,Math.floor(key/width))<=6 ? top : distance.get(key)===0 ? base
-                : Math.min(at(key)-.15,Math.max(upper.get(key),lower.get(key)));
-        trails.push({cells:cells.length,length,base,top,snowDistance:split,
-            referenceGentleSlopeDegrees:Math.atan(gentleGrade)*180/Math.PI,
-            referenceFinalSlopeDegrees:maxSlopeDegrees,maxGentleSlopeDegrees:20,maxSlopeDegrees:42,terrainBlend:.85});
+// Buscar cotas sobre la ladera terminada y excavar una plataforma sin añadir relleno.
+export function carveMountainTrail(floorMap, heights, mountainMask, profile, collisionMap) {
+    if(!profile)return profile;
+    const height=floorMap.length,width=floorMap[0].length,top=profile.summitHeight;
+    const snow=MOUNTAIN_RELIEF_RUNS.filter(r=>r[0]==='SNOW_PEAK');
+    const cx=(Math.min(...snow.map(r=>r[2]))+Math.max(...snow.map(r=>r[3])))/2;
+    const cz=(Math.min(...snow.map(r=>r[1]))+Math.max(...snow.map(r=>r[1])))/2;
+    const sample=(x,z)=>{
+        x=Math.max(0,Math.min(width-1.001,x));z=Math.max(0,Math.min(height-1.001,z));
+        const ix=Math.floor(x),iz=Math.floor(z),tx=x-ix,tz=z-iz;
+        return (heights[iz][ix]*(1-tx)+heights[iz][ix+1]*tx)*(1-tz)
+            +(heights[iz+1][ix]*(1-tx)+heights[iz+1][ix+1]*tx)*tz;
+    };
+    const entries=[],goals=[];
+    for(let z=1;z<height-1;z++)for(let x=1;x<width-1;x++) {
+        if(!mountainMask[z][x]||floorMap[z][x]!=='DIRT')continue;
+        if(heights[z][x]<3&&[[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dz])=>floorMap[z+dz][x+dx]==='DIRT'&&!mountainMask[z+dz][x+dx]))entries.push({x,z,y:heights[z][x]});
+        if(heights[z][x]>=top*.995)goals.push({x,z,y:heights[z][x]});
     }
-    if (!trails.length) return profile;
-    const result = {...profile,carved:true,surface,nearby,coreRadius:0.55,blendRadius:1.75,trails,summitPlateau:plateau};
-    // El talud ancho se prepara una vez; el muestreo por fotograma conserva un corredor pequeño.
-    const supportProfile={...result,coreRadius:0.75,blendRadius:8};
-    // Calcular todas las proyecciones antes de tocar las alturas evita dependencia del orden.
-    for (let z=0;z<height;z++) for (let x=0;x<width;x++) {
-        if (!mountainMask[z][x] || !nearby[z][x] || structures.has(floorMap[z][x]) || floorMap[z][x]==='CHEST') continue;
-        const sample=sampleMountainPath(supportProfile,x,z);
-        if (!sample) continue;
-        const t=Math.max(0,Math.min(1,(sample.distance-supportProfile.coreRadius)/(supportProfile.blendRadius-supportProfile.coreRadius)));
+    if(!entries.length||!goals.length)return {...profile,carved:false};
+    entries.sort((a,b)=>Math.hypot(a.x-cx,a.z-cz)-Math.hypot(b.x-cx,b.z-cz));
+    const entry=entries[0],startAngle=Math.atan2(entry.z-cz,entry.x-cx);
+    goals.sort((a,b)=>Math.hypot(a.x-entry.x,a.z-entry.z)-Math.hypot(b.x-entry.x,b.z-entry.z));
+    const goal=goals[0];let endAngle=Math.atan2(goal.z-cz,goal.x-cx);
+    while(endAngle-startAngle>Math.PI)endAngle-=2*Math.PI;
+    while(endAngle-startAngle<-Math.PI)endAngle+=2*Math.PI;
+    const direction=endAngle>startAngle?1:-1;
+    // Las primeras horquillas permanecen en la cara de acceso, lejos de la cola costera.
+    const angles=[startAngle,startAngle+direction*.45,startAngle+direction*.10,
+        startAngle+direction*.60,startAngle+direction*.25,
+        startAngle+direction*1.30,startAngle+direction*.40,startAngle+direction*.80,endAngle];
+    const levels=[entry.y,top*.08,top*.16,top*.24,top*.32,top*.52,top*.73,top*.87,goal.y-.02];
+    function contour(angle,y) {
+        let inner=0,outer=Math.min(width,height)*.48;
+        for(let i=0;i<32;i++) {
+            const r=(inner+outer)/2;
+            if(sample(cx+Math.cos(angle)*r,cz+Math.sin(angle)*r)>y)inner=r;else outer=r;
+        }
+        const r=(inner+outer)/2;
+        return {x:cx+Math.cos(angle)*r,z:cz+Math.sin(angle)*r};
+    }
+    const points=[{x:entry.x,z:entry.z}];
+    for(let leg=0;leg<angles.length-2;leg++)for(let i=1;i<=120;i++) {
+        const t=i/120,rise=leg>=angles.length-3?t:.5*t+.5*t*t*(3-2*t);
+        points.push(contour(angles[leg]+(angles[leg+1]-angles[leg])*t,levels[leg]+(levels[leg+1]-levels[leg])*rise));
+    }
+    // Último ascenso hacia la puerta occidental de la casa, excavado en la nieve.
+    // La salida se nivela antes de la entrada, sin prolongarse bajo el edificio.
+    const summitStart=points.length-1,last=points.at(-1);
+    const arrival={x:wizardHouseLayout.door.x-2,z:wizardHouseLayout.door.z};
+    const control={x:last.x+8,z:arrival.z};
+    for(let i=1;i<=180;i++) {
+        const t=i/180,s=1-t;
+        points.push({x:s*s*last.x+2*s*t*control.x+t*t*arrival.x,
+            z:s*s*last.z+2*s*t*control.z+t*t*arrival.z});
+    }
+    // Redondear cambios de sentido para que la plataforma no tenga esquinas
+    // donde dos tramos próximos compitan por la altura del mismo vértice.
+    for(let pass=0;pass<24;pass++) {
+        const previous=points.map(p=>({...p}));
+        for(let i=1;i<points.length-1;i++) {
+            points[i].x=(previous[i-1].x+2*previous[i].x+previous[i+1].x)/4;
+            points[i].z=(previous[i-1].z+2*previous[i].z+previous[i+1].z)/4;
+        }
+    }
+    // Apoyar la plataforma por debajo del borde exterior: el lado de la cima
+    // se excava, mientras que el lado del valle nunca forma un terraplén.
+    // Un muestreo circular mantiene la cota continua también en las horquillas.
+    let travelled=0;
+    for(let i=0;i<points.length;i++) {
+        const p=points[i];
+        if(i)travelled+=Math.hypot(p.x-points[i-1].x,p.z-points[i-1].z);
+        p.distance=travelled;
+    }
+    for(const p of points) {
+        const natural=sample(p.x,p.z);
+        let edge=natural;
+        for(let i=0;i<24;i++) {
+            const angle=i*Math.PI/12;
+            edge=Math.min(edge,sample(p.x+Math.cos(angle)*.85,p.z+Math.sin(angle)*.85));
+        }
+        p.cut=natural-edge+.18;
+    }
+    for(const p of points) {
+        let depth=p.cut;
+        for(const q of points) {
+            depth=Math.max(depth,q.cut-Math.abs(q.distance-p.distance)*.08);
+        }
+        const t=Math.min(1,p.distance/8,(travelled-p.distance)/12);
         const blend=t*t*(3-2*t);
-        // Tallar donde haga falta, sin crear rellenos que sobresalgan del relieve natural.
-        heights[z][x]=Math.min(heights[z][x],sample.height*(1-blend)+heights[z][x]*blend);
+        p.y=sample(p.x,p.z)-depth*blend;
     }
-    // Aterrizar antes de la casa y mantener una explanada horizontal, fundida con la nieve.
-    if(plateau) for(let z=0;z<height;z++) for(let x=0;x<width;x++) {
-        if(!mountainMask[z][x] || structures.has(floorMap[z][x])) continue;
-        const d=plateauDistance(x,z);
-        if(d>=plateau.outer) continue;
-        const t=Math.max(0,(d-plateau.inner)/(plateau.outer-plateau.inner));
-        const blend=t*t*(3-2*t);
-        heights[z][x]=plateau.height*(1-blend)+heights[z][x]*blend;
+    // Descansos nivelados en las horquillas: evitan una superficie retorcida
+    // cuando el borde interior del giro tiene un radio muy pequeño.
+    for(let turn=120;turn<summitStart;turn+=120) {
+        const center=points[turn].distance;
+        let landing=Infinity;
+        for(const p of points)if(Math.abs(p.distance-center)<2.5)landing=Math.min(landing,p.y);
+        for(const p of points) {
+            const d=Math.abs(p.distance-center);
+            if(d>=6)continue;
+            const t=Math.max(0,(d-2.5)/3.5),blend=t*t*(3-2*t);
+            p.y=Math.min(p.y,landing*(1-blend)+p.y*blend);
+        }
     }
-    result.nearby=Array.from({length:height},()=>new Uint8Array(width));
-    for(let z=0;z<height;z++) for(let x=0;x<width;x++) if(Number.isFinite(surface[z][x]))
-        for(let dz=-3;dz<=3;dz++) for(let dx=-3;dx<=3;dx++)
-            if(result.nearby[z+dz] && x+dx>=0 && x+dx<width) result.nearby[z+dz][x+dx]=1;
-    return result;
+    // Limitar los cambios longitudinales sin elevar ninguna parte excavada.
+    for(let i=1;i<points.length;i++)points[i].y=Math.min(points[i].y,points[i-1].y+(points[i].distance-points[i-1].distance)*(i<480?.55:i<720?.8:1.1));
+    for(let i=points.length-2;i>=0;i--)points[i].y=Math.min(points[i].y,points[i+1].y+(points[i+1].distance-points[i].distance)*1.1);
+    // Rampa de pendiente moderada, con encuentro horizontal al final. Mantener
+    // nieve natural a ambos lados genera el corte sin terraplenes ni muros añadidos.
+    const start=points[summitStart],arrivalHeight=sample(arrival.x,arrival.z);
+    const rampLength=points.at(-1).distance-start.distance-12;
+    for(let i=summitStart+1;i<points.length;i++) {
+        const p=points[i],t=Math.min(1,(p.distance-start.distance)/rampLength),edge=.1;
+        const progress=t<edge?t*t/(2*edge*(1-edge))
+            :t>1-edge?1-(1-t)*(1-t)/(2*edge*(1-edge)):(t-edge/2)/(1-edge);
+        p.y=Math.min(sample(p.x,p.z),start.y+(arrivalHeight-start.y)*progress);
+    }
+    // Abrir el corte como un abanico: el piso crece suavemente y los taludes
+    // se extienden mucho más, para redondear su encuentro con la nieve natural.
+    for(const [i,p]of points.entries()) {
+        const t=Math.max(0,Math.min(1,(p.distance-start.distance)/rampLength));
+        const flare=t*t*(3-2*t);
+        p.coreRadius=.65+.85*flare;p.blendRadius=1.6+3.9*flare;
+        // Un corte profundo necesita más espacio lateral para redondear su
+        // cresta: un radio fijo dejaba dos paredes casi verticales al comienzo.
+        const shoulderT=Math.max(0,Math.min(1,(p.distance-start.distance+6)/12));
+        const shoulderBlend=shoulderT*shoulderT*(3-2*shoulderT);
+        const depth=Math.max(0,sample(p.x,p.z)-p.y);
+        const roundedRadius=p.coreRadius+2+depth*.42;
+        p.blendRadius=Math.max(p.blendRadius,1.6+(roundedRadius-1.6)*shoulderBlend);
+        p.snowCut=i>=summitStart;
+    }
+    const segments=[],bins=Array.from({length:height},()=>Array.from({length:width},()=>null));
+    let length=0;
+    for(let i=1;i<points.length;i++) {
+        const a=points[i-1],b=points[i],dx=b.x-a.x,dz=b.z-a.z,l2=dx*dx+dz*dz;
+        if(l2<1e-10)continue;
+        const index=segments.length;segments.push({x:a.x,z:a.z,dx,dz,l2,y:a.y,dy:b.y-a.y,
+            coreRadius:a.coreRadius,coreDelta:b.coreRadius-a.coreRadius,
+            blendRadius:a.blendRadius,blendDelta:b.blendRadius-a.blendRadius,snowCut:a.snowCut});length+=Math.sqrt(l2)*UNIT_SIZE;
+        const reach=Math.ceil(Math.max(a.blendRadius,b.blendRadius));
+        for(let z=Math.max(0,Math.floor(Math.min(a.z,b.z)-reach));z<=Math.min(height-1,Math.ceil(Math.max(a.z,b.z)+reach));z++)
+            for(let x=Math.max(0,Math.floor(Math.min(a.x,b.x)-reach));x<=Math.min(width-1,Math.ceil(Math.max(a.x,b.x)+reach));x++)(bins[z][x]??=[]).push(index);
+    }
+    const distance=(x,z)=>{
+        let best=Infinity,walkRadius=.8;
+        for(const index of bins[z]?.[x]??[]) {
+            const s=segments[index],t=Math.max(0,Math.min(1,((x-s.x)*s.dx+(z-s.z)*s.dz)/s.l2));
+            const d=Math.hypot(x-s.x-s.dx*t,z-s.z-s.dz*t);
+            if(d<best){best=d;walkRadius=s.coreRadius+s.coreDelta*t+.15;}
+        }return {distance:best,walkRadius};
+    };
+    for(let z=0;z<height;z++)for(let x=0;x<width;x++) {
+        const path=distance(x,z);
+        if(!mountainMask[z][x]&&path.distance>path.walkRadius)continue;
+        if(mountainMask[z][x]&&floorMap[z][x]==='DIRT'&&heights[z][x]<top*.995) {
+            floorMap[z][x]='MOUNTAIN';if(collisionMap)collisionMap[z][x]='MOUNTAIN';
+        }
+        if(path.distance>path.walkRadius||!['MOUNTAIN','PEAK','SNOW_SLOPE','SNOW_PEAK','DIRT','TREE','BUSH','GRASS','TALL_GRASS'].includes(floorMap[z][x]))continue;
+        floorMap[z][x]=heights[z][x]>top*.8?'SNOW_SLOPE':'DIRT';
+        if(collisionMap)collisionMap[z][x]=false;
+    }
+    return {...profile,carved:false,contourTrail:true,segments,bins,points,
+        coreRadius:.65,blendRadius:1.6,cutOnly:true,
+        trails:[{length,base:entry.y,top:arrivalHeight}],summitPlateau:null};
 }

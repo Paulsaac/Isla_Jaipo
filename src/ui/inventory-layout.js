@@ -3,7 +3,7 @@ import { createInventoryModel } from './inventory-model.js';
 export function arrangeInventory(menu) {
     const panel=menu.querySelector('.inventory-windows');panel.classList.add('inventory-orbit');
     const slots={heart:[24,13],'sea-heart':[50,23],torch:[7,65],map:[13,80],
-        'pink-sunglasses':[28,87],helmet:[93,65],mate:[87,80],key:[72,87]};
+        'pink-sunglasses':[28,87],astroscope:[93,47],helmet:[93,65],mate:[87,80],key:[72,87]};
     for(const [item,[x,y]] of Object.entries(slots)) {
         const button=menu.querySelector(`[data-item="${item}"]`),slot=button.parentElement;
         panel.append(slot);slot.classList.add('orbit-slot');

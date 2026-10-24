@@ -1,6 +1,7 @@
 import { UNIT_SIZE } from '../config.js';
 import { sampleMountainPath } from './mountain-path.js';
 import { sampleShorelineHeight } from './shoreline-smoothing.js';
+import { summitStonePlatform } from '../content/summit-layout.js';
 
 function hash2D(x, z) {
     let n = ((Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1);
@@ -112,12 +113,16 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
         y += (macroNoise + microNoise + shoreGranularity) * noiseAmount;
     }
     const road=sampleMountainPath(mountainPathProfile,colF,rowF);
-    if(road) {
-        const core=mountainPathProfile.coreRadius ?? 0.6;
-        const radius=mountainPathProfile.blendRadius ?? 1.5;
+    if(road?.offset!=null)y+=road.offset;
+    else if(road) {
+        const core=road.coreRadius ?? mountainPathProfile.coreRadius ?? 0.6;
+        const radius=road.blendRadius ?? mountainPathProfile.blendRadius ?? 1.5;
         const t=Math.max(0,Math.min(1,(road.distance-core)/(radius-core)));
+        // Tangentes horizontales al pie y en la cresta, sin concentrar el
+        // desnivel en el centro del talud como hacía la curva de quinto grado.
         const blend=t*t*(3-2*t);
-        y=road.height*(1-blend)+y*blend;
+        const bed=mountainPathProfile.cutOnly?Math.min(y,road.height):road.height;
+        y=bed*(1-blend)+y*blend;
     }
     const plateau=mountainPathProfile?.summitPlateau;
     if(plateau) {
@@ -127,6 +132,20 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
             const t=Math.max(0,(d-plateau.inner)/(plateau.outer-plateau.inner));
             const blend=t*t*(3-2*t);
             y=plateau.height*(1-blend)+y*blend;
+        }
+    }
+    // Relleno local de la cimentación y su contorno: las losas del observatorio
+    // deben descansar sobre una explanada, también en el borde posterior de la cima.
+    const observatory=summitStonePlatform,apron=2.5,transition=2;
+    const minX=observatory.minX-.5-apron,minZ=observatory.minZ-.5-apron;
+    const maxX=observatory.minX+observatory.cellsPerSide-.5+apron;
+    const maxZ=observatory.minZ+observatory.cellsPerSide-.5+apron;
+    if(Number.isFinite(mountainPathProfile?.summitHeight)
+        && colF>minX-transition&&colF<maxX+transition&&rowF>minZ-transition&&rowF<maxZ+transition) {
+        const distance=Math.hypot(Math.max(minX-colF,0,colF-maxX),Math.max(minZ-rowF,0,rowF-maxZ));
+        if(distance<transition) {
+            const t=distance/transition,blend=t*t*(3-2*t);
+            y=mountainPathProfile.summitHeight*(1-blend)+y*blend;
         }
     }
     // Mantener tierra continua bajo la madera y suavizar el encuentro exterior.

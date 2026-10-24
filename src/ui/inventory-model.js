@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createPinkSunglasses } from '../world/pink-sunglasses.js';
+import { createTelescope } from '../world/telescope.js';
 
 // Modelos de inspección ligeros; no comparten recursos ni estado con los objetos de la partida.
 export function createInventoryModel(host) {
@@ -8,9 +9,9 @@ export function createInventoryModel(host) {
     const label=document.createElement('p'); label.className='inventory-preview-label';
     label.textContent='Señala un objeto'; host.append(label);
     const names={heart:'Corazón del Bosque','sea-heart':'Corazón del Mar',torch:'Antorcha',map:'Mapa',
-        'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave'};
+        'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave',astroscope:'Astroscopio'};
     function clear() {
-        model?.traverse(o=>{o.geometry?.dispose();for(const material of o.material ? (Array.isArray(o.material)?o.material:[o.material]) : []) material.dispose();});
+        model?.traverse(o=>{o.geometry?.dispose();for(const material of o.material ? (Array.isArray(o.material)?o.material:[o.material]) : []) {material.map?.dispose();material.dispose();}});
         if(model) scene.remove(model);
     }
     function draw(time) {
@@ -56,6 +57,10 @@ export function createInventoryModel(host) {
             for(let i=0;i<4;i++) {const line=part(new THREE.BoxGeometry(.8,.035,.02),0x708b67,-.1,(i-1.5)*.22,.08);line.rotation.z=.3;}
         } else if(item==='pink-sunglasses') {
             const goggles=createPinkSunglasses(THREE);goggles.scale.setScalar(3.6);model.add(goggles);
+        } else if(item==='astroscope') {
+            const telescope=createTelescope(THREE);telescope.scale.setScalar(4);
+            telescope.rotateY(Math.PI/2);telescope.rotateOnWorldAxis(new THREE.Vector3(0,0,1),.35);
+            model.add(telescope);
         } else if(item==='helmet') {
             part(new THREE.SphereGeometry(.75,16,10),0xb48b49);
             part(new THREE.CylinderGeometry(.8,.9,.2,12),0x88622f,0,-.65);

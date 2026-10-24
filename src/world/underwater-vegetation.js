@@ -19,7 +19,7 @@ export async function createUnderwaterVegetation(THREE, loader, plants, sampleHe
         const texture=textures[variant];
         texture.colorSpace=THREE.SRGBColorSpace;
         texture.magFilter=texture.minFilter=THREE.NearestFilter;
-        const material=new THREE.MeshPhongMaterial({map:texture,transparent:true,alphaTest:0.45,
+        const material=new THREE.MeshPhongMaterial({map:texture,transparent:false,alphaTest:0.45,
             side:THREE.DoubleSide,forceSinglePass:true,shininess:0,color:0xb7dae2,emissive:0x073947,emissiveIntensity:0.12});
         material.onBeforeCompile=shader=>{
             shader.uniforms.currentTime=time;

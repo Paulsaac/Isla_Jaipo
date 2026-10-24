@@ -8,7 +8,7 @@ const portArgument = process.argv.find(argument => argument.startsWith('--port='
 const port = portArgument ? Number(portArgument.slice(7)) : 8000;
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Puerto inválido');
 const host = lan ? '0.0.0.0' : '127.0.0.1';
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon', '.mpeg': 'audio/mpeg', '.flac': 'audio/flac' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon', '.mpeg': 'audio/mpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.flac': 'audio/flac' };
 http.createServer((req, res) => {
     // Registro local de autoría, accesible también desde el PC de escucha en LAN.
     if (req.url === '/__authoring/forest-cues') {
@@ -65,9 +65,36 @@ http.createServer((req, res) => {
         res.writeHead(400).end();
         return;
     }
-    fs.readFile(file, (error, data) => {
-        if (error) { res.writeHead(404).end(); return; }
-        res.writeHead(200, { 'Content-Type': types[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-        res.end(data);
+    fs.stat(file, (error, stat) => {
+        if (error || !stat.isFile()) { res.writeHead(404).end(); return; }
+        const headers = { 'Content-Type': types[path.extname(file).toLowerCase()] || 'application/octet-stream',
+            'Cache-Control': 'no-store', 'Accept-Ranges': 'bytes' };
+        let start = 0, end = stat.size - 1, status = 200;
+        // Los reproductores móviles consultan inicio/final del audio sin descargarlo completo.
+        if (req.headers.range) {
+            const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+            if (match && (match[1] || match[2])) {
+                if (!match[1]) start = Math.max(0, stat.size - Number(match[2]));
+                else {
+                    start = Number(match[1]);
+                    if (match[2]) end = Math.min(end, Number(match[2]));
+                }
+            }
+            if (!match || (!match[1] && !match[2]) || !Number.isSafeInteger(start)
+                || !Number.isSafeInteger(end) || start < 0 || start > end || start >= stat.size
+                || (!match[1] && Number(match[2]) === 0)) {
+                res.writeHead(416, { ...headers, 'Content-Range': `bytes */${stat.size}`, 'Content-Length': 0 }).end();
+                return;
+            }
+            status = 206;
+            headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+        }
+        headers['Content-Length'] = stat.size === 0 ? 0 : end - start + 1;
+        res.writeHead(status, headers);
+        if (req.method === 'HEAD' || stat.size === 0) { res.end(); return; }
+        const stream = fs.createReadStream(file, { start, end });
+        stream.on('error', () => res.destroy());
+        res.on('close', () => stream.destroy());
+        stream.pipe(res);
     });
 }).listen(port, host, () => console.log(`Isla Jaipo: http://${host}:${port}/`));
