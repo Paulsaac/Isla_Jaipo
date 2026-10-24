@@ -185,6 +185,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         geometry.computeVertexNormals();
         return geometry;
     }
+    const buildingLights = [];
     let homeFloor = 1;
     for (let i = 0; i < model.roofs.length; i += 5) {
         const [x, z, width, depth, y] = model.roofs.subarray(i, i + 5);
@@ -208,6 +209,12 @@ export async function createIslandPreviewRenderer(THREE, options) {
         }
         house.scale.setScalar(0.85);
         scene.add(house);
+        // Luz cálida junto a la fachada: ilumina el suelo y los árboles cercanos.
+        // Las once luces permanecen en la escena para evitar recompilar al alternar día/noche.
+        const light = new THREE.PointLight(0xffbb66, 0, Math.max(26, Math.max(width, depth) * 1.25 + 10), 2);
+        light.position.set(centerX, y + 4.5, centerZ + depth * 0.425 + 2);
+        scene.add(light);
+        buildingLights.push(light);
     }
 
     const clouds = createPreviewClouds(THREE);
@@ -248,6 +255,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         seaMaterial.uniforms.deepSeaColor.value.copy(scene.background);
         seaMaterial.uniforms.nightMix.value=nightBlend;
         clouds.setNightMix(nightBlend);
+        for (const light of buildingLights) light.intensity = 180 * nightBlend;
     }
     const camera = new THREE.PerspectiveCamera(40, options.width / options.height, 0.03, 4000);
     // El negro pertenece al mismo render que la maqueta: no puede adelantarse

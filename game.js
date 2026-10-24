@@ -1002,7 +1002,10 @@ function interact() {
     telescopeView?.cancel();
     if (bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return false;
     if (menus.isDialogVisible() && menus.completeDialogText()) return true;
-    if (seatedChair) { standFromChair(); return true; }
+    if (seatedChair && !isDialogOpen && targetInteractable?.userData.type !== 'READABLE_BOOK') {
+        standFromChair();
+        return true;
+    }
     if (woodcutting.active) {
         if (isTouchMode) woodcutting.interact();
         return true;
@@ -4366,9 +4369,11 @@ function animate(timestamp = performance.now()) {
                 :`Omniscopio ${observatoryScope.zoom}× · flechas para girar · Shift + / Ctrl − zoom · E para levantarte`);
             hud.setInteractionColor('#a9d8e7');
         } else if (seatedChair) {
-            targetInteractable = null;
+            const bookHit = intersects[0];
+            targetInteractable = bookHit?.distance < 3.5 && bookHit.object.userData.type === 'READABLE_BOOK'
+                ? bookHit.object : null;
             hud.showInteraction();
-            hud.setInteractionText('Presiona E para levantarte');
+            hud.setInteractionText(targetInteractable ? 'Presiona E para leer la bitácora' : 'Presiona E para levantarte');
             hud.setInteractionColor('#ffeb3b');
         } else if(observatoryLadder?.active&&(!observatoryLadder.canUseScope||intersects[0]?.object!==scopeTarget)) {
             targetInteractable=null;hud.showInteraction();
