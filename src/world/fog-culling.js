@@ -6,10 +6,18 @@ export function createFogCulling(THREE, scene, excludedRoots, residual = 0.0001)
     const objects = [];
     function register() {
         objects.length = 0;
+        const lightAncestors = new Set();
+        scene.traverse(object => {
+            if (!object.isLight) return;
+            for (let parent = object.parent; parent; parent = parent.parent) lightAncestors.add(parent);
+        });
         function visit(object) {
             if (excludedRoots.includes(object)) return;
             const materials = object.material ? (Array.isArray(object.material) ? object.material : [object.material]) : [];
-            if ((object.isMesh || object.isSprite) && !object.isInstancedMesh && (object.visible || object.userData.visibilityEnabled === false)
+            // Ocultar un mueble que contiene una luz cambia NUM_SPOT_LIGHTS en
+            // TODOS los materiales. Dejar que el frustum descarte su geometría;
+            // la luz conserva su alcance original y el conjunto de shaders estable.
+            if ((object.isMesh || object.isSprite) && !object.isInstancedMesh && !lightAncestors.has(object) && (object.visible || object.userData.visibilityEnabled === false)
                 && materials.every(material => material.fog !== false)) {
                 if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
                 objects.push(object);

@@ -4,6 +4,7 @@ export function createVegetationVisibility(group, strength) {
     const depthWrites=materials.map(material=>material.depthWrite);
     const transparencies=materials.map(material=>material.transparent);
     for(const material of materials) {
+        material.userData.preloadTransparency=true;
         const previous=material.onBeforeCompile;
         const key=material.customProgramCacheKey();
         material.onBeforeCompile=function(shader,renderer) {

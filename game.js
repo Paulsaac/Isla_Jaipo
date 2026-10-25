@@ -503,7 +503,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(0.5); 
 document.body.appendChild(renderer.domElement);
-const performancePanel = createPerformancePanel(renderer);
+const performancePanel = createPerformancePanel(renderer, isTouchMode ? 30 : 60);
 const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime,pinkSunglassesTint,sunglassesViewColor,sunglassesNegativeView);
 
 const controls = new PointerLockControls(camera, document.body);
@@ -1968,8 +1968,14 @@ Promise.all([
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await buildWorld(prepared, checkpoint);
     performancePanel?.mark('Mundo construido');
+    // Construir y preparar las plantas durante la carga: estrenarlas bajo el agua
+    // consume aire mientras el driver crea sus programas y buffers.
+    await prepareUnderwaterPlants();
+    performancePanel?.mark('Vegetación submarina lista');
     await worldTexturesReady;
     performancePanel?.mark('Texturas listas');
+    // Crear el contexto secundario con el inventario oculto evita estrenarlo al abrirlo.
+    menus.prepareInventory();
     // Subir texturas por tandas evita estrenar todas las cargas GPU en un dibujo.
     const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,...torchFrames]);
     scene.traverse(object => {
@@ -1994,6 +2000,7 @@ Promise.all([
     // Preparar también los materiales fuera de cámara durante la pantalla de carga.
     // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
     await prepareStartupPrograms(scene, camera, null);
+    await heldOverlay.prepare(prepareStartupPrograms);
     performancePanel?.mark('Shaders preparados');
     camera.position.y = getTerrainHeight(camera.position.x, camera.position.z) + PLAYER_HEIGHT;
     const preview = getIslandPreview();
@@ -4996,31 +5003,6 @@ function animate(timestamp = performance.now()) {
     if(camera.far!==opticalFar){camera.far=opticalFar;camera.updateProjectionMatrix();}
     const fogPlane = fogCulling?.update(camera);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
-    const plantGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
-    const plantGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-    const seaUnderfoot = ['WATER','BOAT'].includes(floorMap[plantGZ]?.[plantGX]);
-    const feetAtWater = controlObj.position.y - PLAYER_HEIGHT <= getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z) + 0.15;
-    if (mapLoaded && !underwaterVegetationPreparation && (showUnderwaterPlants || (seaUnderfoot && feetAtWater && !isRidingBoat))) {
-        underwaterVegetationPreparation = (async()=>{
-            const plants = await createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
-                getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
-            const fade = createVegetationVisibility(plants.group,{value:0});
-            fade.set(0);
-            // Subir texturas anticipadamente y repartir ese trabajo entre fotogramas.
-            for (const mesh of plants.group.children) {
-                await new Promise(resolve=>requestAnimationFrame(resolve));
-                renderer.initTexture(mesh.material.map);
-            }
-            plants.update(camera,fogPlane,UNDERWATER_PLANT_DISTANCE);
-            prepareInactiveLights(THREE, plants.group);
-            scene.add(plants.group);
-            // Usar la escena real conserva las variantes de niebla y luces del juego.
-            await renderer.compileAsync(scene,camera);
-            await underwaterView.prepare(scene,camera,true);
-            underwaterVegetationFade = fade;
-            underwaterVegetation = plants;
-        })().catch(error=>console.error('No se pudo preparar la vegetación submarina:',error));
-    }
     const underwaterPlantsReady = !!underwaterVegetation;
     const vegetationTarget = showUnderwaterPlants && underwaterPlantsReady ? 1 : 0;
     vegetationBlend += (vegetationTarget-vegetationBlend)*(1-Math.exp(-vegetationDelta*2));
@@ -5068,6 +5050,7 @@ function animate(timestamp = performance.now()) {
         scene.fog.color.set(0x000000);
     }
     try {
+        performancePanel?.begin();
         underwaterView.render(scene, camera);
         heldOverlay.render();
     } finally {
@@ -5084,6 +5067,20 @@ function animate(timestamp = performance.now()) {
         heartPull.restoreCameraShake();
         performancePanel?.record(timestamp, frameStart);
     }
+}
+
+function prepareUnderwaterPlants() {
+    if (!underwaterVegetationPreparation) underwaterVegetationPreparation = (async () => {
+        const plants = await createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
+            getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
+        const fade = createVegetationVisibility(plants.group,{value:0});
+        fade.set(0);
+        prepareInactiveLights(THREE, plants.group);
+        scene.add(plants.group);
+        underwaterVegetationFade = fade;
+        underwaterVegetation = plants;
+    })();
+    return underwaterVegetationPreparation;
 }
 
 animate();

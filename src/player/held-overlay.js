@@ -12,6 +12,10 @@ export function createHeldOverlay(THREE, renderer, view) {
     scene.add(light);
     return {
         group,
+        prepare(preparePrograms) {
+            // La mano tiene su propia escena y luces; compilar el mundo no la cubre.
+            return preparePrograms(scene, camera, null);
+        },
         render() {
             if (!group.children.some(object => object.visible)) return;
             if (camera.aspect !== view.aspect) {
