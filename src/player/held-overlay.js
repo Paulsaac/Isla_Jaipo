@@ -1,15 +1,19 @@
 // Una pasada independiente para objetos en mano: el mundo nunca puede taparlos.
-export function createHeldOverlay(THREE, renderer, view) {
+export function createHeldOverlay(THREE, renderer, view, {ambientLight, directionalLight, torchLight} = {}) {
     const scene = new THREE.Scene();
     const group = new THREE.Group();
     group.name = 'held-items-overlay';
     scene.add(group);
     // La proyección de la mano se conserva mientras cambia el zoom del mundo.
     const camera = new THREE.PerspectiveCamera(view.fov, view.aspect, 0.01, 10);
-    scene.add(new THREE.HemisphereLight(0xd8f1ff, 0x303447, 1.5));
-    const light = new THREE.DirectionalLight(0xffffff, 1.5);
-    light.position.set(-1, 2, 3);
-    scene.add(light);
+    const ambient = new THREE.AmbientLight(0xffffff, 0);
+    scene.add(ambient);
+    const directional = new THREE.DirectionalLight(0xffffff, 0);
+    scene.add(directional);
+    const torch = new THREE.PointLight(0xff8800, 0, 45, 1);
+    scene.add(torch);
+    const inverseViewRotation = new THREE.Quaternion();
+    const lightDirection = new THREE.Vector3();
     return {
         group,
         prepare(preparePrograms) {
@@ -18,6 +22,25 @@ export function createHeldOverlay(THREE, renderer, view) {
         },
         render() {
             if (!group.children.some(object => object.visible)) return;
+            if (ambientLight) {
+                ambient.color.copy(ambientLight.color);
+                ambient.intensity = ambientLight.intensity;
+            }
+            if (directionalLight) {
+                directional.color.copy(directionalLight.color);
+                directional.intensity = directionalLight.intensity;
+                view.updateWorldMatrix(true, false);
+                inverseViewRotation.copy(view.getWorldQuaternion(new THREE.Quaternion())).invert();
+                directionalLight.getWorldDirection(lightDirection).negate().applyQuaternion(inverseViewRotation);
+                directional.position.copy(lightDirection).multiplyScalar(10);
+            }
+            if (torchLight) {
+                torch.color.copy(torchLight.color);
+                torch.intensity = torchLight.intensity;
+                torch.distance = torchLight.distance;
+                torch.decay = torchLight.decay;
+                torch.position.copy(torchLight.position);
+            }
             if (camera.aspect !== view.aspect) {
                 camera.aspect = view.aspect;
                 camera.updateProjectionMatrix();

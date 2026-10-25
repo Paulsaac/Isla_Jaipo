@@ -1,13 +1,14 @@
+import { createTestModeSequence } from './test-mode.js';
+
 // Traduce teclas a acciones. Las condiciones de gameplay pertenecen al llamador.
 export function bindKeyboard(actions, target = document) {
-    const sequence = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyD', 'KeyA', 'KeyD'];
-    let sequenceIndex = 0;
+    const sequence = createTestModeSequence(() => actions.toggleTestMode());
     const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right', ArrowUp:'forward', ArrowDown:'backward', ArrowLeft:'left', ArrowRight:'right' };
 
     function onKeyDown(event) {
         if (actions.isEnabled?.() === false) return;
         if (actions.isPaused?.()) {
-            sequenceIndex = 0;
+            sequence.reset();
             if (!event.repeat && event.code === 'Escape' && !actions.isInventoryOpen?.()) actions.pause();
             // Inventario abierto: Q lo cierra; Esc pasa a la pausa real.
             if (actions.isInventoryOpen?.() && !event.repeat) {
@@ -32,13 +33,7 @@ export function bindKeyboard(actions, target = document) {
             return;
         }
         if(code.startsWith('Arrow')) event.preventDefault();
-        if (code === sequence[sequenceIndex]) {
-            sequenceIndex++;
-            if (sequenceIndex === sequence.length) {
-                sequenceIndex = 0;
-                actions.toggleFlight();
-            }
-        } else { sequenceIndex = 0; }
+        sequence.press(event);
 
         if (code === 'Enter') actions.start();
         if (code === 'KeyE') {
@@ -82,6 +77,6 @@ export function bindKeyboard(actions, target = document) {
         target.removeEventListener('keydown', onKeyDown);
         target.removeEventListener('keyup', onKeyUp);
     };
-    dispose.resetSequence = () => { sequenceIndex = 0; };
+    dispose.resetSequence = () => sequence.reset();
     return dispose;
 }

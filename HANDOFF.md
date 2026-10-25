@@ -1,3 +1,7 @@
+# Interfaz: recuperación de sesión — 2026-10-24
+
+Clawshoot confirmó que el otro chat dejó de editar y autorizó recuperar el bloqueo Codex `0d352bbc-d11a-4830-bfdd-2dfa43b85c34`. Liberado con finish y adquirido token propio `76cfb3d0-07f5-42c7-8e69-7034570197c6`, activo entre pedidos. Pedido actual: modo de prueba y ocultación de sus atajos, incluidos V/B. Trabajo local previo conservado; sin staging, commit, push ni gestión del servidor.
+
 # Publicación y respaldo final — Clawshoot, 2026-10-24
 
 PR creado por autorización explícita: https://github.com/Paulsaac/Isla_Jaipo/pull/10, base main, rama codex/observatorio-huerto-montana-20261024. GitHub confirmó OPEN / MERGEABLE / CLEAN; no se integró el PR. Entrega de juego 5a0d15e y combinación con main b7fb6b1; esta nota añade el registro final de publicación. Permanece el respaldo previo `.coordination/backups/Jaipo_2026-10-24_antes_PR.zip` y se genera el respaldo acumulado final `.coordination/backups/Jaipo_2026-10-24.zip`, con Git y todos los recursos/auxiliares locales, exclusiones de backups y bloqueo transitorio, verificación CRC y SHA256 en archivo hermano `.sha256`. La rama remota contiene los 65 archivos revisados del juego y documentación. Referencias `.codex-remote-attachments/` y recuperación Blender `.blend1` quedan sin seguimiento y respaldadas localmente por diseño; no se borraron cambios ajenos. La sesión de trabajo sigue activa; guardar/publicar no apaga el servidor ni libera el bloqueo sin orden de cierre.

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createIslandPreviewRenderer } from './island-preview-renderer.js';
 import { menuMusic } from './menu-music.js';
+import { testMode, createTestModeSequence } from '../input/test-mode.js';
 
 export async function createSavedIslandPreview() {
     const menu = document.getElementById('main-menu');
@@ -20,10 +21,16 @@ export async function createSavedIslandPreview() {
         return canvas;
     }
     let canvas = canvasElement(), driver, worker, night = false, themeHint = null;
+    let themeSwitchActive = true;
+    function updateThemeHint() {
+        if (!themeHint) return;
+        themeHint.hidden = !testMode.enabled || !themeSwitchActive;
+        themeHint.textContent = night ? '[Modo de prueba · L] Ver día' : '[Modo de prueba · L] Ver noche';
+    }
     function reportTheme(enabled) {
         night=Boolean(enabled);
         document.body.dataset.previewTheme=night ? 'night' : 'day';
-        if(themeHint)themeHint.textContent=night ? '[L] Ver día' : '[L] Ver noche';
+        updateThemeHint();
     }
     const presentation = {};
     let latestFreeFrame = null, freeFrameScheduled = false;
@@ -150,16 +157,23 @@ export async function createSavedIslandPreview() {
     themeHint = document.createElement('p');
     themeHint.className = 'preview-theme-hint';reportTheme(night);
     menu.append(themeHint);
+    const stopModeWatch = testMode.subscribe(updateThemeHint);
+    const sequence = createTestModeSequence(() => testMode.toggle());
+    const handleTestSequence = event => sequence.press(event);
     function toggleTheme(event) {
-        if (event.code !== 'KeyL' || event.repeat || event.ctrlKey || event.altKey || event.metaKey
+        if (!testMode.enabled || event.code !== 'KeyL' || event.repeat || event.ctrlKey || event.altKey || event.metaKey
             || event.target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
         event.preventDefault();
         reportTheme(!night);
         driver.setNight(night);
     }
     document.addEventListener('keydown',toggleTheme);
+    document.addEventListener('keydown',handleTestSequence);
     function stopThemeSwitch() {
+        themeSwitchActive = false;
         document.removeEventListener('keydown',toggleTheme);
+        document.removeEventListener('keydown',handleTestSequence);
+        stopModeWatch();
         themeHint.hidden = true;
     }
     if (diagnostics) {

@@ -21,6 +21,8 @@
     width: 44px; height: 44px; border-radius: 8px; background: #36323ee6; color: #80dfff;
 }
 #touch-controls .touch-heart-grant { color: #ffd078; }
+body:not(.test-mode) #touch-controls .touch-heart-shortcut,
+body:not(.test-mode) #touch-controls .touch-location-shortcut { display: none; }
 #touch-controls .touch-location-shortcut {
     width: auto; min-width: 48px; height: 44px; padding: 0 8px;
     border-radius: 8px; background: #36323ee6; color: #c3d6e2;

@@ -4,6 +4,7 @@ import { createTelescope } from '../world/telescope.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from '../world/diving-helmet-geometry.js';
 import { createInventoryMap } from '../world/inventory-map.js';
 import { createInventoryKey } from '../world/inventory-key.js';
+import { createMatePreview } from '../world/mate-set.js';
 import { prepareProgramsInBatches } from './render-ready.js';
 import { createLoadingYield } from './loading-yield.js';
 
@@ -218,9 +219,8 @@ export function createInventoryModel(host) {
             // La mirilla del casco del mundo mira hacia -Z; presentarla hacia la cámara.
             helmet.rotation.y=Math.PI;model.add(helmet);
         } else if(item==='mate') {
-            part(new THREE.SphereGeometry(.55,12,8,0,Math.PI*2,.5,2.2),0x89512d,0,-.15);
-            part(new THREE.TorusGeometry(.28,.055,6,16),0xb5bcab,0,.34).rotation.x=Math.PI/2;
-            part(new THREE.CylinderGeometry(.04,.04,1.1,6),0xc5cdc6,.13,.6).rotation.z=-.25;
+            const mate=createMatePreview(THREE);
+            mate.scale.setScalar(2.5);mate.position.y=-.23;model.add(mate);
         } else if(item==='key') {
             model.add(createInventoryKey(THREE));
         }

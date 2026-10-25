@@ -8,7 +8,7 @@ import { carvePreviewRiver } from './preview-river.js';
 // Azul de referencia: promedio de Agua1_niebla.png del mundo jugable.
 const SEA_COLOR = 0x0172b4;
 const DEEP_SEA_COLOR = 0x09548c;
-const PREVIEW_RENDER_SCALE = 0.40;
+const PREVIEW_RENDER_SCALE = 1;
 const THEME_PHASE_MS = 30 * 60 * 1000; // Día y noche completan un ciclo de una hora.
 const LOADING_ZOOM_RATE = -Math.log(0.94); // Distancia restante ×0.94 cada segundo.
 const APPROACH_ORBIT_SECONDS = 8; // Referencia para calcular la aceleración; no limita velocidad.
@@ -318,7 +318,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
         const width = Math.max(1, viewWidth), height = Math.max(1, viewHeight);
         if (width !== lastWidth || height !== lastHeight) {
             lastWidth = width; lastHeight = height;
-            renderer.setPixelRatio(PREVIEW_RENDER_SCALE * Math.min(1, Math.sqrt(1920 * 1080 / (width * height))));
+            renderer.setPixelRatio(PREVIEW_RENDER_SCALE);
             renderer.setSize(width, height, false);
         }
         const aspect = width / height;

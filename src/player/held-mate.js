@@ -8,7 +8,8 @@ export function createHeldMate(THREE, camera) {
     set.traverse(part => part.geometry?.dispose());
     object.material.dispose();
     // La pasada de mano conserva profundidad entre las piezas de este modelo.
-    object.material = new THREE.MeshBasicMaterial({vertexColors:true,fog:false,transparent:true,opacity:1,depthTest:true,depthWrite:true});
+    // Igual que el modelo de la mesa: mismos colores y facetas planas.
+    object.material = new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:18,fog:false,transparent:true,opacity:1,depthTest:true,depthWrite:true});
     object.name = 'held-mate'; object.position.set(0,0,0);
     object.renderOrder = 1000; object.visible = false; camera.add(object);
     let held = false, minimum = 0, blend = 0;
@@ -30,9 +31,11 @@ export function createHeldMate(THREE, camera) {
             const t = smooth(blend);
             const radius = Math.min(1,camera.aspect) * Math.tan(THREE.MathUtils.degToRad(camera.fov/2)) * .55;
             const scale = Math.min(.8, radius * 1.7);
+            const halfWidth = Math.tan(THREE.MathUtils.degToRad(camera.fov/2)) * .55 * camera.aspect;
+            const restingX = Math.max(0, halfWidth - scale * .24);
             object.scale.setScalar(scale);
             object.position.set(
-                THREE.MathUtils.lerp(radius*.62,-.05*scale,t),
+                THREE.MathUtils.lerp(restingX,-.05*scale,t),
                 THREE.MathUtils.lerp(-radius*.90,-.394*scale-.03,t),
                 THREE.MathUtils.lerp(-.55,-.27,t));
             object.rotation.set(.18*t,-Math.PI/2*t,-.10*(1-t));
