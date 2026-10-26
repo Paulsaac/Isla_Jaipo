@@ -1,3 +1,13 @@
+# Integración de bitácora local con PR #11 — Clawshoot / Codex — 2026-10-26
+
+Clawshoot autorizó recuperar el bloqueo `2549b8dd-4612-4fe6-a907-83c81b665e0b` y seguir el flujo de guardar cambios locales, combinar main y publicar un PR. Sesión propia vigente: `6d37ac5f-cc42-485b-9210-1d2042258507`. Rama `codex/bitacora-caveat-integracion-20261026`: commit local `1703bd5` conserva los ajustes recibidos de Caveat en `src/ui/book-reader.css` y la nota previa de interfaz. Se integra `origin/main` `028ae0e`, que contiene PR #11. Único conflicto: entradas iniciales de este relevo; se conservan ambas completas. El CSS local queda idéntico al commit de respaldo y se conserva el lector actualizado de main.
+
+Verificación de la combinación: 183 archivos JavaScript pasan sintaxis; sin marcadores de conflicto; fuente Caveat presente. Localhost8000 responde HTTP200 para CSS, fuente y lector, con Caveat y texto `[E] Salir`. Comprobaciones de archivos y HTTP, sin recorrido visual integral en navegador. El servidor existente permanece activo. Audio local `sonidos/fx/mate EDITAR.wav` y auxiliar `tools/verify-graham-relocation.mjs` permanecen sin seguimiento, fuera de esta publicación.
+
+# Interfaz: recuperación de sesión para Caveat — 2026-10-26
+
+Clawshoot confirmó que el agente anterior dejó de editar y autorizó recuperar el bloqueo Codex `575203af-74fa-4c47-b2cf-ac4f04901397`. Liberado con finish y adquirido token propio `2549b8dd-4612-4fe6-a907-83c81b665e0b`, activo entre pedidos. Alcance: tipografía manuscrita de la bitácora con Caveat local existente. Sin staging, commit, push ni gestión del servidor.
+
 # Guardado y publicación solicitados — AxByZ / Codex — 2026-10-26
 
 Pedido explícito: guardar todo, cerrar servidores, generar respaldo y subir PR. Publicación autorizada para este pedido; no fusionar el PR automáticamente. Rama publicada `codex/axbyz-bosque-20261026`, base local `1e80fdf`, combinada con `origin/main` `1a75146` conservando sus novedades. PR **#11** abierto: https://github.com/Paulsaac/Isla_Jaipo/pull/11; GitHub confirma mergeable, sin fusionar. Esta entrega incluye el acumulado local recibido de AxByZ del 24 y de Antigravity del 25, sin atribuir sus cambios a este chat. Sus entradas históricas se conservan abajo.
