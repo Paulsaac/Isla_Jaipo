@@ -1,6 +1,6 @@
 # Guardado y publicación solicitados — AxByZ / Codex — 2026-10-26
 
-Pedido explícito: guardar todo, cerrar servidores, generar respaldo y subir PR. Publicación autorizada para este pedido; no fusionar el PR automáticamente. Rama de entrega prevista `codex/axbyz-bosque-20261026`, base local `1e80fdf`; combinar con `origin/main` actualizado conservando sus novedades. Esta entrega incluye el acumulado local recibido de AxByZ del 24 y de Antigravity del 25, sin atribuir sus cambios a este chat. Sus entradas históricas se conservan abajo. Estado final del PR, servidores y respaldo se registra al completar el proceso.
+Pedido explícito: guardar todo, cerrar servidores, generar respaldo y subir PR. Publicación autorizada para este pedido; no fusionar el PR automáticamente. Rama publicada `codex/axbyz-bosque-20261026`, base local `1e80fdf`, combinada con `origin/main` `1a75146` conservando sus novedades. PR **#11** abierto: https://github.com/Paulsaac/Isla_Jaipo/pull/11; GitHub confirma mergeable, sin fusionar. Esta entrega incluye el acumulado local recibido de AxByZ del 24 y de Antigravity del 25, sin atribuir sus cambios a este chat. Sus entradas históricas se conservan abajo.
 
 ## Valores finales propios que prevalecen sobre el historial
 
@@ -32,6 +32,8 @@ Sobre la combinación: 183 módulos JavaScript pasan sintaxis; código resuelto 
 Apagados por orden explícita: servidor local PID9200, LAN PID9332, réplica estática PID25744 y túnel de esta copia PID16316. Confirmado sin listeners en 8000, 8001, 8002 y 8003 y sin esos procesos. El túnel del otro proyecto en puerto3000 permanece intacto. La URL temporal compartida deja de funcionar al apagarse el túnel.
 
 Respaldo previo validado: `.coordination/backups/Isla_Jaipo_2026-10-26_AXBYZ_antes_PR.zip`, 3199 archivos / 800817713 bytes, SHA256 `9025580d5d2ac1b52d0a479b7b235e587b92fc277b95721979a99f0233564ead`, CRC aprobado. El respaldo final se genera después de publicar y registrar el PR, con Git, código, recursos, referencias y auxiliares; excluye la carpeta de respaldos y el bloqueo transitorio. Se conservan respaldos anteriores. La orden de guardar/publicar y cerrar servidores no libera por sí sola el bloqueo de trabajo de este chat.
+
+PR #11: entrega de código `836ea81`, combinación validada `833e0c0` y registro de publicación posterior. 50 archivos respecto a main, con audio DEF8 y recursos del Omniscopio/cielo. Respaldo final acumulado: `.coordination/backups/Isla_Jaipo_2026-10-26_AXBYZ_final.zip`; checksum en archivo hermano `.sha256`, diagnóstico de validación en `.coordination/final-backup-20261026.json`. Referencias y Blender de recuperación permanecen sin seguimiento y se incluyen en ZIP; no se borran ni se publican en el PR. El Git LFS ejecutable usado está incluido en `C:/Users/clop9/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/mingw64/libexec/git-core/`; añadir esa carpeta al PATH del proceso para operaciones LFS si el Git de usuario no lo encuentra. No se instaló software ni se cambió configuración global de Git.
 
 # Cierre de sesión y respaldo acumulado — Antigravity — 2026-10-25
 
