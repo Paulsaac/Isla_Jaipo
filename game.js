@@ -12,6 +12,13 @@ import { createTelescopeWorkshop } from './src/world/telescope-workshop.js';
 import { createWizardUpperFloor, isWizardHouseRoofCell } from './src/world/wizard-upper-floor.js';
 import { createWizardTelevisions } from './src/world/wizard-televisions.js';
 import { createSummitObservatory } from './src/world/summit-observatory.js';
+import { createLakeHouseDome } from './src/world/lake-house-dome.js';
+import { createLakeMetalRoom, LAKE_HATCH_CELL } from './src/world/lake-metal-room.js';
+import { createLakeAquarium } from './src/world/lake-aquarium.js';
+import { createModularSynthRacks } from './src/world/modular-synth-racks.js';
+import { createMetalRoomLadder } from './src/player/metal-room-ladder.js';
+import { applyLakeHouseLayout } from './src/world/lake-house-layout.js';
+import { lakeHouseLayout, isLakeHouseCell, isLakeHouseDoor } from './src/content/lake-house-layout.js';
 import { createObservatorySky } from './src/world/observatory-sky.js';
 import { wizardHouseLayout, summitStonePlatform } from './src/content/summit-layout.js';
 import { applySummitLayout } from './src/world/summit-layout.js';
@@ -194,6 +201,7 @@ let atticSupport = null;
 let wizardUpperFloor = null;
 let wizardTelevisions = null;
 let summitObservatory = null;
+let lakeHouseDome = null;
 const bedDefinition = furniture.find(item => item.id === 'graham-bed');
 let isCrouching = false;
 let crouchRequested = false;
@@ -493,6 +501,7 @@ function setHandTorchEnabled(enabled) {
     torchLight.intensity = enabled ? 8 : 0;
 }
 function isPlayerUnderwater() {
+    if(metalRoom?.active)return false;
     if (caveMap?.active) return caveMap.isWater(camera.position.x,camera.position.z)
         && camera.position.y < caveMap.getWaterHeight(camera.position.x);
     const gx = Math.floor((camera.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
@@ -957,6 +966,7 @@ const inventoryMoveAxis = new THREE.Vector3();
 let isFlying = testMode.enabled;
 
 function toggleTestMode() {
+    if(metalRoom?.active||metalRoom?.busy)return;
     if (seatedChair || observatoryScope?.seated || isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
     testMode.toggle();
     isFlying = testMode.enabled;
@@ -1066,6 +1076,13 @@ function showObservatoryChoice(kind) {
 
 function interact() {
     if (!controls.isLocked || isDead || observatoryMenu.active || gardenNote.active) return false;
+    if(metalRoom?.busy)return true;
+    if(metalRoom?.active) {
+        if(metalRoom.nearExit(controls.getObject().position)) {
+            metalRoom.beginLeave();clearGreetingInput();targetInteractable=null;hud.hideInteraction();
+        }
+        return true;
+    }
     if(observatoryScope?.active){observatoryScope.exit();velocity.set(0,0,0);velocityY=0;return true;}
     if(observatoryScope?.seated&&targetInteractable?.userData.type!=='OBSERVATORY_TELESCOPE') {
         observatoryScope.stand();velocity.set(0,0,0);velocityY=0;return true;
@@ -1140,6 +1157,14 @@ function interact() {
             boatSeatOffset.set(0, 0, 0);
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
+            if(targetInteractable.userData.type==='LAKE_HATCH') {
+                if(!isRidingBoat&&metalRoom.nearHatch(controls.getObject().position)
+                    && !musicEvents.isEventActive('forest')&&heartLevitationHeight<=.15) {
+                    metalRoom.beginEnter();clearGreetingInput();velocity.set(0,0,0);velocityY=0;
+                    targetInteractable=null;hud.hideInteraction();
+                }
+                return true;
+            }
             if(targetInteractable.userData.type==='OBSERVATORY_CHAIR'&&observatoryLadder?.canUseScope) {
                 observatoryScope.sit();velocity.set(0,0,0);velocityY=0;
                 for(const key of Object.keys(moveState))moveState[key]=false;
@@ -1424,6 +1449,7 @@ const gameActions = {
         hud.showReceivedItem('el Corazón del Bosque');
     },
     teleportToForestHeart() {
+        if(metalRoom?.active||metalRoom?.busy)return;
         if (seatedChair) return;
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isDialogOpen || isRidingBoat || !forestHeartShrine) return;
         const shrine=forestHeartShrine;
@@ -1442,6 +1468,7 @@ const gameActions = {
         }
     },
     teleportToTelescope() {
+        if(metalRoom?.active||metalRoom?.busy)return;
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
             || isRidingBoat || seatedChair || woodcutting.active || caveMap?.active || !telescopeMesh) return;
         if (!telescopeMesh.geometry.boundingSphere) telescopeMesh.geometry.computeBoundingSphere();
@@ -1462,6 +1489,7 @@ const gameActions = {
         previousPlayerPosition.copy(camera.position);targetInteractable=null;hud.hideInteraction();
     },
     teleportToWizardHouse() {
+        if(metalRoom?.active||metalRoom?.busy)return;
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
             || isRidingBoat || seatedChair || woodcutting.active || caveMap?.active || !wizardUpperFloor) return;
         const door={x:wizardHouseLayout.door.x*UNIT_SIZE,z:wizardHouseLayout.door.z*UNIT_SIZE},targetGround=getTerrainHeight(door.x,door.z);
@@ -1538,7 +1566,7 @@ const gameActions = {
     },
     run(pressed) { isRunning = pressed; },
     map() {
-        if (mapLoaded && hasMap && !caveMap?.active) {
+        if (mapLoaded && hasMap && !caveMap?.active && !metalRoom?.active && !metalRoom?.busy) {
             minimap.toggle();
             menus.setItemActive('map', minimap.enabled);
         }
@@ -1549,7 +1577,7 @@ const gameActions = {
             setHandTorchEnabled(!handTorchEnabled);
     },
     inventory() {
-        if (!gameStarted || isDead) return;
+        if (!gameStarted || isDead || metalRoom?.busy) return;
         if (isInventoryOpen) {
             isInventoryOpen = false;
             inventoryRunning = false;
@@ -1632,6 +1660,7 @@ for (const name of ['toggleTestMode', ...testActions, 'move', 'holdJump', 'jump'
     gameActions[name] = (...args) => {
         if (testActions.has(name) && !testMode.enabled) return;
         if(observatoryLadder?.active&&['toggleTestMode','teleportToForestHeart','teleportToTelescope','teleportToWizardHouse','holdJump','jump','crouch','run'].includes(name))return;
+        if(metalRoomLadder?.active&&['jump','crouch'].includes(name))return;
         if (woodcutting.active) {
             return;
         }
@@ -1703,6 +1732,32 @@ let mapLoaded = false;
 let caveEntrance = null;
 let caveMap = null;
 let caveTransitionPending = false;
+let metalRoom = null;
+let metalRoomLadder = null;
+let lakeAquarium = null;
+let modularSynthRacks = null;
+let metalRoomShade = null;
+
+function updateMetalRoomTravel(delta) {
+    if(!metalRoom?.busy)return;
+    const event=metalRoom.update(delta);
+    if(metalRoomShade)metalRoomShade.style.opacity=String(metalRoom.fade);
+    if(event) {
+        metalRoomLadder?.reset();
+        const player=controls.getObject();
+        if(event==='enter') {
+            player.position.copy(metalRoom.spawn);camera.rotation.set(0,0,0);
+            if(minimap.enabled)minimap.toggle();menus.setItemActive('map',false);
+        } else {
+            player.position.copy(metalRoom.returnPosition);
+            player.position.y=getTerrainHeight(player.position.x,player.position.z)+PLAYER_HEIGHT;
+            camera.rotation.set(0,Math.PI/2,0);
+        }
+        velocity.set(0,0,0);velocityY=0;isFlying=false;isCrouching=crouchRequested=false;
+        canJump=true;bobTimer=0;previousPlayerPosition.copy(player.position);
+        clearGreetingInput();targetInteractable=null;hud.hideInteraction();
+    }
+}
 
 async function enterCaveTestMap() {
     if (caveTransitionPending || caveMap?.active) return;
@@ -2050,7 +2105,7 @@ Promise.all([
 ]).then(async ([baseImage, roofImage]) => {
     performancePanel?.mark('Capas listas');
     const checkpoint = createLoadingYield(6);
-    const prepared = await prepareMapAsync(applySummitLayout(readMapLayers(baseImage, roofImage)), entities, shipwreckProps, mapCellOverrides, checkpoint);
+    const prepared = await prepareMapAsync(applyLakeHouseLayout(applySummitLayout(readMapLayers(baseImage, roofImage))), entities, shipwreckProps, mapCellOverrides, checkpoint);
     // Presentar la carga antes de la construcción síncrona de geometría.
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await buildWorld(prepared, checkpoint);
@@ -2490,6 +2545,8 @@ async function buildWorld(prepared, checkpoint) {
     }
     levelBuildingAtTerrain(grahamPosition, floorMap, roofMap, elevationMap, (x, z) =>
         getTerrainVertexY(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile));
+    lakeHouseDome=createLakeHouseDome(THREE,elevationMap[lakeHouseLayout.center.z][lakeHouseLayout.center.x]);
+    scene.add(lakeHouseDome.group);
     const roofBaseMap = createRoofBaseMap(roofMap, floorMap, elevationMap);
     atticSupport = bedDefinition ? createAtticSupport(roofMap, roofBaseMap, bedDefinition, roofSubdivisions) : null;
 
@@ -2549,7 +2606,7 @@ async function buildWorld(prepared, checkpoint) {
         for (let x = 0; x < mapWidth; x++) {
             if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
             const type = floorMap[z][x];
-            const rType = roofMap[z][x] === 'ROOF' && isWizardHouseRoofCell(x,z) ? null : roofMap[z][x];
+            const rType = roofMap[z][x] === 'ROOF' && (isWizardHouseRoofCell(x,z)||isLakeHouseCell(x,z)) ? null : roofMap[z][x];
             
             const posX = x * UNIT_SIZE;
             const posZ = z * UNIT_SIZE;
@@ -2619,7 +2676,9 @@ async function buildWorld(prepared, checkpoint) {
                     wallZ = posZ + dz * (UNIT_SIZE / 2 - 0.04);
                     supportHeight = elevationMap[z+dz][x+dx];
                 }
-                const torchY = supportHeight + TORCH_MOUNT_HEIGHT;
+                const domeMount=lakeHouseDome.torchMount(x,z);
+                if(domeMount){wallX=domeMount.x;wallZ=domeMount.z;}
+                const torchY = domeMount?.y ?? supportHeight + TORCH_MOUNT_HEIGHT;
                 worldTorches.push({ x: wallX, z: wallZ, y: torchY, isBlue: isBlueTorch, isIndoor: woodFloorMap[z][x], gx: x, gz: z });
                 const isIndoor = woodFloorMap[z][x];
                 const material = new THREE.MeshBasicMaterial({ map: torchFrames[0], transparent: true, fog: !isIndoor, depthWrite: false, color: isBlueTorch ? 0x66ccff : 0xffffff });
@@ -2642,7 +2701,7 @@ async function buildWorld(prepared, checkpoint) {
                 torchSprites.push(sprite);
             }
 
-            if (type === 'BUILDING' && !isWizardHouseRoofCell(x,z)) {
+            if (type === 'BUILDING' && !isWizardHouseRoofCell(x,z) && !isLakeHouseCell(x,z)) {
                 dummy.position.set(posX, baseH + WALL_HEIGHT / 2, posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
@@ -2809,12 +2868,13 @@ async function buildWorld(prepared, checkpoint) {
                 doorGeo.translate(0,-.008,0);
                 // El dintel pertenece al muro y permanece fijo cuando la hoja se abre.
                 // Esta fachada ya incorpora su dintel en wizard-upper-floor.js.
-                if (!(x === wizardHouseLayout.door.x && z === wizardHouseLayout.door.z)) {
+                if (!(x === wizardHouseLayout.door.x && z === wizardHouseLayout.door.z) && !isLakeHouseDoor(x,z)) {
                     dummy.position.set(posX, baseH + DOOR_HEIGHT + lintelHeight / 2, posZ);
                     dummy.updateMatrix();
                     lintelMesh.setMatrixAt(idxLintel++, dummy.matrix);
                 }
                 for (const [margin,sign] of [[opening.leftMargin,-1],[opening.rightMargin,1]]) {
+                    if(isLakeHouseDoor(x,z))continue;
                     if (!margin) continue;
                     const offset=sign*(UNIT_SIZE-margin)/2;
                     dummy.position.set(posX+(isHorizontal?offset:0),baseH+DOOR_HEIGHT/2,posZ+(isHorizontal?0:offset));
@@ -2839,11 +2899,16 @@ async function buildWorld(prepared, checkpoint) {
                 dummy.scale.set(isHorizontal?opening.width+.04:.04,.05,isHorizontal?.04:opening.width+.04);
                 dummy.updateMatrix();doorStops.setMatrixAt(idxDoorStop++,dummy.matrix);dummy.scale.set(1,1,1);
                 
-                const matNormal = new THREE.MeshPhongMaterial({ map: puertaTex, color: tintColor, shininess: 0 });
-                const matFlipped = new THREE.MeshPhongMaterial({ map: puertaFlippedTex, color: tintColor, shininess: 0 });
+                const lakeDoor=isLakeHouseDoor(x,z);
+                const matNormal = new THREE.MeshPhongMaterial(lakeDoor
+                    ? {color:0x71839a,specular:0xb9c9db,shininess:65,flatShading:true}
+                    : {map:puertaTex,color:tintColor,shininess:0});
+                const matFlipped = new THREE.MeshPhongMaterial(lakeDoor
+                    ? {color:0x71839a,specular:0xb9c9db,shininess:65,flatShading:true}
+                    : {map:puertaFlippedTex,color:tintColor,shininess:0});
                 // No comprimir el dibujo completo (incluidos herrajes claros) en
                 // los cantos de 20 cm: produce rayas brillantes al mover la cámara.
-                const edgeMaterial=new THREE.MeshPhongMaterial({color:0x46372b,shininess:0});
+                const edgeMaterial=new THREE.MeshPhongMaterial({color:lakeDoor?0x303d49:0x46372b,shininess:lakeDoor?24:0});
                 edgeMaterial.userData.doorEdge=true;
                 let mats;
                 
@@ -2889,7 +2954,7 @@ async function buildWorld(prepared, checkpoint) {
             // Si la antorcha fue pintada en la capa 1 y está en interior, restauramos el piso de madera
             const needsWoodFloor = woodFloorMap[z][x];
 
-            if (needsWoodFloor) {
+            if (needsWoodFloor && !isLakeHouseCell(x,z)) {
                 dummy.position.set(posX, baseH - (waterDeckMap[z][x] ? WATER_DECK_THICKNESS / 2 : 0.5), posZ);
                 dummy.rotation.set(0, 0, 0);
                 dummy.updateMatrix();
@@ -3599,6 +3664,21 @@ async function buildWorld(prepared, checkpoint) {
     telescopeGlare=createTelescopeGlare(THREE,telescopeMesh);
 
     // Escritorio real sobre el suelo interior de la casa de la cima.
+    const hatchX=LAKE_HATCH_CELL.x*UNIT_SIZE,hatchZ=LAKE_HATCH_CELL.z*UNIT_SIZE;
+    const hatchGround=Math.max(...[-1.3,0,1.3].flatMap(dx=>[-1.3,0,1.3].map(dz=>getTerrainHeight(hatchX+dx,hatchZ+dz))))+.015;
+    metalRoom=createLakeMetalRoom(THREE,hatchGround);
+    metalRoomLadder=createMetalRoomLadder(camera,controls,metalRoom,PLAYER_HEIGHT);
+    lakeAquarium=await createLakeAquarium(THREE,texLoader,metalRoom.aquariumLayout,{sand:arenaTex,rock:rocaTex},metalRoom.room.position);
+    metalRoom.room.add(lakeAquarium.group);
+    modularSynthRacks=createModularSynthRacks(THREE,maderaTex);
+    metalRoom.room.add(modularSynthRacks.group);metalRoom.setFurnitureBounds(modularSynthRacks.bounds);
+    scene.add(metalRoom.hatch,metalRoom.room);
+    interactables.push(metalRoom.target,metalRoom.exitTarget);
+    metalRoomShade=document.createElement('div');metalRoomShade.id='metal-room-travel-shade';
+    metalRoomShade.setAttribute('aria-hidden','true');
+    metalRoomShade.style.cssText='position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:99;';
+    document.body.append(metalRoomShade);
+
     const workshopX=telescopeWorkshopPosition.x*UNIT_SIZE, workshopZ=telescopeWorkshopPosition.z*UNIT_SIZE;
     mountainWorkshop=createTelescopeWorkshop(THREE,maderaTex);
     mountainWorkshop.desk.position.set(workshopX,getTerrainHeight(workshopX,workshopZ),workshopZ);
@@ -3764,8 +3844,13 @@ function alignGrahamToFloor() {
 }
 
 function getTerrainHeight(x, z) {
+    if(metalRoom?.active)return metalRoom.getHeight(x,z);
+    const hatchFloor=metalRoom?.surfaceHeight(x,z);
+    if(hatchFloor!=null)return hatchFloor;
     if (caveMap?.active && caveMap.contains(x,z)) return caveMap.getHeight(x,z);
     if (caveEntrance?.contains(x,z)) return caveEntrance.baseY + 0.025;
+    const domeFloor=lakeHouseDome?.floorHeight(x,z);
+    if(domeFloor!=null)return domeFloor;
     const gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
     const top=slabTops.get(gz*mapWidth+gx);
     if(gx>=0&&gz>=0&&gx<mapWidth&&gz<mapHeight&&top!==undefined) return top;
@@ -3789,7 +3874,9 @@ function updatePlayerPosture() {
                 || atticSupport.fitsOpening(player.position.x, player.position.z));
             const floor = floorMap[gz]?.[gx];
             let limit = Infinity;
-            const wizardLimit=summitObservatory?.upperLimit(player.position.x,player.position.z,feetY)
+            const wizardLimit=(metalRoom?.active?metalRoom.upperLimit():null)
+                ?? lakeHouseDome?.upperLimit(player.position.x,player.position.z,feetY)
+                ?? summitObservatory?.upperLimit(player.position.x,player.position.z,feetY)
                 ?? wizardUpperFloor?.upperLimit(player.position.x,player.position.z,feetY);
             if (wizardLimit != null) limit=wizardLimit;
             else if (inAttic) limit = atticSupport.upperLimit(player.position.x, player.position.z);
@@ -3884,12 +3971,14 @@ function isPlayerNearRiver(px, pz) {
 }
 
 function isWall(x, z) {
+    if(metalRoom?.active)return metalRoom.isWall(x,z);
     if (isRiverObstacle(x, z)) return true;
     if (caveMap?.active) return caveMap.isWall(x,z);
     if (caveEntrance?.contains(x,z)) return false;
     const controlObj = controls.getObject();
     const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
     if (!isRidingBoat) {
+        if(lakeHouseDome?.blocksMovement(x,z,controlObj.position.y-eyeHeight,eyeHeight))return true;
         const observatoryCollision=summitObservatory?.blocksMovement(x,z,controlObj.position.y-eyeHeight);
         if(observatoryCollision!=null)return observatoryCollision;
         const wizardCollision=wizardUpperFloor?.blocksMovement(x,z,controlObj.position.y-eyeHeight,
@@ -3949,6 +4038,8 @@ function footstepSurfaceAt(x, z, onWoodSupport = false) {
 let stamina = STAMINA_MAX;
 
 window.restartGame = () => {
+    metalRoom?.reset();if(metalRoomShade)metalRoomShade.style.opacity='0';
+    metalRoomLadder?.reset();
     observatoryScope?.stand();
     gardenNote.hide();
     observatoryMenu.hide();
@@ -4159,6 +4250,8 @@ function animate(timestamp = performance.now()) {
     // Espera, órbita y viaje no avanzan físicas, misiones, reloj del cielo ni audio.
     if (!mapLoaded) return;
 
+    updateMetalRoomTravel((controls.isLocked||inventoryRunning)&&!isDead?Math.min(cameraDelta,.1):0);
+
     const controlObj = controls.getObject();
     touchControls?.syncDialogue(controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active));
     if (isDialogOpen) constrainDialogLook(cameraDelta);
@@ -4180,6 +4273,7 @@ function animate(timestamp = performance.now()) {
         hud.updateHelmetCrack(rawDelta);
         updateHelmetBreak(rawDelta);
         const delta = Math.min(rawDelta, 0.1);
+        if(metalRoom?.active){lakeAquarium?.update(delta);modularSynthRacks?.update(delta);}
         updateBedCeilingBreak(delta);
         vegetationDelta = delta;
         grahamDap.update(delta);
@@ -4554,7 +4648,7 @@ function animate(timestamp = performance.now()) {
         }
         const intersects = interactionHits;
         
-        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen) {
+        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen || metalRoom?.busy) {
             targetInteractable = null;
             hud.hideInteraction();
         } else if (observatoryScope?.active) {
@@ -4580,7 +4674,10 @@ function animate(timestamp = performance.now()) {
             && (intersects[0].object.userData.item !== 'forest-heart' || canReachForestHeart())) {
             targetInteractable = intersects[0].object;
             hud.showInteraction();
-            if (targetInteractable.userData.type === 'READABLE_BOOK') {
+            if(targetInteractable.userData.type==='LAKE_HATCH') {
+                hud.setInteractionText(musicEvents.isEventActive('forest')?'Espera a que termine la canción':'Presiona E para abrir la escotilla');
+                hud.setInteractionColor('#d8e4eb');
+            } else if (targetInteractable.userData.type === 'READABLE_BOOK') {
                 hud.setInteractionText('Presiona E para leer la bitácora');
                 hud.setInteractionColor('#ffeb3b');
             } else if (targetInteractable.userData.type === 'CHAIR'||targetInteractable.userData.type==='OBSERVATORY_CHAIR') {
@@ -4672,6 +4769,15 @@ function animate(timestamp = performance.now()) {
                 hud.setInteractionColor('#d8e4eb');
             } else hud.hideInteraction();
         }
+        if(metalRoom?.active&&!metalRoom.busy) {
+            targetInteractable=null;
+            if(metalRoom.nearExit(controlObj.position)) {
+                hud.showInteraction();hud.setInteractionText('Presiona E para volver al lago');hud.setInteractionColor('#d8e4eb');
+            } else if(metalRoomLadder.active||metalRoom.nearLadder(controlObj.position)) {
+                hud.showInteraction();
+                hud.setInteractionText(isTouchMode?'Cruceta: ↑ subir · ↓ bajar':'W/↑ subir · S/↓ bajar');hud.setInteractionColor('#d8e4eb');
+            } else hud.hideInteraction();
+        }
         const showRiverWarning = !isDead && !isDialogOpen && gameStarted && (controls.isLocked || inventoryRunning)
             && isPlayerNearRiver(controlObj.position.x, controlObj.position.z);
         hud.setRiverWarning(showRiverWarning);
@@ -4679,10 +4785,11 @@ function animate(timestamp = performance.now()) {
         heartPull.update(delta);
         const cuttingWood = woodcutting.active;
         woodcutting.update(delta, rawDelta);
-        const ladderAllowed=!seatedChair&&!cuttingWood&&!spawnGreeting.active&&!pullingHeart&&!grahamDap.active&&!isDialogOpen&&!observatoryScope?.seated&&!isDead;
-        const ladderMoved=ladderAllowed&&observatoryLadder?.update(delta,moveState,!isFlying&&!isRidingBoat&&!isCrouching&&!isInventoryOpen);
+        const ladderAllowed=!seatedChair&&!cuttingWood&&!spawnGreeting.active&&!pullingHeart&&!grahamDap.active&&!isDialogOpen&&!observatoryScope?.seated&&!isDead&&!metalRoom?.busy;
+        const roomLadderMoved=ladderAllowed&&metalRoomLadder?.update(delta,moveState,!isFlying&&!isRidingBoat&&!isCrouching&&!isInventoryOpen);
+        const ladderMoved=roomLadderMoved||ladderAllowed&&!metalRoom?.active&&observatoryLadder?.update(delta,moveState,!isFlying&&!isRidingBoat&&!isCrouching&&!isInventoryOpen);
         if(ladderMoved){velocity.set(0,0,0);velocityY=0;canJump=false;isRunning=false;jumpHeld=false;crouchRequested=false;bobTimer=0;previousPlayerPosition.copy(controlObj.position);}
-        if (!ladderMoved && !seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen && !observatoryScope?.seated) {
+        if (!ladderMoved && !seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen && !observatoryScope?.seated && !metalRoom?.busy) {
             // Desde que queda ensartado hasta que caen las astillas no puede desplazarse.
             // La física vertical sigue activa para que se suelte y caiga normalmente.
             const trappedInBedCeiling = bedCeilingTimer > 0 || bedHoleOpeningTime >= 0;
@@ -4933,7 +5040,9 @@ function animate(timestamp = performance.now()) {
             // Colisión de techos (tanto normal como vuelo)
             const roofGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
             const roofGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-            const wizardCeiling=summitObservatory?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
+            const wizardCeiling=(metalRoom?.active?metalRoom.upperLimit():null)
+                ?? lakeHouseDome?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
+                ?? summitObservatory?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
                 ?? wizardUpperFloor?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight);
             if (wizardCeiling != null) {
                 if (controlObj.position.y > wizardCeiling) {
@@ -5055,7 +5164,7 @@ function animate(timestamp = performance.now()) {
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const localWaterHeight = getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z);
         const visuallySubmerged = waterUnderfoot && !isRidingBoat && controlObj.position.y < localWaterHeight - 0.03;
-        const windSheltered = visuallySubmerged || !!caveMap?.active
+        const windSheltered = visuallySubmerged || !!caveMap?.active || !!metalRoom?.active
             || ['INDOOR_FLOOR','BUILDING'].includes(floorMap[airGZ]?.[airGX])
             || (!!woodFloorMap[airGZ]?.[airGX] && roofMap[airGZ]?.[airGX] === 'ROOF');
         musicEvents.updateWind(windSheltered, visuallySubmerged);
@@ -5079,7 +5188,7 @@ function animate(timestamp = performance.now()) {
             seaSoundRelative.set(seaSoundSample.x,seaSoundSample.y,seaSoundSample.z)
                 .sub(controlObj.position).applyQuaternion(riverSoundRotation);
             musicEvents.updateSeaAmbience({x:seaSoundRelative.x,y:seaSoundRelative.y,z:seaSoundRelative.z,
-                gain:!caveMap?.active && !visuallySubmerged && !isDead ? seaSoundSample.gain : 0});
+                gain:!caveMap?.active && !metalRoom?.active && !visuallySubmerged && !isDead ? seaSoundSample.gain : 0});
         }
         if (!caveMap?.active && (riverSoundSampleTime <= 0 || !riverSoundSample)) {
             riverSoundSample = sampleRiverSound(riverSoundField, UNIT_SIZE,
@@ -5091,7 +5200,7 @@ function animate(timestamp = performance.now()) {
             riverSoundRelative.set(riverSoundSample.x, riverSoundSample.y, riverSoundSample.z)
                 .sub(controlObj.position).applyQuaternion(riverSoundRotation);
             musicEvents.updateRiverAmbience({ x: riverSoundRelative.x, y: riverSoundRelative.y, z: riverSoundRelative.z,
-                gain: !caveMap?.active && !visuallySubmerged && !isDead ? riverSoundSample.gain : 0 });
+                gain: !caveMap?.active && !metalRoom?.active && !visuallySubmerged && !isDead ? riverSoundSample.gain : 0 });
         }
         if(!caveMap?.active && (forestAmbienceSampleTime<=0 || !forestAmbienceSample)) {
             forestAmbienceSample=sampleForestSurroundings(floorMap,UNIT_SIZE,controlObj.position.x,controlObj.position.z);
@@ -5106,7 +5215,7 @@ function animate(timestamp = performance.now()) {
                 target.x=forestAmbienceRelative.x;target.y=forestAmbienceRelative.y;target.z=forestAmbienceRelative.z;target.weight=source.weight;
             }
             const indoors=['INDOOR_FLOOR','WOOD','BUILDING'].includes(floorMap[airGZ]?.[airGX]);
-            musicEvents.updateForestAmbience({gain:!caveMap?.active&&!visuallySubmerged&&!indoors&&!isDead?forestAmbienceSample.gain:0,sources:forestAmbienceSources,night:skyCycle.weights.night>0.5});
+            musicEvents.updateForestAmbience({gain:!caveMap?.active&&!metalRoom?.active&&!visuallySubmerged&&!indoors&&!isDead?forestAmbienceSample.gain:0,sources:forestAmbienceSources,night:skyCycle.weights.night>0.5});
         }
         if (seaHeart?.next?.number === 1) {
             const first = seaHeartSprites.get(seaHeart.next.id);
@@ -5136,7 +5245,7 @@ function animate(timestamp = performance.now()) {
         minimap.updatePosition(controlObj.position.x, controlObj.position.z, mapWidth * UNIT_SIZE, mapHeight * UNIT_SIZE, -frameCameraHeading.y);
         if (caveMap?.active && caveMap.exiting(controlObj.position)) {
             leaveCaveTestMap();
-        } else if (!caveMap?.active && !isFlying && !isRidingBoat && !isDialogOpen && caveEntrance?.triggered(controlObj.position)) {
+        } else if (!caveMap?.active && !metalRoom?.active && !isFlying && !isRidingBoat && !isDialogOpen && caveEntrance?.triggered(controlObj.position)) {
             enterCaveTestMap();
         }
         
@@ -5257,7 +5366,7 @@ function animate(timestamp = performance.now()) {
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
     if ((!controls.isLocked && !inventoryRunning) || isDead) hud.hideDivingAir();
-    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, testMode.enabled && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
+    hud.updateCoordinates(metalRoom?.active?metalRoom.localPosition(controlObj.position):caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, testMode.enabled && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
     heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'astroscope' && !observatoryScope?.active && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead;
     heldTorch.update(Math.floor(altarFlameTime / 0.15) % torchFrames.length,
         hasTorch && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead,
@@ -5279,7 +5388,7 @@ function animate(timestamp = performance.now()) {
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();
     grahamDap.apply();
     telescopeView.applyShake();
-    const caveLighting = caveMap?.active ? {
+    const caveLighting = caveMap?.active || metalRoom?.active ? {
         ambient: ambientLight.intensity,
         directional: dirLight.intensity,
         skyVisible: skyMesh.visible,
@@ -5288,7 +5397,7 @@ function animate(timestamp = performance.now()) {
         fogColor: scene.fog.color.clone()
     } : null;
     if (caveLighting) {
-        ambientLight.intensity = 0;
+        ambientLight.intensity = metalRoom?.active ? .65 : 0;
         dirLight.intensity = 0;
         skyMesh.visible = false;
         sunFlare.object.visible = false;

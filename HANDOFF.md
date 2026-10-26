@@ -1,3 +1,24 @@
+# Diseño estético: recuperación para casa del lago — 2026-10-26
+
+Clawshoot confirmó que la sesión anterior dejó de editar y autorizó recuperar el bloqueo Codex `6d37ac5f-cc42-485b-9210-1d2042258507`. Liberado con finish y adquirido token propio `65ecf881-19c2-45bd-99af-97a251b073a9`, activo entre pedidos. Alcance: reemplazar la casa del lago por un domo metálico poligonal en su ubicación original, con la cúpula del observatorio como referencia. Sin staging, commit, push ni gestión del servidor.
+
+## Publicación solicitada por Clawshoot — 2026-10-26
+
+Pedido explícito «has un push»: autoriza commit y push de los cambios propios acumulados sobre `main`, base `415c457`. Fetch comprobado: HEAD y origin/main coinciden antes de preparar la publicación. Esta petición mantiene activa la sesión; no libera el bloqueo ni apaga servidores.
+
+- Casa del lago: domo metálico poligonal en el centro de mapa X363/Z283, conserva puerta X366/Z283 y cofre. Ajuste de capas solo en memoria; PNG originales preservados.
+- Escotilla circular exterior en X376/Z283, apertura con E/B y traslado a sala metálica de 15×15×5 m, origen de mundo (-2048,-48,-2048). Salida en el techo, local X0/Z4.8. Escalera final vertical: ambos extremos en Z local5.95; base alineada con el extremo superior. W/↑ sube, S/↓ baja y E/B retorna desde arriba.
+- Ventanal norte con bordes redondeados hacia acuario de 15×15×5 m, arena, rocas y vegetación submarina original animada. Tres gabinetes modulares distintos en pared oeste, madera, controles, LEDs y cables; sin teclados ni audio añadido.
+- Menús móviles: inventario centrado en zona libre de controles; distribución adaptable en horizontal/vertical y desplazamiento en pantallas muy cortas. Pausa con tabla compacta centrada, hexágono de hasta600×580px y tamaños adaptados; escritorio conserva su distribución.
+
+Archivos: `game.js`, `index.html`, `src/content/lake-house-layout.js`, `src/player/metal-room-ladder.js`, `src/ui/mobile-menus.css` y `src/world/{lake-house-layout,lake-house-dome,lake-metal-room,lake-aquarium,modular-synth-racks}.js`.
+
+Verificaciones: sintaxis Node y diff-check; recorrido automatizado de domo/puerta/cofre, apertura/pausa de escotilla, traslado, colisiones, subida/bajada y retorno sin alterar estado de misión/cofres. Ajuste final de escalera comprobado con módulos Three: ascenso sin deriva horizontal, descenso y salida accesibles. Menús DOM reales con controles: selección de objeto/vista3D, SELECT/START y cierre, nueve tamaños emulados. Pausa final comprobada con límites interiores del bisel: texto sin recortes ni superposición con botones, sin desplazamiento necesario en los nueve tamaños; escritorio sin cambios. Evidencias y arneses locales ignorados en `.coordination/`, incluidos `pause-centered-results.json`, `mobile-menu-results.json` y `lake-metal-room-results.json`. No acredita recorrido completo de todas las quests ni pruebas en un teléfono físico.
+
+Incidencia de inicio observada en Chrome: contexto WebGL perdido y bloqueado antes de construir el mundo; recarga de la pestaña permitió iniciar. Causa inicial de la pérdida no identificada; no se modificaron ajustes del navegador para ocultarla.
+
+Fuera de la publicación: `sonidos/fx/mate EDITAR.wav` y `tools/verify-graham-relocation.mjs`, archivos ajenos sin seguimiento conservados.
+
 # Integración de bitácora local con PR #11 — Clawshoot / Codex — 2026-10-26
 
 Clawshoot autorizó recuperar el bloqueo `2549b8dd-4612-4fe6-a907-83c81b665e0b` y seguir el flujo de guardar cambios locales, combinar main y publicar un PR. Sesión propia vigente: `6d37ac5f-cc42-485b-9210-1d2042258507`. Rama `codex/bitacora-caveat-integracion-20261026`: commit local `1703bd5` conserva los ajustes recibidos de Caveat en `src/ui/book-reader.css` y la nota previa de interfaz. Se integra `origin/main` `028ae0e`, que contiene PR #11. Único conflicto: entradas iniciales de este relevo; se conservan ambas completas. El CSS local queda idéntico al commit de respaldo y se conserva el lector actualizado de main.

@@ -1,0 +1,115 @@
+/* Zona de menú libre de controles: franja inferior en vertical y laterales en horizontal. */
+.touch-mode #pause-menu,
+.touch-mode #inventory-menu {
+    --menu-top:max(12px,env(safe-area-inset-top));
+    --menu-bottom:calc(168px + max(12px,env(safe-area-inset-bottom)));
+    --menu-side:max(12px,env(safe-area-inset-left),env(safe-area-inset-right));
+    position:fixed;inset:0;width:100%;height:100dvh;box-sizing:border-box;
+    padding:var(--menu-top) var(--menu-side) var(--menu-bottom)!important;
+    justify-content:center;align-items:center;
+}
+.touch-mode #pause-menu {
+    --menu-bottom:max(12px,env(safe-area-inset-bottom));
+}
+.touch-mode #pause-menu .game-menu-box {
+    width:min(600px,100%);height:min(580px,100%);max-width:100%;max-height:none;
+    grid-template-rows:1fr;padding:0!important;overflow:hidden;
+}
+.touch-mode #pause-menu .pause-menu-content {
+    grid-row:1;justify-self:center;width:min(340px,68%);max-height:60%;touch-action:pan-y;
+}
+.touch-mode #pause-menu .pause-menu-content > p:first-child {
+    font-size:22px!important;margin:0 0 10px;
+}
+.touch-mode #pause-menu #resume-hint {font-size:10px!important;line-height:1.6;margin:0 0 10px;}
+.touch-mode #pause-menu #touch-guide:not([hidden]) {
+    display:grid;grid-template-columns:max-content max-content;justify-content:center;
+    width:max-content;max-width:100%;margin-inline:auto;gap:4px 28px;
+    font-size:9px!important;line-height:1.6;color:#ffeb3b;text-align:left;
+}
+.touch-mode #touch-guide > span:nth-child(even) {text-align:right;}
+.touch-mode #touch-guide .touch-guide-note {
+    grid-column:1 / -1;margin-top:4px;font-size:8px;line-height:1.8;text-align:center;
+}
+.touch-mode #inventory-menu .inventory-orbit {
+    --slot-size:44px;--edge:28px;--side-edge:8px;--item-step:calc(var(--slot-size) + 8px);
+    width:min(620px,100%);height:min(520px,100%);max-width:none;max-height:none;
+    flex:none;overflow:hidden;touch-action:pan-y;
+}
+.touch-mode #inventory-menu .inventory-orbit #inventory-heading {
+    top:2px;left:50%;width:calc(100% - 100px);transform:translateX(-50%);font-size:12px;line-height:1.5;
+}
+.touch-mode #inventory-menu .inventory-orbit .orbit-slot {width:var(--slot-size);height:var(--slot-size);}
+.touch-mode #inventory-menu .inventory-orbit .heart-hex {width:calc(var(--slot-size)*1.32);height:calc(var(--slot-size)*1.32);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="heart"] {margin-left:calc(var(--slot-size)*-1.33);}
+.touch-mode #inventory-menu #future-heart-slot {margin-left:calc(var(--slot-size)*1.33);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:calc(var(--edge) + var(--slot-size)*.9);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:calc(20px + var(--item-step)*2);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + 10px);bottom:calc(20px + var(--item-step));}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + 20px);bottom:20px;}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(20px + var(--item-step)*3);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:calc(20px + var(--item-step)*2);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + 10px);bottom:calc(20px + var(--item-step));}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + 20px);bottom:20px;}
+.touch-mode #inventory-menu .inventory-model-preview {
+    top:calc(var(--edge) + var(--slot-size)*2.4);left:50%;bottom:auto;transform:translateX(-50%);
+    width:min(180px,calc(100% - 160px));height:min(220px,calc(100% - var(--edge) - var(--slot-size)*2.4 - 44px));
+}
+.touch-mode #inventory-menu .inventory-preview-label {font-size:8px;line-height:1.5;}
+.touch-mode #inventory-menu .inventory-orbit #inventory-item-description {
+    left:76px;width:calc(100% - 152px);bottom:2px;font-size:8px;line-height:1.6;
+}
+@media (orientation:portrait) and (min-height:600px) {
+    .touch-mode #inventory-menu .inventory-orbit {--slot-size:52px;--edge:30px;}
+}
+@media (orientation:landscape) {
+    .touch-mode #pause-menu,
+    .touch-mode #inventory-menu {
+        --menu-top:max(8px,env(safe-area-inset-top));
+        --menu-bottom:calc(60px + max(12px,env(safe-area-inset-bottom)));
+        --menu-side:calc(166px + max(14px,env(safe-area-inset-left),env(safe-area-inset-right)));
+    }
+    .touch-mode #pause-menu {
+        --menu-bottom:max(8px,env(safe-area-inset-bottom));
+        --menu-side:max(12px,env(safe-area-inset-left),env(safe-area-inset-right));
+    }
+    .touch-mode #pause-menu #touch-guide:not([hidden]) {row-gap:1px;}
+    .touch-mode #pause-menu .pause-menu-content > p:first-child {font-size:20px!important;margin-bottom:8px;}
+    .touch-mode #pause-menu #resume-hint {font-size:9px!important;margin-bottom:8px;}
+}
+@media (orientation:portrait) and (max-width:380px) {
+    .touch-mode #pause-menu #touch-guide:not([hidden]) {font-size:8px!important;line-height:1.5;gap:3px 20px;}
+    .touch-mode #touch-guide .touch-guide-note {font-size:7px;}
+}
+@media (orientation:landscape) and (max-height:380px) {
+    .touch-mode #pause-menu #touch-guide:not([hidden]) {font-size:8.5px!important;line-height:1.5;column-gap:24px;}
+    .touch-mode #touch-guide .touch-guide-note {font-size:7.5px;}
+    .touch-mode #pause-menu .pause-menu-content > p:first-child {font-size:18px!important;}
+}
+@media (orientation:landscape) and (max-height:340px) {
+    .touch-mode #pause-menu #touch-guide:not([hidden]) {font-size:8px!important;line-height:1.4;column-gap:22px;}
+    .touch-mode #touch-guide .touch-guide-note {font-size:7px;line-height:1.6;}
+    .touch-mode #pause-menu .pause-menu-content > p:first-child {margin-bottom:6px;}
+    .touch-mode #pause-menu #resume-hint {font-size:8px!important;line-height:1.5;margin-bottom:6px;}
+}
+/* Pantallas horizontales muy cortas: desplazar el contenido dentro de la zona central. */
+@media (orientation:landscape) and (max-width:620px) {
+    .touch-mode #inventory-menu .inventory-orbit {
+        display:grid;grid-template-columns:repeat(3,58px);gap:8px;align-content:start;
+        justify-content:center;overflow-y:auto;padding:8px;
+    }
+    .touch-mode #inventory-menu .inventory-orbit .orbit-slot,
+    .touch-mode #inventory-menu .inventory-orbit #future-heart-slot {
+        position:relative;inset:auto;transform:none;margin:0;order:2;justify-self:center;
+    }
+    .touch-mode #inventory-menu .inventory-orbit .heart-hex,
+    .touch-mode #inventory-menu .inventory-orbit #future-heart-slot {order:1;}
+    .touch-mode #inventory-menu .inventory-orbit #inventory-heading,
+    .touch-mode #inventory-menu .inventory-orbit #inventory-item-description,
+    .touch-mode #inventory-menu .inventory-model-preview {
+        position:relative;inset:auto;transform:none;grid-column:1 / -1;width:100%;margin:0;
+    }
+    .touch-mode #inventory-menu .inventory-orbit #inventory-heading {order:0;}
+    .touch-mode #inventory-menu .inventory-model-preview {order:3;height:160px;}
+    .touch-mode #inventory-menu .inventory-orbit #inventory-item-description {order:4;}
+}

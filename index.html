@@ -623,6 +623,7 @@
         }
     </style>
     <link rel="stylesheet" href="./src/ui/inventory-layout.css">
+    <link rel="stylesheet" href="./src/ui/mobile-menus.css">
     <link rel="stylesheet" href="./src/ui/book-reader.css">
 </head>
 <body>
@@ -753,7 +754,16 @@
             <div class="pause-menu-content">
                 <p style="font-size:30px; font-weight:bold; margin-top:0; color:#fff;">PAUSA</p>
                 <p id="resume-hint" style="font-size:16px; color:#fff; margin-bottom: 25px;">Clic izquierdo para continuar</p>
-                <p id="touch-guide" hidden style="font-size:14px; color:#ffeb3b; line-height:1.7;">Cruceta: mover · Arrastrar pantalla: mirar<br>Select: inventario · Start: pausa<br>B: interactuar · A: saltar · Y: correr hasta soltar la cruceta<br>Mapa y antorcha: desde el inventario</p>
+                <div id="touch-guide" hidden>
+                    <span>Moverse</span><span>Cruceta</span>
+                    <span>Mirar</span><span>Arrastrar</span>
+                    <span>Inventario</span><span>SELECT</span>
+                    <span>Pausa</span><span>START</span>
+                    <span>Interactuar</span><span>B</span>
+                    <span>Saltar</span><span>A</span>
+                    <span>Correr</span><span>Y</span>
+                    <span class="touch-guide-note">Correr hasta soltar cruceta.<br>Mapa y antorcha: inventario.</span>
+                </div>
                 <div id="keyboard-controls" style="font-size:14px; color:#ffeb3b; text-align:left; display:inline-grid; grid-template-columns:auto auto; column-gap:32px; line-height:2.0;">
                     <span>Moverse</span><span style="text-align:right;">[W A S D]</span>
                     <span>Correr</span><span style="text-align:right;">[Shift]</span>
