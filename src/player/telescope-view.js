@@ -1,7 +1,7 @@
 import { createTelescope } from '../world/telescope.js';
 import { createOpalLens } from '../world/opal-lens.js';
 
-export const TELESCOPE_ZOOM = { normal:3, repaired:3, boosted:20, mounted:40, mountedMax:50 };
+export const TELESCOPE_ZOOM = { normal:3, repaired:3, boosted:20, mounted:2, mountedMax:200 };
 const RETURN_SECONDS = 0.24;
 
 // Acercamiento óptico y objeto en mano. El inventario y los permisos pertenecen al llamador.

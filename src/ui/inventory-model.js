@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { createPinkSunglasses } from '../world/pink-sunglasses.js';
 import { createTelescope } from '../world/telescope.js';
+import { createMateSet } from '../world/mate-set.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from '../world/diving-helmet-geometry.js';
 import { createInventoryMap } from '../world/inventory-map.js';
 import { createInventoryKey } from '../world/inventory-key.js';
+
 
 // Modelos de inspección ligeros; no comparten recursos ni estado con los objetos de la partida.
 export function createInventoryModel(host) {
@@ -12,6 +14,7 @@ export function createInventoryModel(host) {
     let helmetBroken=false, helmetCracked=false, selectedItem=null;
     let heartSprite=null, seaHeartComplete=false;
     const heartTextures=new Map();
+
     let mapTexture;
     let drag=null;
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
@@ -132,6 +135,7 @@ export function createInventoryModel(host) {
         frame=null;
         if(!visible || !renderer) return;
         const delta=previous ? Math.min(.05,(time-previous)/1000) : 0; previous=time;
+
         if(model && !drag && !reduced.matches) model.rotation.y+=delta*.65;
         if(flame?.visible && !reduced.matches) {
             flameTime+=delta;
@@ -176,6 +180,7 @@ export function createInventoryModel(host) {
                     map,color:i===0||i===6 ? 0xffffff : 0xa0a0a0,transparent:true,alphaTest:.1,
                     depthWrite:true,side:THREE.DoubleSide,toneMapped:false
                 }));
+
                 layer.position.z=(i-3)*.04;heartSprite.add(layer);
             }
             model.add(heartSprite);fitHeartSprite();
@@ -207,9 +212,14 @@ export function createInventoryModel(host) {
             // La mirilla del casco del mundo mira hacia -Z; presentarla hacia la cámara.
             helmet.rotation.y=Math.PI;model.add(helmet);
         } else if(item==='mate') {
-            part(new THREE.SphereGeometry(.55,12,8,0,Math.PI*2,.5,2.2),0x89512d,0,-.15);
-            part(new THREE.TorusGeometry(.28,.055,6,16),0xb5bcab,0,.34).rotation.x=Math.PI/2;
-            part(new THREE.CylinderGeometry(.04,.04,1.1,6),0xc5cdc6,.13,.6).rotation.z=-.25;
+            const set=createMateSet(THREE);
+            const mate=set.getObjectByName('graham-mate');
+            set.remove(mate);
+            set.traverse(object=>object.geometry?.dispose());
+            mate.material.dispose();
+            mate.material=new THREE.MeshBasicMaterial({vertexColors:true,fog:false,transparent:true,opacity:1,depthTest:true,depthWrite:true});
+            mate.position.set(0,0,0);mate.scale.setScalar(3.8);
+            model.add(mate);
         } else if(item==='key') {
             model.add(createInventoryKey(THREE));
         }

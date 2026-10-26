@@ -39,6 +39,7 @@ export function createSeaHeart(fragments, floorMap, start, unitSize, walkingSpee
         get next(){return route[collected.size] ?? null;},
         get count(){return collected.size;},
         get complete(){return fragments.length===10 && collected.size===10;},
+        reset(){collected.clear();},
         collect(id) {
             const index=fragments.findIndex(p=>p.id===id)+1;
             if(!index || collected.has(id) || route[collected.size]?.id!==id) return null;

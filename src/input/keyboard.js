@@ -3,6 +3,7 @@ export function bindKeyboard(actions, target = document) {
     const sequence = ['KeyW', 'KeyW', 'KeyS', 'KeyS', 'KeyA', 'KeyD', 'KeyA', 'KeyD'];
     let sequenceIndex = 0;
     const directions = { KeyW: 'forward', KeyS: 'backward', KeyA: 'left', KeyD: 'right', ArrowUp:'forward', ArrowDown:'backward', ArrowLeft:'left', ArrowRight:'right' };
+    const scopeDirections=new Set();
 
     function onKeyDown(event) {
         if (actions.isEnabled?.() === false) return;
@@ -18,10 +19,10 @@ export function bindKeyboard(actions, target = document) {
         }
         const code = event.code;
         if(actions.isObservatoryScopeActive?.()) {
-            if(['ShiftLeft','ShiftRight','ControlLeft','ControlRight'].includes(code)) {
-                event.preventDefault();actions.scopeZoom?.(code.startsWith('Shift')?1:-1);return;
+            if(code==='KeyZ'||code==='KeyX') {
+                event.preventDefault();if(!event.repeat)actions.scopeZoom?.(code==='KeyZ'?1:-1,true);return;
             }
-            if(code in directions) {event.preventDefault();actions.scopeAim?.(directions[code],true);return;}
+            if(code in directions) {event.preventDefault();scopeDirections.add(code);actions.scopeAim?.(directions[code],true);return;}
             if(code==='KeyE'&&!event.repeat) {event.preventDefault();actions.interact();return;}
             if(code==='Escape'&&!event.repeat) {actions.pause();return;}
             return;
@@ -63,8 +64,16 @@ export function bindKeyboard(actions, target = document) {
 
     function onKeyUp(event) {
         const code = event.code;
+        scopeDirections.delete(code);
         if(actions.isObservatoryScopeActive?.()) {
-            if(code in directions) {event.preventDefault();actions.scopeAim?.(directions[code],false);}
+            if(code==='KeyZ'||code==='KeyX') {
+                event.preventDefault();actions.scopeZoom?.(code==='KeyZ'?1:-1,false);
+            }
+            if(code in directions) {
+                event.preventDefault();
+                const held=[...scopeDirections].some(key=>directions[key]===directions[code]);
+                actions.scopeAim?.(directions[code],held);
+            }
             return;
         }
         if (directions[code]) actions.move(directions[code], false);
@@ -82,6 +91,6 @@ export function bindKeyboard(actions, target = document) {
         target.removeEventListener('keydown', onKeyDown);
         target.removeEventListener('keyup', onKeyUp);
     };
-    dispose.resetSequence = () => { sequenceIndex = 0; };
+    dispose.resetSequence = () => { sequenceIndex = 0; scopeDirections.clear(); };
     return dispose;
 }

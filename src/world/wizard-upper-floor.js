@@ -22,6 +22,9 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     });
     const group=new THREE.Group();group.name='mountain-wizard-upper-floor';
     group.position.set(origin.x,baseY,origin.z);
+    const interior=new THREE.Group();interior.name='wizard-house-interior';group.add(interior);
+    const interiorLights=[];
+    let interiorPhase=false;
     function tiled(texture) {
         const copy=texture.clone();copy.wrapS=copy.wrapT=THREE.RepeatWrapping;
         copy.magFilter=copy.minFilter=THREE.NearestFilter;copy.needsUpdate=true;return copy;
@@ -56,7 +59,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         return geometry;
     }
     function mesh(geometry,material,name) {
-        const object=new THREE.Mesh(geometry,material);object.name=name;group.add(object);return object;
+        const object=new THREE.Mesh(geometry,material);object.name=name;(interiorPhase?interior:group).add(object);return object;
     }
     function box(w,h,d,x,y,z,material=wood,name='wizard-upper-beam') {
         const geometry=new THREE.BoxGeometry(w,h,d);geometry.translate(x,y,z);tileUV(geometry);
@@ -233,6 +236,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         mesh(geometry,faceStone,'wizard-tower-pointed-window-wall');
     }
     // Tabique de la habitación: puerta de 1.5 m y dintel fijo.
+    interiorPhase=true;
     const doorOpeningHalf=.88,doorOpeningHeight=2.3,partitionWidth=towerBounds.apothem-doorOpeningHalf;
     for(const side of [-1,1])box(partitionWidth,towerCeiling-level,.22,
         side*(doorOpeningHalf+partitionWidth/2),(level+towerCeiling)/2,partitionZ,stone,'wizard-bedroom-partition');
@@ -269,6 +273,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         rod([x,height+.95,z],[nx,height+.95,nz],.033,wood);
     }
     // Cubiertas anulares escalonadas: el centro queda libre para la torre.
+    interiorPhase=false;
     function steppedRingRoof(outer,inner,bottom,top,bands,name) {
         const positions=[];
         function quad(a,b,c,d){positions.push(...a,...b,...c,...a,...c,...d);}
@@ -318,7 +323,8 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     const ceilingGeometry=new THREE.ExtrudeGeometry(ceilingShape,{depth:.12,bevelEnabled:false});
     ceilingGeometry.rotateX(-Math.PI/2);ceilingGeometry.translate(0,towerCeiling-.12,0);tileUV(ceilingGeometry);
     mesh(ceilingGeometry,wood,'wizard-tower-hexagonal-ceiling');
-    const pivot=new THREE.Group();pivot.position.set(-.75,level,partitionZ);group.add(pivot);
+    interiorPhase=true;
+    const pivot=new THREE.Group();pivot.position.set(-.75,level,partitionZ);interior.add(pivot);
     const bedroomDoorFace=new THREE.MeshPhongMaterial({map:textures.door,color:0xa88a66,shininess:0});
     const bedroomDoorEdge=new THREE.MeshPhongMaterial({color:0x46372b,shininess:0});
     const door=new THREE.Mesh(new THREE.BoxGeometry(1.5,2.18,.12),
@@ -328,23 +334,25 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     const knob=new THREE.Mesh(new THREE.SphereGeometry(.045,6,4),new THREE.MeshPhongMaterial({color:0xb6a06a,shininess:20}));
     knob.position.set(1.32,1.05,.09);knob.userData.type='WIZARD_UPPER_DOOR';pivot.add(knob);
     for(const z of [-2.7,2.7]) {
-        const lamp=new THREE.PointLight(0xffdec0,3.0,11,2);lamp.position.set(0,level+2.4,z);group.add(lamp);
+        const lamp=new THREE.PointLight(0xffdec0,3.0,11,2);lamp.position.set(0,level+2.4,z);group.add(lamp);interiorLights.push(lamp);
         box(.24,.12,.24,0,level+2.65,z,iron,'wizard-upper-lamp');
         const glass=new THREE.MeshPhongMaterial({color:0xe3c185,emissive:0x8d6533,emissiveIntensity:.6,shininess:0});
         box(.16,.18,.16,0,level+2.52,z,glass,'wizard-upper-lamp-glass');
     }
     // Las piezas inmóviles comparten dibujo por material; la puerta conserva su pivote.
+    for(const parent of [group,interior]) {
     const batches=new Map();
-    for(const object of [...group.children]) {
+    for(const object of [...parent.children]) {
         if(!object.isMesh)continue;
         const parts=batches.get(object.material)??[];
         const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry;
         if(geometry!==object.geometry)object.geometry.dispose();
-        parts.push(geometry);batches.set(object.material,parts);group.remove(object);
+        parts.push(geometry);batches.set(object.material,parts);parent.remove(object);
     }
     for(const [material,parts] of batches) {
-        mesh(mergeGeometries(parts,false),material,'wizard-upper-static-structure');
+        const merged=new THREE.Mesh(mergeGeometries(parts,false),material);merged.name='wizard-upper-static-structure';parent.add(merged);
         parts.forEach(geometry=>geometry.dispose());
+    }
     }
     const local=(x,z)=>({x:x-origin.x,z:z-origin.z});
     const contains=(x,z,margin=0)=>{const p=local(x,z);return Math.abs(p.x)<9-margin&&Math.abs(p.z)<8-margin;};
@@ -443,7 +451,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         if(player.y-eyeHeight>=baseY+level-.25&&doorOverlap(local(player.x,player.z),angle))return;
         pivot.rotation.y=angle;motion.time=time;group.updateMatrixWorld(true);if(time===.7)motion=null;
     }
-    return {group,door,pivot,supportHeight,blocksMovement,upperLimit,toggleDoor,update,contains,
+    return {group,interior,interiorLights,door,pivot,supportHeight,blocksMovement,upperLimit,toggleDoor,update,contains,
         baseY,levelY:baseY+level,middleLevelY:baseY+middleLevel,
         stair:{x:origin.x+stair.x,z:origin.z+stair.z,radius:1.3,steps,rise,turns:2,startAngle:stairStart},origin};
 }

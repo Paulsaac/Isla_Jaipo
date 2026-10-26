@@ -1,6 +1,7 @@
 // Presentación del HUD; no calcula resistencia ni decide interacciones o muerte.
 export function createHud() {
     const message = document.getElementById('interaction-msg');
+    const riverWarning = document.getElementById('river-warning-msg');
     const coordinates = document.getElementById('position-coordinates');
     let coordinatesText = '';
     let coordinatesVisible = false;
@@ -75,9 +76,13 @@ export function createHud() {
         if (itemAnimation === null) showNextItem();
     }
 
+    function setRiverWarning(visible) {
+        if (riverWarning) riverWarning.style.display = visible ? 'block' : 'none';
+    }
     function showInteraction() { message.style.display = 'block'; }
     function hideInteraction() { message.style.display = 'none'; }
-    function setInteractionText(text) {
+    function setInteractionText(text, { bottom = false } = {}) {
+        message.classList.toggle('interaction-bottom',bottom);
         message.innerText = document.body.classList.contains('touch-mode') ? text.replaceAll('Presiona E', 'Pulsa B') : text;
     }
     function setInteractionColor(color) { message.style.color = color; }
@@ -147,5 +152,5 @@ export function createHud() {
         coordinates.textContent = text;
     }
 
-    return { showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, setHelmetCrackStage, updateHelmetCrack, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
+    return { setRiverWarning, showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, setHelmetCrackStage, updateHelmetCrack, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
 }

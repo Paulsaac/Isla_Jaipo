@@ -332,10 +332,18 @@ export function createKitchenGarden(THREE, origin, getTerrainHeight, woodTexture
         stem([0.22,0.012,z],[0.24,-0.005,z],0.007,iron);
     }
     for(const part of pieces)part.rotateY(-0.43);
-    const handRake=finish('hand-rake',0.50,0.015,bench);
+    const handRake=finish('hand-rake',0.68,0.015,bench);
     handRake.position.y=bench.geometry.boundingBox.max.y-handRake.geometry.boundingBox.min.y+0.001;
     const notebook=createGardenNotebook(THREE);
-    notebook.position.set(-.48,bench.geometry.boundingBox.max.y+.002,.01);notebook.rotation.y=-.16;
+    notebook.scale.setScalar(.55);
+    notebook.position.set(-.70,bench.geometry.boundingBox.max.y+.002,.07);notebook.rotation.y=.16;
     bench.add(notebook);
+    // Solo el centro del asiento ofrece sentarse; los extremos conservan sus objetos.
+    bench.userData.seatHeight=bench.geometry.boundingBox.max.y;
+    const seatTarget=new THREE.Mesh(new THREE.BoxGeometry(.54,.018,.38),
+        new THREE.MeshBasicMaterial({visible:false}));
+    seatTarget.position.y=bench.userData.seatHeight+.009;
+    seatTarget.userData={type:'CHAIR',seatTarget:bench};
+    bench.add(seatTarget);
     return models;
 }
