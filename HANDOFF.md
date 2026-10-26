@@ -1,3 +1,7 @@
+# Interfaz: recuperación de sesión para Caveat — 2026-10-26
+
+Clawshoot confirmó que el agente anterior dejó de editar y autorizó recuperar el bloqueo Codex `575203af-74fa-4c47-b2cf-ac4f04901397`. Liberado con finish y adquirido token propio `2549b8dd-4612-4fe6-a907-83c81b665e0b`, activo entre pedidos. Alcance: tipografía manuscrita de la bitácora con Caveat local existente. Sin staging, commit, push ni gestión del servidor.
+
 # Interfaz: recuperación de sesión — 2026-10-24
 
 Clawshoot confirmó que el otro chat dejó de editar y autorizó recuperar el bloqueo Codex `0d352bbc-d11a-4830-bfdd-2dfa43b85c34`. Liberado con finish y adquirido token propio `76cfb3d0-07f5-42c7-8e69-7034570197c6`, activo entre pedidos. Pedido actual: modo de prueba y ocultación de sus atajos, incluidos V/B. Trabajo local previo conservado; sin staging, commit, push ni gestión del servidor.
