@@ -2,15 +2,20 @@
 export function createDivingAir(maximum) {
     let remaining = maximum;
     const baseMaximum = maximum;
+    let availableMaximum = maximum;
     return {
         get remaining() { return remaining; },
         get maximum() { return maximum; },
-        reset() { maximum = baseMaximum; remaining = maximum; },
+        reset() { availableMaximum = maximum = baseMaximum; remaining = maximum; },
         replenish(seconds) {
-            maximum = Math.max(baseMaximum, seconds);
+            availableMaximum = maximum = Math.max(baseMaximum, seconds);
             remaining = maximum;
         },
-        update(delta, consuming, breathable) {
+        update(delta, consuming, breathable, limit = Infinity) {
+            // El aumento de los fragmentos se conserva para el mar; el río limita
+            // la reserva real sin devolver aire gratis al cambiar de zona.
+            maximum = Math.min(availableMaximum, limit);
+            remaining = Math.min(remaining, maximum);
             if (consuming) remaining = Math.max(0, remaining - delta);
             else if (breathable) remaining = Math.min(maximum, remaining + delta * maximum / 4);
             if (remaining < 0.000001) remaining = 0;

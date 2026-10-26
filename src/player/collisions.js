@@ -4,7 +4,7 @@ import { bedSurfaces } from './bed-support.js';
 import { sampleMountainPath } from '../world/mountain-path.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
-export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null, mountainPathProfile = null, terrainHeight = null) {
+export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null, mountainPathProfile = null, terrainHeight = null, canPassBelow = null) {
     if (collisionMap.length === 0) return true;
     if (isRidingBoat) {
         // Toda la huella del casco debe estar sobre agua libre, no solo el centro del jugador.
@@ -37,6 +37,7 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         const matrix = object.matrixWorld.elements;
         const dx = x - matrix[12], dz = z - matrix[14];
         if (Math.abs(dx) > UNIT_SIZE * 2 || Math.abs(dz) > UNIT_SIZE * 2) continue;
+        if (canPassBelow?.(x, z, object)) continue;
         if (!object.geometry.boundingBox) object.geometry.computeBoundingBox();
         const bounds = object.geometry.boundingBox;
         const localX = dx * matrix[0] + dz * matrix[2];
@@ -72,6 +73,8 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         const gX = Math.floor((pX + UNIT_SIZE/2) / UNIT_SIZE);
         const gZ = Math.floor((pZ + UNIT_SIZE/2) / UNIT_SIZE);
         if (gZ < 0 || gZ >= mapHeight || gX < 0 || gX >= mapWidth) return true;
+        // El tablero y sus puertas siguen bloqueando arriba; el cauce pasa por debajo.
+        if (canPassBelow?.(pX, pZ)) continue;
 
         // La nieve de la meseta sigue libre. En el corte, solo el piso del
         // sendero es transitable: no convertir sus taludes en otra escalera.

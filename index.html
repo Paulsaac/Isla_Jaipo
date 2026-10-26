@@ -484,7 +484,8 @@
             z-index: 101;
             pointer-events: none;
         }
-        #forest-cue-indicator[hidden] { display: none; }
+        #forest-cue-indicator[hidden],
+        body:not(.test-mode) #forest-cue-indicator { display: none; }
         .touch-mode #forest-cue-indicator {
             top: calc(max(12px, env(safe-area-inset-top)) + 54px);
         }

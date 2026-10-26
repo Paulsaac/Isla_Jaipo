@@ -358,5 +358,5 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
         }
     });
     root.addEventListener('contextmenu', event => event.preventDefault());
-    return { reset, sync, syncDialogue, syncRun() { actions.run(runLatched); }, show() { root.hidden = false; } };
+    return { reset, sync, syncDialogue, syncRun() { actions.run(runLatched); }, cancelRun() { if (runLatched) setRunLatched(false); }, show() { root.hidden = false; }, hide() { root.hidden = true; reset(); } };
 }

@@ -3,6 +3,10 @@ export const grahamWakeGreetings = [
     'Que bueno que despertaste. Ven, tengo hecho un mate.'
 ];
 
+export const grahamRescueDialogs = [
+    'Tuviste suerte de que te encontrara otra vez. Ten mas cuidado para la proxima'
+];
+
 // Dialogo introductorio vigente de Graham; conservar el orden.
 export const npcDialogs = [
     "Ya me estaba preocupando porque no despertabas.",

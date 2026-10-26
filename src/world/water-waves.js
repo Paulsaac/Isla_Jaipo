@@ -1,4 +1,6 @@
-// Ondas visuales en GPU: desplazan la textura y sus reflejos sin cambiar la física.
+import { RIVER_FLOW_PHASE_RATE, RIVER_FLOW_UV_TRAVEL } from './river-current.js';
+
+// Ondas visuales en GPU; la corriente comparte velocidad con el empuje del jugador.
 export function applyWaterWaves(THREE, material, time, currentField, unitSize, immersion = {value:0}, raisedCell = {value:new THREE.Vector4()}, flowOrigin = new THREE.Vector2()) {
     const flowTexture = new THREE.DataTexture(currentField.data, currentField.width, currentField.height, THREE.RGBAFormat);
     flowTexture.needsUpdate = true;
@@ -30,12 +32,12 @@ export function applyWaterWaves(THREE, material, time, currentField, unitSize, i
                 flowSample.b *= step(0.0,fieldUv.x)*step(fieldUv.x,1.0)*step(0.0,fieldUv.y)*step(fieldUv.y,1.0);
                 vec2 flowDirection = (flowSample.rg * 2.0 - 1.0) * vec2(1.0, -1.0);
                 // Dos fases fundidas hacen avanzar la textura sin saltos al reiniciar.
-                float flowPhase = fract(waterTime * 0.588);
-                float secondPhase = fract(waterTime * 0.588 + 0.5);
+                float flowPhase = fract(waterTime * ${RIVER_FLOW_PHASE_RATE});
+                float secondPhase = fract(waterTime * ${RIVER_FLOW_PHASE_RATE} + 0.5);
                 float flowBlend = abs(flowPhase * 2.0 - 1.0);
                 vec2 baseUv = vMapUv + waterUvOffset * 0.6;
-                vec4 currentA = texture2D(map, baseUv - flowDirection * (flowPhase - 0.5) * 1.6);
-                vec4 currentB = texture2D(map, baseUv - flowDirection * (secondPhase - 0.5) * 1.6);
+                vec4 currentA = texture2D(map, baseUv - flowDirection * (flowPhase - 0.5) * ${RIVER_FLOW_UV_TRAVEL});
+                vec4 currentB = texture2D(map, baseUv - flowDirection * (secondPhase - 0.5) * ${RIVER_FLOW_UV_TRAVEL});
                 vec4 currentTexel = mix(currentA, currentB, flowBlend);
                 vec4 riverColor = vec4(diffuse, opacity) * currentTexel;
                 diffuseColor = mix(diffuseColor, riverColor, flowSample.b);
