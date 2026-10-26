@@ -10,8 +10,9 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     const origin={x:(platform.minX+(platform.cellsPerSide-1)/2)*UNIT_SIZE,
         z:(platform.minZ+(platform.cellsPerSide-1)/2)*UNIT_SIZE};
     const group=new THREE.Group();group.name='summit-observatory';group.position.set(origin.x,baseY,origin.z);
+    const interior=new THREE.Group();interior.name='observatory-interior';group.add(interior);
     const radius=4.4,sides=12,level=3,observingLift=1.2,domeY=5+observingLift,domeRadius=4.65;
-    const batches=new Map();
+    const batches=new Map(),interiorBatches=new Map();
     const domeBatches=new Map(),supportBatches=new Map();
     let activeBatches=batches;
     const domeRotation=new THREE.Group();domeRotation.name='observatory-rotating-dome';group.add(domeRotation);
@@ -250,9 +251,10 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     // La silla sigue el arco del ocular; el mástil ya no se traslada al inclinar.
     const chairOrbitRadius=.95,telescopeRearLength=.85,telescopeCollisionRadius=.26;
     const telescopeElevation=.62,telescopeCenterY=6.9+observingLift;
+    const scopePitchLimits={min:-.22,max:Math.PI/3};
     const scopeEye={x:0,y:0,z:chairOrbitRadius};
     const scopeMount=new THREE.Group();scopeMount.name='observatory-telescope-mount';
-    scopeMount.position.set(0,telescopeCenterY,0);group.add(scopeMount);
+    scopeMount.position.set(0,telescopeCenterY,0);interior.add(scopeMount);
     const scopeSupport=new THREE.Group();scopeSupport.name='omniscopio-moving-support';
     scopeSupport.position.y=-telescopeCenterY;scopeMount.add(scopeSupport);
     activeBatches=supportBatches;
@@ -268,7 +270,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         rod([Math.sign(x)*.19,telescopeCenterY,0],[Math.sign(x)*.44,telescopeCenterY,0],.065,brass);
         rod([0,telescopeCenterY-.75,0],[x,telescopeCenterY-.35,0],.045,iron);
     }
-    activeBatches=batches;
+    activeBatches=interiorBatches;
     // Cremallera circular: dientes en la cara interior del riel, junto al piñón.
     const railTeeth=72,railPitchRadius=chairOrbitRadius-.075,gearTeeth=12;
     const gearPitchRadius=railPitchRadius*gearTeeth/railTeeth;
@@ -349,22 +351,46 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     const scopeChair=new THREE.Group();scopeChair.name='omniscopio-chair';scopeChair.rotation.x=-.25;scopeMount.add(scopeChair);
     function chairPart(w,h,d,x,y,z,material=timber) {
         const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+        mesh.userData={type:'OBSERVATORY_CHAIR',id:'omniscopio-chair'};
         mesh.position.set(x,y,z);scopeChair.add(mesh);return mesh;
     }
     chairPart(.56,.12,.54,0,0,0);
     chairPart(.56,.65,.09,0,.32,-.25);
     for(const x of [-.29,.29])chairPart(.055,.07,.48,x,.2,0,brass);
+    // Dos reposapiés bajos, unidos al asiento y orientados hacia el ocular.
+    for(const x of [-.20,.20]) {
+        chairPart(.035,.50,.035,x,-.31,.25,iron);
+        chairPart(.035,.045,.30,x,-.55,.38,iron);
+        chairPart(.18,.045,.29,x,-.56,.44,iron);
+        for(const z of [.35,.43,.51])chairPart(.15,.008,.018,x,-.533,z,brass);
+    }
     const chassis=new THREE.Group();chassis.name='omniscopio-chair-connected-chassis';scopeMount.add(chassis);
     const chassisMembers=Array.from({length:8},()=>{
         const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,1,6),iron);chassis.add(mesh);return mesh;
     });
     const chairLanding=new THREE.Group();chairLanding.name='omniscopio-chair-ladder-landing';scopeMount.add(chairLanding);
+    const landingBounds={minX:-1.40,maxX:-.45,minZ:-.40,maxZ:.90,top:.03};
+    chairLanding.userData.bounds=landingBounds;
     const landingMaterial=iron;
-    for(const x of [-.68,-.10]) {
-        const edge=new THREE.Mesh(new THREE.BoxGeometry(.055,.06,.62),landingMaterial);edge.position.set(x,0,.42);chairLanding.add(edge);
+    const landingDeck=new THREE.Mesh(new THREE.BoxGeometry(.95,.06,1.30),landingMaterial);
+    landingDeck.position.set(-.925,0,.25);chairLanding.add(landingDeck);
+    for(const x of [-1.37,-.48]) {
+        const edge=new THREE.Mesh(new THREE.BoxGeometry(.055,.06,1.30),landingMaterial);edge.position.set(x,0,.25);chairLanding.add(edge);
     }
-    for(let i=0;i<6;i++) {
-        const tread=new THREE.Mesh(new THREE.BoxGeometry(.63,.035,.035),landingMaterial);tread.position.set(-.39,0,.15+i*.105);chairLanding.add(tread);
+    for(let i=0;i<10;i++) {
+        const tread=new THREE.Mesh(new THREE.BoxGeometry(.87,.008,.025),landingMaterial);tread.position.set(-.925,.03,-.34+i*.13);chairLanding.add(tread);
+    }
+    // Baranda en L: detrás y a la izquierda; silla (+X) y escalera (+Z) libres.
+    for(const [x,z]of [[landingBounds.minX,landingBounds.minZ],
+        [landingBounds.maxX,landingBounds.minZ],[landingBounds.minX,landingBounds.maxZ]]) {
+        const post=new THREE.Mesh(new THREE.BoxGeometry(.045,.96,.045),iron);
+        post.position.set(x,landingBounds.top+.48,z);chairLanding.add(post);
+    }
+    for(const height of [.48,.94]) {
+        const rear=new THREE.Mesh(new THREE.BoxGeometry(.95,.045,.045),iron);
+        rear.position.set(-.925,landingBounds.top+height,landingBounds.minZ);chairLanding.add(rear);
+        const left=new THREE.Mesh(new THREE.BoxGeometry(.045,.045,1.30),iron);
+        left.position.set(landingBounds.minX,landingBounds.top+height,.25);chairLanding.add(left);
     }
     const landingBraces=Array.from({length:4},()=>{const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,1,6),iron);scopeMount.add(mesh);return mesh;});
     const chassisA=new THREE.Vector3(),chassisB=new THREE.Vector3(),chassisDirection=new THREE.Vector3();
@@ -442,16 +468,17 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         new THREE.MeshPhongMaterial({color:0x96d2df,emissive:0x305269,emissiveIntensity:.5,shininess:90,side:THREE.DoubleSide}));
     objective.position.z=tubeFront+.02;scopeElevation.add(objective);
     const astroscopeDock=new THREE.Group();astroscopeDock.name='astroscope-dock';
-    astroscopeDock.position.set(0,0,-1.013);astroscopeDock.visible=false;scopeElevation.add(astroscopeDock);
+    astroscopeDock.position.set(0,0,-.813);astroscopeDock.visible=false;scopeElevation.add(astroscopeDock);
     const dockedAstroscope=createTelescope(THREE);dockedAstroscope.scale.setScalar(.8);
     dockedAstroscope.name='installed-astroscope';dockedAstroscope.rotation.y=Math.PI;astroscopeDock.add(dockedAstroscope);
     const telescopeInteraction=new THREE.Mesh(new THREE.SphereGeometry(.34,8,6),
         new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false}));
     telescopeInteraction.name='observatory-telescope-interaction';
     telescopeInteraction.position.set(scopeEye.x,scopeEye.y,scopeEye.z);
-    telescopeInteraction.userData={type:'OBSERVATORY_TELESCOPE',id:'observatory-telescope'};group.add(telescopeInteraction);
-    const transmission=createObservatoryTransmission(THREE,{iron,brass,level,collisionRadius:COLLISION_RADIUS});group.add(transmission.group);
+    telescopeInteraction.userData={type:'OBSERVATORY_TELESCOPE',id:'observatory-telescope'};interior.add(telescopeInteraction);
+    const transmission=createObservatoryTransmission(THREE,{iron,brass,level,collisionRadius:COLLISION_RADIUS});interior.add(transmission.group);
     function updateScopePose() {
+        scopeElevation.rotation.x=-THREE.MathUtils.clamp(-scopeElevation.rotation.x,scopePitchLimits.min,scopePitchLimits.max);
         const pitch=-scopeElevation.rotation.x,eyeDistance=1.45;
         const eyeY=-Math.sin(pitch)*eyeDistance;
         const eyeZ=-Math.cos(pitch)*eyeDistance;
@@ -477,25 +504,25 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
             chassisB.set(x,-.07,z).applyEuler(scopeChair.rotation).add(scopeChair.position);
             chassisRod(member++,chassisA,chassisB);
         }
-        // Dos brazos y dos diagonales unen el asiento a la viga principal.
-        for(const x of [-.23,.23])for(const height of [-1,-1.8]) {
-            chassisA.set(0,height,scopeSupport.position.z);
-            chassisB.set(x,-.1,.16).applyEuler(scopeChair.rotation).add(scopeChair.position);
+        // Tirantes bajo el asiento y los pies: despejar el espacio frente al torso.
+        for(const x of [-.23,.23])for(const height of [-.40,-1.05]) {
+            chassisA.set(0,scopeChair.position.y+height,scopeSupport.position.z);
+            chassisB.set(x,-.70,.35).applyEuler(scopeChair.rotation).add(scopeChair.position);
             chassisRod(member++,chassisA,chassisB);
         }
         const railCarriageZ=supportRailRadius+.075;
         supportSlide.position.set(0,level+.29-telescopeCenterY,(railCarriageZ+scopeSupport.position.z)/2);
         supportSlide.scale.z=Math.abs(railCarriageZ-scopeSupport.position.z)+.3;
         // Escalerilla vertical de hierro, unida al descanso lateral del asiento.
-        chairLadder.position.set(-.65,0,eyeZ+.68);
+        chairLadder.position.set(-.925,0,eyeZ+.90);
         chairLadder.rotation.y=Math.PI/2;
         chairLadder.userData.approach=[1,0,0];
         ladderFoot.set(0,level+.01-telescopeCenterY,0);
-        ladderTop.set(0,scopeChair.position.y+.22,0);
+        ladderTop.set(0,scopeChair.position.y-.08,0);
         chairLanding.position.set(0,ladderTop.y,eyeZ);
         for(const [i,brace]of landingBraces.entries()) {
-            const side=i%2===0?-.65:-.12;
-            chassisA.set(side,ladderTop.y,eyeZ+(i<2?.15:.68));
+            const side=i%2===0?-1.37:-.48;
+            chassisA.set(side,ladderTop.y-.03,eyeZ+(i<2?-.34:.85));
             chassisB.set(-.23,-.18,i<2?-.12:.20).applyEuler(scopeChair.rotation).add(scopeChair.position);
             chassisDirection.subVectors(chassisB,chassisA);
             brace.position.copy(chassisA).add(chassisB).multiplyScalar(.5);brace.scale.y=chassisDirection.length();
@@ -513,10 +540,11 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         scopeEye.z=Math.cos(scopeMount.rotation.y)*eyeZ;
         domeRotation.rotation.y=scopeMount.rotation.y;
         transmission.update(scopeMount.rotation.y);
-        telescopeInteraction.position.set(scopeEye.x,scopeEye.y,scopeEye.z);
+        telescopeInteraction.position.set(0,0,-.72).applyEuler(scopeElevation.rotation).applyEuler(scopeMount.rotation);
+        telescopeInteraction.position.y+=telescopeCenterY;
     }
     updateScopePose();
-    for(const [collection,parent] of [[batches,group],[stairBatches,stairGroup],[domeBatches,domeRotation],[supportBatches,scopeSupport]]) {
+    for(const [collection,parent] of [[batches,group],[interiorBatches,interior],[stairBatches,stairGroup],[domeBatches,domeRotation],[supportBatches,scopeSupport]]) {
         for(const [material,parts]of collection) {
             const mesh=new THREE.Mesh(mergeGeometries(parts,false),material);mesh.name=material===glass?'observatory-faceted-dome':'observatory-structure-batch';
             parent.add(mesh);parts.forEach(g=>g.dispose());
@@ -544,15 +572,34 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         if(Math.abs(p.x-stair.right)<=stair.halfWidth)return 1.5+(p.z-stair.rear)/stairRun*1.5+.05;
         return -Infinity;
     }
+    const landingProbe=new THREE.Vector3();
     function supportHeight(x,z,feetY) {
         const p=local(x,z);if(!insideBase(p))return -Infinity;
         let support=baseY;const s=stairHeight(p);
         if(s<=feetY-baseY+.25)support=Math.max(support,baseY+Math.min(level,s));
         if(upperFloor(p)&&feetY>=baseY+level-.25)support=baseY+level;
+        chairLanding.updateWorldMatrix(true,false);
+        landingProbe.set(x,0,z);chairLanding.worldToLocal(landingProbe);
+        if(landingProbe.x>=landingBounds.minX&&landingProbe.x<=landingBounds.maxX
+            &&landingProbe.z>=landingBounds.minZ&&landingProbe.z<=landingBounds.maxZ) {
+            const landingHeight=baseY+telescopeCenterY+chairLanding.position.y+landingBounds.top;
+            if(feetY>=landingHeight-.25)support=Math.max(support,landingHeight);
+        }
         return support;
     }
     function blocksMovement(x,z,feetY) {
         const p=local(x,z),f=feetY-baseY;if(Math.abs(p.x)>baseHalf+.43||Math.abs(p.z)>baseHalf+.43)return null;
+        chairLanding.updateWorldMatrix(true,false);
+        landingProbe.set(x,feetY,z);chairLanding.worldToLocal(landingProbe);
+        if(landingProbe.y<landingBounds.top+.96&&landingProbe.y+PLAYER_HEIGHT>landingBounds.top+.04) {
+            const nearestX=THREE.MathUtils.clamp(landingProbe.x,landingBounds.minX,landingBounds.maxX);
+            const nearestZ=THREE.MathUtils.clamp(landingProbe.z,landingBounds.minZ,landingBounds.maxZ);
+            // Tres bordes protegidos: el de la silla actúa como baranda invisible.
+            // Solo +Z, hacia la escalerilla, permite abandonar la plataforma.
+            if(Math.hypot(landingProbe.x-nearestX,landingProbe.z-landingBounds.minZ)<COLLISION_RADIUS+.023
+                ||Math.hypot(landingProbe.x-landingBounds.minX,landingProbe.z-nearestZ)<COLLISION_RADIUS+.023
+                ||Math.hypot(landingProbe.x-landingBounds.maxX,landingProbe.z-nearestZ)<COLLISION_RADIUS+.023)return true;
+        }
         if(f>7)return null;
         const door=Math.abs(p.x)<.73-COLLISION_RADIUS&&p.z>1.5&&f<.5;
         if(!door&&!(f<level-.25?insideBase(p,COLLISION_RADIUS):inside(p,COLLISION_RADIUS)))return true;
@@ -579,7 +626,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         if(feetY<baseY+1.2&&upperFloor(p))return baseY+level-HOUSE_UPPER_FLOOR_THICKNESS-.06;
         return baseY+domeY+Math.sqrt(Math.max(0,domeRadius*domeRadius-p.x*p.x-p.z*p.z))-.2;
     }
-    return {group,origin,baseY,levelY:baseY+level,supportHeight,blocksMovement,upperLimit,
-        scopeMount,scopeElevation,scopeEye,scopeChair,scopeSupport,chairLadder,domeRotation,chairOrbitRadius,
-        astroscopeDock,telescopeInteraction,updateScopePose};
+    return {group,interior,interiorLights:[light,upperLight],origin,baseY,levelY:baseY+level,supportHeight,blocksMovement,upperLimit,
+        scopeMount,scopeElevation,scopeEye,scopeChair,scopeSupport,chairLadder,chairLanding,domeRotation,chairOrbitRadius,
+        astroscopeDock,telescopeInteraction,scopePitchLimits,updateScopePose};
 }

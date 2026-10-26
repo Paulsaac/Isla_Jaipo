@@ -1,5 +1,6 @@
 // Cuatro luces reutilizadas: brillo local sin crear una luz por cada árbol.
 import { getTreeColorCycle, getTreeColorAngle } from './tree-color-cycle.js';
+import { TREE_SPRITE_HEIGHT } from '../config.js';
 export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight) {
     const slots = Array.from({length: 4}, () => {
         const light = new THREE.PointLight(0xffffff, 0, 18, 2);
@@ -11,7 +12,6 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
     let refresh = 0;
     function update(delta, position, uniforms) {
         const amount = uniforms.heartStrength.value;
-        const bass = uniforms.heartBass.value;
         const time = uniforms.heartColorTime.value;
         refresh -= delta;
         if (amount > 0.001 && refresh <= 0) {
@@ -41,10 +41,17 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
             const target = slot.target;
             slot.strength += ((target ? 1 : 0) - slot.strength) * (1 - Math.exp(-delta * 4));
             const lightAmount = slot.strength * amount;
-            slot.light.intensity = lightAmount * (14 + bass * 8);
+            slot.light.intensity = 0;
             if (lightAmount <= 0.001 || !target) continue;
             const y = sampleHeight(target.x, target.z);
-            slot.light.position.set(target.x, y + 4.8, target.z);
+            // Luz ambiental de apoyo fija; el degradado depende de los ojos, no la posición.
+            const height = 4.8;
+            slot.light.position.set(target.x, y + height, target.z);
+            const focusHeight = Math.max(0.65, Math.min(TREE_SPRITE_HEIGHT - 0.5, position.y - y));
+            const gradient = 0.04 + 0.96 * Math.exp(-Math.abs(height - focusHeight) / 1.68);
+            const phase = target.x * 0.73 + target.z * 1.17 + 2.399 * 3;
+            const breath = 0.94 + 0.06 * Math.sin(uniforms.skyPsychTime.value * (Math.PI / 2) + phase);
+            slot.light.intensity = lightAmount * 14 * gradient * breath;
             const cycle = getTreeColorCycle(target.x, target.z, unitSize);
             const angle = getTreeColorAngle(time, cycle, uniforms.heartTreble.value);
             slot.light.color.setHSL((angle / (Math.PI * 2)) % 1, 1.0, 0.4);

@@ -1,3 +1,26 @@
+## Estado vigente de Bosque — AxByZ, 2026-10-26
+
+Los ajustes posteriores de AxByZ sustituyen los valores visuales históricos siguientes: DEF8 directo, entrada de color desde marca 0, ascenso 41.320–49.320 s, aterrizaje 186.127 s, luces fijas con respiración de 4 s, feedback sutil y cielo continuo de 8 FPS. Detalle de marcas y opacidades en [FOREST_CUES.md](FOREST_CUES.md) y entrada propia del 26 en HANDOFF.md. Terreno, montaña, puente y exteriores se conservan durante el evento; ocultación temporal limitada a interiores del observatorio/casa del mago y sus objetos.
+
+## Refinamiento del evento psicodélico del Bosque — Antigravity — 2026-10-25
+
+Por pedido explícito de Clawshoot, se calibraron los efectos celestes, de vegetación y de estela durante las marcas de la canción:
+- **Marca 3:** efecto de estela (*trail*) con repeticiones breves y acotadas (~10 ecos al llegar a la marca 3 con `trailStrength = 0.72`), descendiendo continuamente a lo largo de toda la marca 3 hasta extinguirse en 0 al alcanzar la marca 4.
+- **Marca 5:** intensificación de los colores de los árboles (`treeColorStrength = 1.25` con refuerzo de saturación) y activación del GIF psicodélico en el cielo nocturno en baja opacidad (`~0.20`), con fade in al inicio y fade out al finalizar antes de la marca 6.
+- **Marca 6:** opacidad del efecto caleidoscopio en el cielo nocturno elevada de 0.15 a `0.28`.
+- **Marca 7:** entrada en fade in pausado y progresivo del caleidoscopio (6.5 s, de 0.28 a 1.0) y del GIF psicodélico (5.5 s, subiendo gradualmente hacia el rango oscilante de 50–70%). Efecto trail pleno sostenido (0.82).
+- **Marcas 8–9:** descenso gradual a cero de todos los efectos celestiales y visuales.
+
+## Último ajuste local por pedido explícito de AXBYZ — 2026-10-24
+
+Este cierre modifica solo los comportamientos pedidos y deja el resto del progreso/ciclo acordado. Relevo: `../CONTINUAR_AXBYZ_2026-10-24_ULTIMA_LOCAL.md`.
+
+- Bosque: transición de atardecer a noche alineada a la canción entre 60.029 y 64.029 s, cuatro segundos previos a marca 3. Si la música no está disponible, se conserva el avance de respaldo por delta. Entrega/Graham, noche final de 12 s, amanecer detenido y liberación por puente mantienen sus condiciones.
+- Levitación: marca 2 pasa a 0.8 veces altura marca 1; marca 3 alta, marca 4 baja a altura marca 1 +0.7 m, marca 5 recupera altura prevista. Final de descenso entre marcas 8–9. Estela visual temporal tenue durante el efecto.
+- Durante elevación >0.15 m, el movimiento queda limitado al contorno inferior de tierra conectado a Graham, incluyendo puente y dos celdas de su salida norte. Resistencia direccional a unos 12 m de costa/río/límite, sin acumulación histórica; permite regreso hacia dentro. Vuelo libre, bote y cueva quedan fuera de esta restricción.
+- Mar: ahogarse después de obtener escafandra, fuera de cueva, devuelve a costa segura y reinicia solo fragmentos (0/10), casco reparado/equipado, aire/resistencia, música submarina y fuego de altar. Conservar objetos, Bosque y demás progreso. Los modelos recogidos se ocultan y reutilizan al reintentar, no se destruyen. No se añade persistencia.
+- Últimos cambios pendientes de prueba integral en navegador/móvil. Las verificaciones antiguas no acreditan estas reglas nuevas.
+
 ## Ajuste local de Bosque — 2026-10-16
 
 AxByZ pidió que, tras entregar el corazón, Graham aún busque las llaves del puente y repita el nuevo agradecimiento. La disponibilidad queda false en src/config.js; no se inventó espera, evento ni requisito de hallazgo. Entrega del corazón y frontera del cielo conservan sus triggers: se llega al amanecer detenido y la salida del sol/Mañana siguen esperando apertura del puente. Retomar la progresión por el puente requiere definir cómo encuentra Graham la llave. El cofre se abre con sonido espacial al terminar por completo el agradecimiento de Graham; el mapa permanece dentro y se toma con E/B. No se concede una llave del cofre. La llave del puente sigue pendiente. HANDOFF.md identifica versión local, gesto dap, audio y pruebas; las referencias previas de disponibilidad inmediata son históricas para esta copia.
@@ -29,7 +52,7 @@ Una rama por evento, según pedido del usuario. Las ocho ramas de esta tabla fue
 
 | Nº | Evento | Responsable | Rama asignada | Audio | Estado |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Bosque | AxByZ | codex/evento-01-bosque | sonidos/musica/bosque.mpeg | Conectado; ajustes visuales y filtros pendientes. |
+| 1 | Bosque | AxByZ | codex/evento-01-bosque | sonidos/musica/bosque.mp3 | Conectado; DEF8 directo sin procesamiento, marcas y estado visual vigentes en FOREST_CUES.md / HANDOFF.md. |
 | 2 | Submarino | Clawshoot | codex/evento-02-submarino | sonidos/musica/submarino.mp3 | Conectado; función posterior del corazón pendiente. |
 | 3 | Mañana | Clawshoot | codex/evento-03-manana | sonidos/musica/mañana.mp3 | Conectado; empieza desde apertura del puente y salida del sol. |
 | 4 | Pueblo | AxByZ | codex/evento-04-pueblo | Pendiente | Diseño e implementación pendientes. |

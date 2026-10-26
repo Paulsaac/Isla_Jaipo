@@ -5,7 +5,7 @@ const water=new Set(['WATER','WATER_ROCK','BOAT']);
 export function createShorelineMask(floorMap, woodMap) {
     const height=floorMap.length,width=floorMap[0].length,mask=new Uint8Array(width*height);
     for(let z=0;z<height;z++)for(let x=0;x<width;x++){
-        if(floorMap[z][x]==='BOAT')continue;
+        if(floorMap[z][x]==='BOAT' || floorMap[z][x]==='WATER_ROCK')continue;
         let wet=false,dry=false,protectedCell=false;
         for(let dz=-2;dz<=2&&!protectedCell;dz++)for(let dx=-2;dx<=2;dx++){
             const type=floorMap[z+dz]?.[x+dx];if(type===undefined)continue;
@@ -24,7 +24,7 @@ export function createShorelineHeights(floorMap, elevations, mask, waterHeight) 
     for(let pass=0;pass<6;pass++){
         const next=field.map(row=>row.slice());
         for(let z=1;z<height-1;z++)for(let x=1;x<width-1;x++){
-            if(!mask[z*width+x])continue;
+            if(!mask[z*width+x] || floorMap[z][x]==='WATER_ROCK')continue;
             let sum=0;
             for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++)sum+=field[z+dz][x+dx]*(dx===0?2:1)*(dz===0?2:1);
             // Conservar el signo de cada centro sin imponer una altura plana a toda la ribera.
@@ -32,7 +32,7 @@ export function createShorelineHeights(floorMap, elevations, mask, waterHeight) 
         }
         field=next;
     }
-    let surface=elevations.map((row,z)=>Float32Array.from(row,(value,x)=>mask[z*width+x]
+    let surface=elevations.map((row,z)=>Float32Array.from(row,(value,x)=>mask[z*width+x] && floorMap[z][x]!=='WATER_ROCK'
         ?Math.max(value-1.2,Math.min(value+1.2,waterHeight+field[z][x]*.9)):value));
     // La B-spline aproxima los centros: conservar también el signo tras interpolar.
     for(let pass=0;pass<12;pass++){

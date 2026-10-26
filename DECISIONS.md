@@ -1,3 +1,19 @@
+## 2026-10-25 — Marcas 3, 5, 6 y 7 del evento psicodélico
+- Marca 3: efecto trail con repeticiones breves (~10 ecos, `trailStrength = 0.72`, retención ~0.59 que decae a <1% en el 10º cuadro) al llegar a la marca 3, descendiendo continuamente hasta extinguirse en 0 al alcanzar la marca 4.
+- Marca 5: colores de árboles intensificados a 1.25 con refuerzo de saturación; GIF psicodélico del cielo activo en baja opacidad (0.20) con fade-in (2.8 s) y fade-out (2.4 s) antes de la marca 6.
+- Marca 6: opacidad del caleidoscopio en el cielo nocturno subida de 0.15 a 0.28.
+- Marca 7: fade-in lento del caleidoscopio (6.5 s, de 0.28 a 1.0) y fade-in progresivo del GIF psicodélico (5.5 s hacia 50–70%).
+
+## 2026-10-25 — Árboles coloridos y eliminación del velo gris en evento psicodélico
+- Eliminación del suelo escalar monocromático `vec3(treeLuma...)` y el recorte `peakExcess` en el fragment shader de árboles (`src/world/heart-vision.js`).
+- Auto-iluminación orgánica basada en el color de la propia textura (`diffuseColor.rgb * heartAmount * (0.42 + heartBass * 0.18)`), saturación reforzada a 1.85 y mezcla al 92% (`heartAmount * 0.92`) con la rotación cromática por instancia `heartTreeColorAngle`. Se obtienen árboles vivos y saturados (magentas, cianes, esmeraldas, oros, púrpuras) durante el evento, erradicando por completo el velo grisáceo.
+
+## 2026-10-25 — Profundidad uniforme del río, colisión fluvial y advertencia de corriente
+- Nivelación física: todo el lecho del río de la isla (`WATER_ROCK`) se nivela a cota constante -2.5 m (lámina de agua en -0.05 m, profundidad efectiva 2.45 m), quedando excluido de `shorelineMask`/`shorelineHeights` para evitar bancos someros que permitan vadear sin gasto. Con escafandra puesta (`helmetEquipped`), la inmersión del jugador es total y continua a lo largo del cruce, consumiendo aire ininterrumpidamente.
+- Cruce sin escafandra: el río actúa como barrera física impenetrable (`isRiverObstacle`), bloqueando la penetración al agua pero permitiendo el libre desplazamiento tangencial y hacia tierra firme mediante comprobación de ejes independientes en `isWall`.
+- Advertencia de corriente: mensaje `#river-warning-msg` («La corriente no me dejará pasar») mostrado al tocar o aproximarse al río sin escafandra; desaparece de inmediato al apartarse.
+- Puentes y río de la cueva: puentes sobre losas de piedra y madera continúan transitables sin interferencia. Las reglas y comportamiento del río de la cueva (`caveMap`) se preservan intactas e independientes.
+
 ## 2026-10-24 — Óptica, observatorio y revisión acumulada de Clawshoot
 - Valores definitivos: Astroscopio 3× basal y 20× con Bifrost; Omniscopio acoplado empieza a40× cada uso, Shift/Ctrl ajustan1× entre40–50×. Sustituye los valores experimentales30/32/64× del historial.
 - Bifrost se instala mirando su modelo/perímetro de20cm; el resto de la mesa no repara. El Astroscopio instalado en el ocular del Omniscopio se retira del inventario y vuelve al extraerlo.
@@ -285,3 +301,10 @@
 - El nombre definitivo del telescopio de mano es **Astroscopio** en inventario, modelo y mensajes. El telescopio del observatorio puede acoplarlo mediante confirmación Sí/No; instalado, el objeto persiste en la base y el menú E ofrece retirarlo o mirar por la mira.
 - La mira del telescopio de observatorio ofrece zoom 30× y control con flechas/D-pad. Su montura responde más despacio y conserva una pequeña inercia amortiguada para sugerir engranajes pesados, independiente del zoom y movimiento del telescopio de mano.
 - El piso elevado de las casas debe tener espesor geométrico y caras inferiores, para evitar que muros y techo se vean atravesando un plano delgado.
+# 2026-10-26 — Bosque: audio original, luces y alcance visual
+
+- Pedido de AxByZ: reproducir Si Pude Ser DEF8 topdown en `sonidos/musica/bosque.mp3` directamente, sin filtros, reverberación ni ajuste de ganancia; conservar marcas originales y espera de 4 s. Analizador en paralelo, sin alterar la señal. No editar ni convertir el MP3.
+- Luces en posiciones fijas a lo largo del tronco; solo su brillo depende de la altura del jugador, con degradado, límite en copa y respiración leve desfasada de 4 s. Cielo psicodélico continuo, 8 FPS y primera entrada 103.939 s; caleidoscopio máximo 50%. Aterrizaje 186.127 s y efectos visuales hasta marca 9.
+- Durante Bosque se conserva todo el paisaje, montaña, vegetación, puente y exteriores. Ocultar solo interiores de casa del mago/observatorio, taller y CRT, restaurándolos al salir. La optimización no autoriza recortar la mitad norte ni reducir resolución o detalle acordados.
+- Guardado, respaldo, apagado de servidores y publicación de PR autorizados expresamente en este pedido. No autoriza fusión automática ni modifica el protocolo compartido de cierre.
+
