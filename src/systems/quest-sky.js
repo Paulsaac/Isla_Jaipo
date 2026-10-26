@@ -1,4 +1,5 @@
 import { SKY_CYCLE_TIMING } from '../world/sky-cycle.js';
+import { FOREST_CUES } from '../content/forest-cues.js';
 
 // La entrega lleva al amanecer; abrir el puente libera la salida del sol y Morning.
 export function createQuestSkyCycle(timing = SKY_CYCLE_TIMING) {
@@ -14,10 +15,13 @@ export function createQuestSkyCycle(timing = SKY_CYCLE_TIMING) {
         get waitingForSunrise() { return stage === 'last-night' || stage === 'waiting-bridge'; },
         openBridge() { bridgeOpened = true; },
         setTime(value) { if (stage === 'free') timer = value; },
-        update(delta, questStage, forestStarted) {
+        update(delta, questStage, forestStarted, forestElapsed = null) {
             if (stage === 'waiting-heart' && questStage !== 'searching' && forestStarted) stage = 'dusk';
             if (stage === 'dusk') {
-                timer = Math.min(timing.nightStart, timer + delta);
+                if(Number.isFinite(forestElapsed)) {
+                    const progress=Math.max(0,Math.min(1,(forestElapsed-(FOREST_CUES[3]-4))/4));
+                    timer=timing.duskStart+timing.dusk*.5*(1+progress);
+                } else timer = Math.min(timing.nightStart, timer + delta);
                 if (timer >= timing.nightStart) stage = 'waiting-delivery';
             }
             if (stage === 'waiting-delivery' && questStage === 'delivered') {

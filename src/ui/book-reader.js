@@ -25,7 +25,7 @@ export function createBookReader() {
                 columns[index<2?0:1].append(paragraph);
             });
             reader.querySelector('.book-reader-hint').textContent=document.body.classList.contains('touch-mode')
-                ? 'Toca la pantalla para cerrar' : '[E] Cerrar libro';
+                ? 'Toca la pantalla para cerrar' : '[E] Salir';
             reader.hidden=false;
         },
         hide(){reader.hidden=true;}

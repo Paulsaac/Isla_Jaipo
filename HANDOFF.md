@@ -1,6 +1,138 @@
+# Integración de bitácora local con PR #11 — Clawshoot / Codex — 2026-10-26
+
+Clawshoot autorizó recuperar el bloqueo `2549b8dd-4612-4fe6-a907-83c81b665e0b` y seguir el flujo de guardar cambios locales, combinar main y publicar un PR. Sesión propia vigente: `6d37ac5f-cc42-485b-9210-1d2042258507`. Rama `codex/bitacora-caveat-integracion-20261026`: commit local `1703bd5` conserva los ajustes recibidos de Caveat en `src/ui/book-reader.css` y la nota previa de interfaz. Se integra `origin/main` `028ae0e`, que contiene PR #11. Único conflicto: entradas iniciales de este relevo; se conservan ambas completas. El CSS local queda idéntico al commit de respaldo y se conserva el lector actualizado de main.
+
+Verificación de la combinación: 183 archivos JavaScript pasan sintaxis; sin marcadores de conflicto; fuente Caveat presente. Localhost8000 responde HTTP200 para CSS, fuente y lector, con Caveat y texto `[E] Salir`. Comprobaciones de archivos y HTTP, sin recorrido visual integral en navegador. El servidor existente permanece activo. Audio local `sonidos/fx/mate EDITAR.wav` y auxiliar `tools/verify-graham-relocation.mjs` permanecen sin seguimiento, fuera de esta publicación.
+
 # Interfaz: recuperación de sesión para Caveat — 2026-10-26
 
 Clawshoot confirmó que el agente anterior dejó de editar y autorizó recuperar el bloqueo Codex `575203af-74fa-4c47-b2cf-ac4f04901397`. Liberado con finish y adquirido token propio `2549b8dd-4612-4fe6-a907-83c81b665e0b`, activo entre pedidos. Alcance: tipografía manuscrita de la bitácora con Caveat local existente. Sin staging, commit, push ni gestión del servidor.
+
+# Guardado y publicación solicitados — AxByZ / Codex — 2026-10-26
+
+Pedido explícito: guardar todo, cerrar servidores, generar respaldo y subir PR. Publicación autorizada para este pedido; no fusionar el PR automáticamente. Rama publicada `codex/axbyz-bosque-20261026`, base local `1e80fdf`, combinada con `origin/main` `1a75146` conservando sus novedades. PR **#11** abierto: https://github.com/Paulsaac/Isla_Jaipo/pull/11; GitHub confirma mergeable, sin fusionar. Esta entrega incluye el acumulado local recibido de AxByZ del 24 y de Antigravity del 25, sin atribuir sus cambios a este chat. Sus entradas históricas se conservan abajo.
+
+## Valores finales propios que prevalecen sobre el historial
+
+- Bosque reproduce `sonidos/musica/bosque.mp3`: copia binaria de **Si Pude Ser DEF8 topdown.mp3**, SHA256 `b41db6512ebefcaa2c1d3e35ef64b1100163c94daf5410d00d8d5bbc332a7e30`. Duración decodificada 189.126520833 s, coincidente con marca 9 al milisegundo. MP3 directo a salida, sin ganancia añadida, filtros o reverberación; analizador en paralelo para efectos. Original `bosque.mpeg` preservado y DEF7 respaldado localmente. Las diez marcas mantienen sus segundos originales.
+- Marca 0: color y deformación entran gradualmente hasta 0.18/0.12 en 22.248 s; marca 1 progresa hasta 0.75/0.6375 en 43.320 s, sin saltos.
+- Ascenso a copas desde 41.320 hasta 49.320 s (8 s). Alturas posteriores heredadas conservadas. Descenso final empieza en marca 8 (168.549 s) y aterriza en **186.127 s**, tres segundos antes de marca 9, incluyendo el ajuste de navegación vertical.
+- Animación celeste continua entre caras y polos mediante proyección triplanar/reflejada, con interpolación del cierre del loop. 8 FPS; patrón al doble del tamaño anterior, giro 0.008 rad/s y deriva muy lenta siempre que aparece. Primera entrada desde **103.939 s**, fundido de 7 s y máximo 10%; salida termina en marca 6. Reaparición en marca 7 entra en 9 s, hacia rango 50–70%; disolución en marcas 8–9.
+- Caleidoscopio nocturno: entrada de 8 s en marca 6 hacia 28%, giro acelerado suavemente desde reposo; en marca 7 sube hasta máximo **50%** durante 6.5 s, con salida continua en marca 8.
+- Luces: ocho posiciones fijas a lo largo del tronco; brillo según proximidad vertical a los ojos, en degradado y limitado a la copa. Respiración leve de 4 s, desfasada entre luces. El foco ambiental reutilizado también tiene altura fija. No siguen verticalmente al jugador.
+- Trail: feedback tenue recursivo, retención a 30 FPS de `0.22 * strength`; máximos actuales de 15.84–18.04% del cuadro anterior y tercera repetición por debajo de 1%. Decaimiento compensado por delta, sin alterar sus marcas de activación.
+- Se conserva **todo el terreno, montaña, vegetación, puente y exteriores**. Solo se ocultan interiores del observatorio/casa del mago, taller y CRT mientras dura el evento/transición; se restauran después. Se retiró por completo el recorte temporal de la mitad norte que había ocultado demasiado.
+- Optimización: un punto luminoso por píxel en vez de ocho, con diferencia inferior a un paso de color; buffers y programa del trail preparados durante carga y reutilizados; textura psicodélica subida anticipadamente. Luces interiores separadas de grupos ocultables e intensidad 0 para mantener el conjunto de luces y evitar recompilaciones. Mantiene resolución y efectos. Dos texturas del trail quedan reservadas entre apariciones y se liberan al redimensionar.
+- Puertas: excluir por UV la columna gris izquierda de `puerta.png` sin editar el PNG original, también en la cara invertida. Portón del huerto abre en dirección de la mirada y cierra a su posición original.
+
+## Verificaciones y límites
+
+Chrome headless en Windows / GTX 1660 SUPER. Sintaxis Node y diff-check aprobados en archivos afectados. Pruebas de puertas en escritorio y táctil simulado; apertura del portón desde ambos lados/diagonal por prueba del controlador. MP3 decodificado y hash idéntico a DEF8. Curvas de marcas, ascenso y aterrizaje comprobadas, incluida navegación vertical. Shaders de luces/cielo sin errores; continuidad entre caras y loop comprobada.
+
+Comparación aislada 960×720: captura antes/después de optimizar idéntica píxel a píxel; programas del fixture antes 6→7 y después 6 constantes; texturas antes 4→6→4→6 y después 6 constantes. No demuestra una mejora de FPS: tiempos de envío de 0.1–0.2 ms con percentiles variables y sin reproducción de los cuelgues reportados. Mundo completo: 28 luces y 122 programas constantes antes/durante/después, terreno y estructuras conservados, interiores sin dibujo durante efecto y restaurados después; sin errores JS/WebGL. Evidencias en `.coordination/forest-optimization-20261026.md`, JSON, capturas y scripts compañeros.
+
+Pendientes: fluidez en el dispositivo afectado, teléfono físico, audio por audición humana y recorrido integral de misiones. Las primeras pruebas de Omniscopio del 24 no acreditan todos los refinamientos posteriores. La combinación con main requiere sus comprobaciones finales. Recursos privados `.codex-remote-attachments/`, recuperación Blender `.blend1`, diagnósticos y respaldos se conservan localmente, fuera del PR.
+
+## Combinación y apagado completados — 2026-10-26
+
+Acumulado guardado en `836ea81` (50 archivos). Combinación con `origin/main` `1a75146`: conflictos resueltos en `HANDOFF.md`, `game.js`, `index.html`, `src/input/keyboard.js` y `src/ui/inventory-model.js`. Se conserva el modo de prueba y su secuencia nueva, la iluminación de objetos de main, controles/zoom del Omniscopio, Multiply cyan del corazón, feedback y los cambios acumulados de esta entrega. Git LFS incluido en Codex recuperó el WAV del menú: 141616100 bytes y SHA256 `73d663d04b802fcde9a3ebbe342f8b475f5a1f435210914d8492412764d492e1`. No sustituirlo por el puntero textual del repositorio.
+
+Sobre la combinación: 183 módulos JavaScript pasan sintaxis; código resuelto sin marcadores ni errores de diff-check. Los avisos de espacios/formato en el final histórico de HANDOFF y DECISIONS ya existían y se conservaron. Chrome confirma carga sin errores, continuidad del cielo y loop, MP3 DEF8 con marcas intactas y restauración de interiores. Auditoría final del mundo: 28 luces y 142 programas constantes antes/durante/después, 255 sectores de terreno y 36 instancias estructurales sin cambios en el encuadre; observatorio exterior conservado y dibujos interiores cero durante evento. No sustituye pruebas en teléfono ni recorrido integral.
+
+Apagados por orden explícita: servidor local PID9200, LAN PID9332, réplica estática PID25744 y túnel de esta copia PID16316. Confirmado sin listeners en 8000, 8001, 8002 y 8003 y sin esos procesos. El túnel del otro proyecto en puerto3000 permanece intacto. La URL temporal compartida deja de funcionar al apagarse el túnel.
+
+Respaldo previo validado: `.coordination/backups/Isla_Jaipo_2026-10-26_AXBYZ_antes_PR.zip`, 3199 archivos / 800817713 bytes, SHA256 `9025580d5d2ac1b52d0a479b7b235e587b92fc277b95721979a99f0233564ead`, CRC aprobado. El respaldo final se genera después de publicar y registrar el PR, con Git, código, recursos, referencias y auxiliares; excluye la carpeta de respaldos y el bloqueo transitorio. Se conservan respaldos anteriores. La orden de guardar/publicar y cerrar servidores no libera por sí sola el bloqueo de trabajo de este chat.
+
+PR #11: entrega de código `836ea81`, combinación validada `833e0c0` y registro de publicación posterior. 50 archivos respecto a main, con audio DEF8 y recursos del Omniscopio/cielo. Respaldo final acumulado: `.coordination/backups/Isla_Jaipo_2026-10-26_AXBYZ_final.zip`; checksum en archivo hermano `.sha256`, diagnóstico de validación en `.coordination/final-backup-20261026.json`. Referencias y Blender de recuperación permanecen sin seguimiento y se incluyen en ZIP; no se borran ni se publican en el PR. El Git LFS ejecutable usado está incluido en `C:/Users/clop9/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/git/mingw64/libexec/git-core/`; añadir esa carpeta al PATH del proceso para operaciones LFS si el Git de usuario no lo encuentra. No se instaló software ni se cambió configuración global de Git.
+
+# Cierre de sesión y respaldo acumulado — Antigravity — 2026-10-25
+
+**Cierre de sesión ordenado por Clawshoot.** Rol: interfaz, diseño visual, física de río, timing y eventos del Bosque. Rama `main`.
+
+## Resumen de cambios consolidados en esta sesión
+1. **Nivelación y colisión del río (`game.js`, `src/world/shoreline-smoothing.js`, `src/ui/hud.js`, `index.html`):**
+   - Lecho del río de la isla (`WATER_ROCK`) nivelado a profundidad uniforme constante de `-2.5 m` (lámina de agua de `2.45 m`). Excluido de `shorelineMask` para evitar bancos de arena que permitan cruzar a pie sin escafandra.
+   - Cruce con escafandra: ojos del jugador a `-0.9 m`, garantizando inmersión total y consumo continuo de aire (`divingAir.update`) en todo el trayecto fluvial.
+   - Cruce sin escafandra: el río actúa como barrera física impenetrable (`isRiverObstacle`), permitiendo deslizarse en paralelo y regresar a tierra firme sin trabarse. Mensaje `#river-warning-msg` («La corriente no me dejará pasar») visible al aproximarse a la ribera.
+   - Puentes peatonales de piedra y madera y río de la cueva preservados 100% intactos e independientes.
+2. **Corrección de árboles psicodélicos (`src/world/heart-vision.js`):**
+   - Erradicación total de la capa y pedestales grises monocromáticos (`vec3(treeLuma...)` y `peakExcess`).
+   - Auto-iluminación orgánica basada en la textura del sprite (`diffuseColor.rgb * heartAmount * (0.42 + heartBass * 0.18)`), preservando sombras naturales sin generar velos neutros.
+   - Rotación cromática viva con factor de saturación `1.85` y mezcla aumentada al `92%` (`heartAmount * 0.92`), eliminando tonos desaturados. Clave de shader actualizada a `v15`.
+3. **Calibración de marcas del evento psicodélico (`src/systems/heart-event-timing.js`):**
+   - **Marca 3:** efecto de estela (*trail*) con repeticiones breves y acotadas (~10 ecos con `trailStrength = 0.72` al llegar a marca 3, retención 0.590 que decae a <1% en el 10º cuadro), descendiendo suavemente hasta extinguirse en 0 al alcanzar la marca 4.
+   - **Marca 5:** intensificación de colores de árboles (`treeColorStrength = 1.25`, refuerzo de saturación 0.35) y activación del GIF psicodélico en baja opacidad (20%, *Color Dodge*) en el cielo nocturno con fade in y fade out.
+   - **Marca 6:** opacidad del caleidoscopio en el cielo nocturno subida de 0.15 a `0.28`. GIF psicodélico apagado.
+   - **Marca 7:** fade-in pausado del caleidoscopio (6.5 s, de 0.28 a 1.0) y fade-in progresivo del GIF psicodélico (5.5 s hacia 50–70% en *Color Dodge*), *trail* pleno sostenido (0.82).
+   - **Marcas 8–9:** descenso suave y disolución de efectos hasta 0.
+4. **Verificación visual y artifact:**
+   - 10 capturas de horizonte reales documentadas en el artefacto [secuencia_marcas_evento_bosque.md](file:///C:/Users/clop9/.gemini/antigravity/brain/fc1206a5-767b-42e5-a40a-6773e8144caf/secuencia_marcas_evento_bosque.md), confirmando la transición a noche estrellada en 1:00-1:04.
+
+## Respaldo generado
+- Archivo ZIP: `.coordination/backups/Isla_Jaipo_2026-10-25_cierre_antigravity.zip` (3020 archivos, 717,682,740 bytes).
+- Checksum SHA256: `f278ba27df80a0327d06465b6dd0a1534aa8b0e7b55a29a431b1b416614e3ade` (en archivo `.sha256` hermano).
+- Validados CRC con `testzip()`, `game.js` y `.git/HEAD`.
+
+## Estado de servidores y réplica
+- Servidores conservados encendidos según el protocolo persistente:
+  - Local: `http://127.0.0.1:8000/` (HTTP 200)
+  - LAN / Móvil: `http://192.168.4.89:8001/?touch=1` (HTTP 200)
+- Réplica estática sincronizada en `.coordination/cloudflare-main-1e80fdf/site/`.
+
+## Estado Git y liberación de sesión
+- Sin staging, commit ni push automáticos por acuerdo del 2026-10-14. Rama `main`. Publicación manual a cargo de Clawshoot.
+- Bloqueo de sesión liberado con `tools/session.ps1 finish -Agent Antigravity -Token f000a200-d791-450b-9ac6-95cd282786e9`.
+
+# Calibración de estela en marca 3 y efectos en marcas 5, 6 y 7 — Antigravity — 2026-10-25
+
+**Entrega local:** Ajuste del efecto de estela (*trail*) en la marca 3, tiempos, intensidades cromáticas y efectos de cielo nocturno en el evento psicodélico del Corazón del Bosque a pedido de Clawshoot.
+- **Marca 3 (estela/trail acotado y descenso a cero en marca 4):**
+  - Efecto de estela con repeticiones cortas (~10 ecos, `trailStrength = 0.72` al llegar a la marca 3, retención ~0.59 que decae a <1% en el 10º fotograma).
+  - A lo largo de la marca 3 desciende suave y progresivamente hasta extinguirse completamente (`trailStrength = 0`) al entrar en la marca 4.
+- **Marca 5 (intensidad de árboles y GIF celeste en baja opacidad):**
+  - Mayor intensidad en los colores de los árboles: `treeColorStrength` alcanza `1.25` con un refuerzo de saturación `hyperSaturation = 0.35 * env5`, haciendo que la vegetación resalte vívida.
+  - Activación del GIF psicodélico en el cielo nocturno en baja opacidad (`skyPsychOpacity = 0.20 * env5`), con fade in suave al comenzar la marca 5 (2.8 s) y fade out completo (2.4 s) antes de pasar a la marca 6 para no saturar.
+- **Marca 6 (opacidad del caleidoscopio en cielo):**
+  - Opacidad del efecto caleidoscopio en la textura del cielo nocturno elevada de 0.15 a `0.28` (`skyKaleidoAmount = 0.28 * fadeIn6`). GIF psicodélico permanece apagado durante esta marca.
+- **Marca 7 (fade in lento de caleidoscopio y fade in progresivo del GIF psicodélico):**
+  - Caleidoscopio entra en un fade in pausado de 6.5 s (desde 0.28 hasta 1.0) evitando transiciones bruscas.
+  - GIF psicodélico asciende gradualmente en un fade in de 5.5 s hasta alcanzar su rango oscilante completo de 50–70% (`skyPsychOpacity = (0.60 + 0.10 * sin(...)) * tPsych7`).
+- **Verificación:** Pruebas unitarias de curva de estela y perfil temporal en Node (`PASS`) y fixture de runtime en navegador headless con Three.js (`check-forest-event-runtime.cjs`, 0 errores).
+- **Servidores y réplica:** Archivo `src/systems/heart-event-timing.js` sincronizado a la réplica `.coordination/cloudflare-main-1e80fdf/site/`. Servidores activos en HTTP 200 en `http://127.0.0.1:8000/` y `http://192.168.4.89:8001/?touch=1`.
+
+# Corrección de árboles en evento psicodélico del Corazón del Bosque — Antigravity — 2026-10-25
+
+**Entrega local:** Corrección de la apariencia visual de los árboles en el evento psicodélico a pedido explícito de Clawshoot.
+- **Diagnóstico del problema:** En la calibración previa se introdujo una restricción de luminancia escalar monocromática `vec3(treeLuma * 0.28 + 0.06 * heartAmount)` junto con `peakExcess` y una mezcla de solo 50% (`heartAmount * 0.50`) con saturación baja (`1.45`). Esto provocaba que cualquier sombra o texel oscuro se sujetara a un gris plano monocromático idéntico en R, G y B (`vec3(...)`), creando una película/mancha gris opaca sobre los sprites de los árboles.
+- **Solución implementada en `src/world/heart-vision.js`:**
+  1. **Eliminación total del pedestal gris:** Se retiró por completo la supresión de picos (`peakExcess`) y el clamping escalar `vec3(treeLuma...)`.
+  2. **Auto-iluminación orgánica con el propio color del sprite:** La base de iluminación nocturna toma el color propio de la textura (`diffuseColor.rgb * heartAmount * (0.42 + heartBass * 0.18)`), preservando las sombras y gradientes naturales del dibujo original sin tonos grises.
+  3. **Rotación cromática viva y saturada:** Factor de saturación calibrado a `1.85` sobre pesos estándar rec709 (`vec3(0.2126, 0.7152, 0.0722)`), y mezcla aumentada al `92%` (`heartAmount * 0.92`), permitiendo que los árboles brillen con colores vivos, variados y psicodélicos (magentas, azules, cianes, verdes, dorados, púrpuras) según su ciclo espacial (`heartTreeColorAngle`).
+  4. **Caché de shader actualizada:** Clave de compilación elevada a `v15` (`-heart-vision-v15-${mode}`) para asegurar recompilación inmediata en Three.js sin reutilizar programas en caché.
+- **Verificación:** Ejecutado `.coordination/check-forest-event-runtime.cjs` (cero errores en consola WebGL) y fixture de captura `.coordination/capture-tree-mark2.cjs` en Chrome headless. El análisis cromático confirmó 64% de píxeles con saturación superior al 40% (alcanzando hasta 70% de saturación en follaje) y erradicación del gris plano `(62, 62, 62)`.
+- **Réplica y servidores:** Código sincronizado en `.coordination/cloudflare-main-1e80fdf/site/src/world/heart-vision.js`. Servidores activos en HTTP 200: local `http://127.0.0.1:8000/`, LAN táctil `http://192.168.4.89:8001/?touch=1` y Cloudflare Tunnel.
+
+# Nivelación del río, colisión sin escafandra y advertencia de corriente — Antigravity — 2026-10-25
+
+**Entrega local:** Ajuste de cruce de río y advertencia de corriente solicitado por Clawshoot / AxByZ.
+- **Nivelación uniforme del lecho fluvial:** Toda la extensión del río principal de la isla (`WATER_ROCK` y celdas de botes fluviales en `floorMap`) se niveló a profundidad uniforme de `-2.5 m` (con nivel superficial del agua en `-0.05 m`, profundidad de lámina de agua de `2.45 m`). Excluido de `shorelineMask` y `shorelineHeights` en `src/world/shoreline-smoothing.js` para evitar que la interpolación B-spline costera eleve el fondo del río en las orillas.
+- **Inmersión total y consumo continuo de aire con escafandra:** Con la escafandra equipada (`helmetEquipped`), los ojos del jugador se sitúan a `-0.9 m` (`0.85 m` por debajo de la superficie del agua en cualquier punto del cauce). La condición `controlObj.position.y < localWaterHeight` se cumple de forma ininterrumpida, garantizando que el cruce consuma aire de buceo (`divingAir.update`) a lo largo de toda su extensión sin permitir vadeo en seco.
+- **Colisión física del río sin escafandra:** Implementado `isRiverObstacle(x, z)` integrado en `isWall(x, z)` en `game.js`. Al no llevar escafandra (`!helmetEquipped`), el cauce del río actúa como barrera sólida. Gracias a la comprobación de movimiento por ejes ortogonales independientes en `animate()`, no se bloquea el desplazamiento en direcciones no fluviales: el jugador puede deslizarse suavemente en paralelo a la orilla y retirarse libremente hacia tierra firme sin quedar trabado.
+- **Mensaje de advertencia de corriente en HUD:** Elemento `#river-warning-msg` añadido en `index.html` con estilo fijo y texto «La corriente no me dejará pasar». Su visibilidad es gobernada en el ciclo principal por `isPlayerNearRiver(px, pz)` y `hud.setRiverWarning(visible)`. Se muestra únicamente cuando el jugador está en contacto o proximidad inmediata a la ribera sin escafandra, y se oculta de inmediato al separarse de ella.
+- **Preservación estricta de puentes y cueva:** Los puentes peatonales sobre el río (losas de piedra `slabTops` y pisos de madera `woodFloorMap`) quedan exentos tanto de colisión de agua como de advertencia. El río interior de la cueva (`caveMap`) permanece 100% intacto con su física y reglas independientes.
+- **Servidores y réplica:** Confirmados en HTTP 200 `http://127.0.0.1:8000/`, `http://192.168.4.89:8001/?touch=1` y Cloudflare Tunnel. Réplica estática sincronizada en `.coordination/cloudflare-main-1e80fdf/site/`.
+
+# ÚLTIMA VERSIÓN LOCAL — cierre AXBYZ — 2026-10-24
+
+**Esta es la entrega local más reciente de esta copia, posterior a las notas de Clawshoot de la misma fecha.** Relevo completo y valores vigentes en `CONTINUAR_AXBYZ_2026-10-24_ULTIMA_LOCAL.md`. Rol: ajustes de presentación, controles, audio e interacciones pedidos explícitamente por AXBYZ. Rama `main`, base `1e80fdf9fa546d3aeaa551a1380e5ba638bb467e`, con PR #10 integrado; código posterior sin commit/push. No sobrescribir con las versiones 30x/40x/100x de las entradas históricas.
+
+Último cambio: Bosque pasa de atardecer a noche entre 60.029 y 64.029 s, añade estela temporal suave y modifica alturas de marcas 2/3/4, retomando progresión en 5 y descenso en 8–9. Se conservan la entrega del corazón y el amanecer detenido hasta abrir el puente. Otros cambios acumulados: Omniscopio 2/10/30/50–200x con Z/X, bloqueo mutuo zoom/movimiento, modo estelar, audio y navegación de plataforma; cama, huerto, mate, libro, salamandra; reintento marino sin perder otras quests; Multiply cyan y luz tenue de corazón en mano; resistencia direccional en límites de la mitad inferior al levitar. Detalle de módulos, parámetros y archivos nuevos en el relevo fechado.
+
+**Servidores conservados encendidos por orden expresa.** HTTP 200 y última versión confirmados al cierre: http://127.0.0.1:8000/ (PID9200), http://192.168.4.89:8001/?touch=1 (LAN PID9332), https://positions-trademarks-livestock-womens.trycloudflare.com/?touch=1 (Cloudflare PID16316), y copia estática http://127.0.0.1:8001/ (PID25744). No confundir ambos listeners 8001; consultar direcciones/procesos antes de gestionar nada. No se reinició ni detuvo ningún proceso en este cierre.
+
+Respaldo de este cierre: `.coordination/backups/Isla_Jaipo_2026-10-24_AXBYZ_cierre_ultima_local.zip`, con SHA256 hermano. Acumulado de código, Git, assets/documentos y auxiliares locales, salvo la propia carpeta de backups y el bloqueo transitorio. Se conservan los ZIP anteriores, referencias y Blender sin seguimiento.
+
+Verificaciones: primeras pruebas Chrome de Omniscopio/plataforma realizadas antes de los refinamientos recientes; no presentarlas como validación final. Cambios posteriores y último ajuste psicodélico pendientes de recorrido visual, audio y móvil; no se ejecutaron nuevas pruebas de implementación al cierre. Se libera únicamente la sesión Codex de este chat para permitir relevo; adquirir token nuevo. Sin staging, commit ni push.
 
 # Interfaz: recuperación de sesión — 2026-10-24
 
@@ -1034,3 +1166,10 @@ Se excluyó el código local antiguo de cueva, ya reemplazado por PR #4, y scrip
 
 ## Servidor local LAN — 2026-10-21
 Servidor de esta copia iniciado oculto con node tools/serve.cjs --lan --port=8001, PID 58464. HTTP 200 confirmado en http://127.0.0.1:8001/ y http://192.168.1.100:8001/?touch=1 (controles móviles). Mantener activo hasta orden expresa de apagado. La IP corresponde a la Wi-Fi actual y puede cambiar al cambiar de red. No se modificó código del juego.
+
+## Cierre de procesos y relevo — Clawshoot, 2026-10-24
+
+Por orden explícita del usuario se cierra esta sesión para continuar el merge en otro chat. Comprobación previa al cierre: 
+etstat -ano no muestra listeners en los puertos 8000, 8001, 8002 ni 8003; no aparecen procesos 
+ode ni cloudflared. No hubo procesos de servidor/túnel de esta copia que detener. La rama codex/observatorio-huerto-montana-20261024 y el PR #10 siguen intactos; no se hizo merge. Se libera únicamente el bloqueo propio con 	ools/session.ps1 finish para que el siguiente chat pueda adquirirlo.
+

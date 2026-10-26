@@ -1,13 +1,15 @@
 import { createKaleidoscopeMotion } from './kaleidoscope-motion.js';
+import { createFrameTrail } from './frame-trail.js';
 
-// Una pasada compartida para refracción submarina y lentes rosados; sin efectos, render directo.
-export function createUnderwaterView(THREE, renderer, strength, time, pinkTint = {value:0}, lensColor = {value:new THREE.Vector3(1.0,0.34,0.64)}, negativeView = {value:0}) {
+// Refracción y lentes comparten pasada; el Bosque añade memoria temporal solo durante el efecto.
+export function createUnderwaterView(THREE, renderer, strength, time, pinkTint = {value:0}, lensColor = {value:new THREE.Vector3(1.0,0.34,0.64)}, negativeView = {value:0}, trailStrength = {value:0}) {
     const size = new THREE.Vector2();
     renderer.getDrawingBufferSize(size);
     const lensScreenScale={value:new THREE.Vector2(size.x/Math.min(size.x,size.y),size.y/Math.min(size.x,size.y))};
     const target = new THREE.WebGLRenderTarget(size.x,size.y,{depthBuffer:true,stencilBuffer:false});
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
     const motion = createKaleidoscopeMotion(THREE);
+    const trail=createFrameTrail(THREE,renderer);
     const material = new THREE.ShaderMaterial({
         uniforms:{ image:{value:target.texture},immersion:strength,viewTime:time,pinkTint,lensColor,negativeView,lensScreenScale,lookLag:{value:motion.offset} },
         depthTest:false,depthWrite:false,toneMapped:false,
@@ -70,63 +72,57 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
                     float eyeWeights=0.0;
                     binocularVisibility=0.0;
                     for (int eye = 0; eye < 2; eye++) {
-                    float eyeSide=eye==0 ? -1.0 : 1.0;
-                    vec2 eyeOffset=vec2(eyeSide*baseLensRadius*0.72,0.0);
-                    vec2 eyePoint=(lensPoint-eyeOffset)/lensRadius;
-                    vec2 eyeCenter=vec2(0.5);
-                    vec2 eyeSpan=vec2(lensRadius*2.0)/lensScreenScale;
-                    vec2 centeredLens=eyePoint*0.48;
-                    float radialDistance=octagonalDistance(eyePoint);
-                    float eyeVisibility=1.0-smoothstep(0.94,1.0,radialDistance);
-                    binocularVisibility=max(binocularVisibility,eyeVisibility);
-                    if (eyeVisibility > 0.001) {
-                    // Conservar una sola vista de cámara; solo las facetas repiten sus reflejos.
-                    vec3 eyeColor=gl_FragColor.rgb;
-                    for (int radialLayer = 0; radialLayer < 2; radialLayer++) {
-                    float radialScale = 1.0-0.08*float(radialLayer);
-                    vec2 lens = centeredLens/radialScale;
-                        // La segunda corona usa tonos complementarios y gira en sentido opuesto.
-                        float rotationAngle = (radialLayer == 1 ? -viewTime : viewTime)*0.23;
-                        // Desplazamiento temporal después del giro: evita aceleración acumulativa.
-                        vec2 flowing = lens+lookLag*0.75;
-                        vec4 topLeft = triangleLayer(flowing,vec2(-0.72,0.32),13.0/3.6,rotationAngle,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 topRight = triangleLayer(flowing,vec2(0.72,0.32),13.0/3.6,rotationAngle+0.7,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 bottomLeft = triangleLayer(flowing,vec2(-0.72,-0.32),13.0/3.6,rotationAngle+1.3,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 bottomRight = triangleLayer(flowing,vec2(0.72,-0.32),13.0/3.6,rotationAngle+2.1,viewTime*0.013,eyeCenter,eyeSpan);
-                        float pivotRadius = length(vec2(0.72,0.32));
-                        vec4 topCenter = triangleLayer(flowing,vec2(0.0,pivotRadius),13.0/3.6,-rotationAngle+0.35,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 bottomCenter = triangleLayer(flowing,vec2(0.0,-pivotRadius),13.0/3.6,-rotationAngle+1.7,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 leftCenter = triangleLayer(flowing,vec2(-pivotRadius,0.0),13.0/3.6,-rotationAngle+1.0,viewTime*0.013,eyeCenter,eyeSpan);
-                        vec4 rightCenter = triangleLayer(flowing,vec2(pivotRadius,0.0),13.0/3.6,-rotationAngle+2.5,viewTime*0.013,eyeCenter,eyeSpan);
-                        // Mezclar cerca de los ejes evita saltos entre las cuatro esquinas.
-                        vec2 cornerBlend = smoothstep(vec2(-0.20,-0.10),vec2(0.20,0.10),lens);
-                        vec4 top = mix(topLeft,topRight,cornerBlend.x);
-                        vec4 bottom = mix(bottomLeft,bottomRight,cornerBlend.x);
-                        vec4 mirrors = mix(bottom,top,cornerBlend.y);
-                        // Cada nuevo eje toma el relevo suavemente entre los pivotes originales.
-                        vec2 direction = lens/max(length(lens),0.001);
-                        vec4 axisWeights = pow(max(vec4(direction.y,-direction.y,-direction.x,direction.x),vec4(0.0)),vec4(8.0));
-                        vec4 axisMirrors = (topCenter*axisWeights.x+bottomCenter*axisWeights.y
-                            +leftCenter*axisWeights.z+rightCenter*axisWeights.w)/max(dot(axisWeights,vec4(1.0)),0.001);
-                        float cornerProximity = dot(abs(direction),normalize(vec2(0.72,0.32)));
-                        float axisProximity = max(abs(direction.x),abs(direction.y));
-                        mirrors = mix(mirrors,axisMirrors,smoothstep(-0.04,0.08,axisProximity-cornerProximity));
-                        float luminance = dot(mirrors.rgb,vec3(0.2126,0.7152,0.0722));
-                        mirrors.rgb = clamp(mix(vec3(luminance),mirrors.rgb,2.0),vec3(0.0),vec3(1.0));
-                        if (radialLayer == 1) {
-                            // Giro HSL de 180 grados: conserva luminosidad y saturación.
-                            float colorMax = max(mirrors.r,max(mirrors.g,mirrors.b));
-                            float colorMin = min(mirrors.r,min(mirrors.g,mirrors.b));
-                            mirrors.rgb = vec3(colorMax+colorMin)-mirrors.rgb;
-                            mirrors.a *= 0.08;
+                        float eyeSide=eye==0 ? -1.0 : 1.0;
+                        vec2 eyeOffset=vec2(eyeSide*baseLensRadius*0.72,0.0);
+                        vec2 eyePoint=(lensPoint-eyeOffset)/lensRadius;
+                        vec2 eyeCenter=vec2(0.5);
+                        vec2 eyeSpan=vec2(lensRadius*2.0)/lensScreenScale;
+                        vec2 centeredLens=eyePoint*0.48;
+                        float radialDistance=octagonalDistance(eyePoint);
+                        float eyeVisibility=1.0-smoothstep(0.94,1.0,radialDistance);
+                        binocularVisibility=max(binocularVisibility,eyeVisibility);
+                        if (eyeVisibility > 0.001) {
+                            // Conservar una sola vista de cámara; solo las facetas repiten sus reflejos.
+                            vec3 eyeColor=gl_FragColor.rgb;
+                            for (int radialLayer = 0; radialLayer < 2; radialLayer++) {
+                                float radialScale = 1.0-0.08*float(radialLayer);
+                                vec2 lens = centeredLens/radialScale;
+                                float rotationAngle = (radialLayer == 1 ? -viewTime : viewTime)*0.23;
+                                vec2 flowing = lens+lookLag*0.75;
+                                vec4 topLeft = triangleLayer(flowing,vec2(-0.72,0.32),13.0/3.6,rotationAngle,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 topRight = triangleLayer(flowing,vec2(0.72,0.32),13.0/3.6,rotationAngle+0.7,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 bottomLeft = triangleLayer(flowing,vec2(-0.72,-0.32),13.0/3.6,rotationAngle+1.3,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 bottomRight = triangleLayer(flowing,vec2(0.72,-0.32),13.0/3.6,rotationAngle+2.1,viewTime*0.013,eyeCenter,eyeSpan);
+                                float pivotRadius = length(vec2(0.72,0.32));
+                                vec4 topCenter = triangleLayer(flowing,vec2(0.0,pivotRadius),13.0/3.6,-rotationAngle+0.35,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 bottomCenter = triangleLayer(flowing,vec2(0.0,-pivotRadius),13.0/3.6,-rotationAngle+1.7,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 leftCenter = triangleLayer(flowing,vec2(-pivotRadius,0.0),13.0/3.6,-rotationAngle+1.0,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec4 rightCenter = triangleLayer(flowing,vec2(pivotRadius,0.0),13.0/3.6,-rotationAngle+2.5,viewTime*0.013,eyeCenter,eyeSpan);
+                                vec2 cornerBlend = smoothstep(vec2(-0.20,-0.10),vec2(0.20,0.10),lens);
+                                vec4 top = mix(topLeft,topRight,cornerBlend.x);
+                                vec4 bottom = mix(bottomLeft,bottomRight,cornerBlend.x);
+                                vec4 mirrors = mix(bottom,top,cornerBlend.y);
+                                vec2 direction = lens/max(length(lens),0.001);
+                                vec4 axisWeights = pow(max(vec4(direction.y,-direction.y,-direction.x,direction.x),vec4(0.0)),vec4(8.0));
+                                vec4 axisMirrors = (topCenter*axisWeights.x+bottomCenter*axisWeights.y
+                                    +leftCenter*axisWeights.z+rightCenter*axisWeights.w)/max(dot(axisWeights,vec4(1.0)),0.001);
+                                float cornerProximity = dot(abs(direction),normalize(vec2(0.72,0.32)));
+                                float axisProximity = max(abs(direction.x),abs(direction.y));
+                                mirrors = mix(mirrors,axisMirrors,smoothstep(-0.04,0.08,axisProximity-cornerProximity));
+                                float luminance = dot(mirrors.rgb,vec3(0.2126,0.7152,0.0722));
+                                mirrors.rgb = clamp(mix(vec3(luminance),mirrors.rgb,2.0),vec3(0.0),vec3(1.0));
+                                if (radialLayer == 1) {
+                                    float colorMax = max(mirrors.r,max(mirrors.g,mirrors.b));
+                                    float colorMin = min(mirrors.r,min(mirrors.g,mirrors.b));
+                                    mirrors.rgb = vec3(colorMax+colorMin)-mirrors.rgb;
+                                    mirrors.a *= 0.08;
+                                }
+                                eyeColor = mix(eyeColor,mirrors.rgb,pinkTint*mirrors.a);
+                            }
+                            float weight=eyeVisibility*max(0.01,1.0-radialDistance);
+                            eyeColors+=eyeColor*weight;
+                            eyeWeights+=weight;
                         }
-                        eyeColor = mix(eyeColor,mirrors.rgb,pinkTint*mirrors.a);
-                    }
-                    // Fundir la intersección sin una costura vertical ni oscurecerla dos veces.
-                    float weight=eyeVisibility*max(0.01,1.0-radialDistance);
-                    eyeColors+=eyeColor*weight;
-                    eyeWeights+=weight;
-                    }
                     }
                     if (eyeWeights > 0.0) gl_FragColor.rgb=mix(gl_FragColor.rgb,eyeColors/eyeWeights,binocularVisibility);
                 }
@@ -150,18 +146,19 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
                 renderer.clear();
                 const worldPrograms = preparePrograms ? preparePrograms(world,view,target) : renderer.compileAsync(world,view);
                 renderer.setRenderTarget(previous);
-                preparation = Promise.all([worldPrograms,renderer.compileAsync(scene,camera)]);
+                preparation = Promise.all([worldPrograms,renderer.compileAsync(scene,camera),trail.prepare()]);
             } finally { renderer.setRenderTarget(previous); }
             return preparation;
         },
-        resize(){renderer.getDrawingBufferSize(size);target.setSize(size.x,size.y);
+        resize(){renderer.getDrawingBufferSize(size);target.setSize(size.x,size.y);trail.release();
             lensScreenScale.value.set(size.x/Math.min(size.x,size.y),size.y/Math.min(size.x,size.y));},
         render(world,view){
             motion.update(view.quaternion,time.value,pinkTint.value>0.001);
-            if(strength.value<0.001 && pinkTint.value<0.001){renderer.render(world,view);return;}
+            if(strength.value<0.001 && pinkTint.value<0.001 && trailStrength.value<0.001){trail.reset();renderer.render(world,view);return;}
             const previous=renderer.getRenderTarget();
             renderer.setRenderTarget(target);
             renderer.render(world,view);
+            material.uniforms.image.value=trail.apply(target.texture,time.value,trailStrength.value);
             renderer.setRenderTarget(previous);
             renderer.render(scene,camera);
         }
