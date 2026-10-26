@@ -10,7 +10,7 @@ export const npcDialogs = [
     "¿No recuerdas nada? Uff, que mal... Eso debe ser duro...",
     "¿Yo? Soy Graham y cuido este bosque, o al menos lo intento...",
     "La verdad es que ya estoy bastante viejo, últimamente, con mucha suerte puedo talar un poco de leña.",
-    "¿Que cómo podrías agradecerme por traerte hasta aquí? Bueno… Pues la verdad si necesito algo.",
+    "¿Que cómo podrías agradecerme por traerte hasta aquí? Bueno... Pues la verdad si necesito algo.",
     { text: "Necesito pedirte que encuentres el Corazon del Bosque.", highlight: "Corazon del Bosque" },
     "Es un corazon de madera que me pertenecía hace tiempo, pero lo perdí por el bosque.",
     "Es muy importante para mi, y desde que lo perdi, todo se siente... Desencajado... ¿Me entiendes?",
@@ -38,7 +38,7 @@ export const heartDeliveryDialogs = [
     "Te dejé un mapa en el cofre del otro cuarto para que puedas orientarte por la isla.",
     "Y como recompensa por encontrar el Corazón del Bosque, voy a darte las llaves del puente que lleva al pueblo.",
     "El único problema es que tengo que encontrarlas... La verdad no voy hace mucho tiempo al pueblo y no tengo idea donde estarán.",
-    "A penas las encuentre, te haré saber.",
+    "Apenas las encuentre, te haré saber.",
     "Mientras tanto, te recomiendo explorar el lugar, es muy bonito. Solía caminar horas por el bosque. Siempre me sorprendía.",
     "Sobre todo cuando miraba la luna tomando mate... Pasaban cosas interesantes."
 ];

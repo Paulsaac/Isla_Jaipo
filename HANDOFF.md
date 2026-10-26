@@ -23,6 +23,16 @@ Comparación aislada 960×720: captura antes/después de optimizar idéntica pí
 
 Pendientes: fluidez en el dispositivo afectado, teléfono físico, audio por audición humana y recorrido integral de misiones. Las primeras pruebas de Omniscopio del 24 no acreditan todos los refinamientos posteriores. La combinación con main requiere sus comprobaciones finales. Recursos privados `.codex-remote-attachments/`, recuperación Blender `.blend1`, diagnósticos y respaldos se conservan localmente, fuera del PR.
 
+## Combinación y apagado completados — 2026-10-26
+
+Acumulado guardado en `836ea81` (50 archivos). Combinación con `origin/main` `1a75146`: conflictos resueltos en `HANDOFF.md`, `game.js`, `index.html`, `src/input/keyboard.js` y `src/ui/inventory-model.js`. Se conserva el modo de prueba y su secuencia nueva, la iluminación de objetos de main, controles/zoom del Omniscopio, Multiply cyan del corazón, feedback y los cambios acumulados de esta entrega. Git LFS incluido en Codex recuperó el WAV del menú: 141616100 bytes y SHA256 `73d663d04b802fcde9a3ebbe342f8b475f5a1f435210914d8492412764d492e1`. No sustituirlo por el puntero textual del repositorio.
+
+Sobre la combinación: 183 módulos JavaScript pasan sintaxis; código resuelto sin marcadores ni errores de diff-check. Los avisos de espacios/formato en el final histórico de HANDOFF y DECISIONS ya existían y se conservaron. Chrome confirma carga sin errores, continuidad del cielo y loop, MP3 DEF8 con marcas intactas y restauración de interiores. Auditoría final del mundo: 28 luces y 142 programas constantes antes/durante/después, 255 sectores de terreno y 36 instancias estructurales sin cambios en el encuadre; observatorio exterior conservado y dibujos interiores cero durante evento. No sustituye pruebas en teléfono ni recorrido integral.
+
+Apagados por orden explícita: servidor local PID9200, LAN PID9332, réplica estática PID25744 y túnel de esta copia PID16316. Confirmado sin listeners en 8000, 8001, 8002 y 8003 y sin esos procesos. El túnel del otro proyecto en puerto3000 permanece intacto. La URL temporal compartida deja de funcionar al apagarse el túnel.
+
+Respaldo previo validado: `.coordination/backups/Isla_Jaipo_2026-10-26_AXBYZ_antes_PR.zip`, 3199 archivos / 800817713 bytes, SHA256 `9025580d5d2ac1b52d0a479b7b235e587b92fc277b95721979a99f0233564ead`, CRC aprobado. El respaldo final se genera después de publicar y registrar el PR, con Git, código, recursos, referencias y auxiliares; excluye la carpeta de respaldos y el bloqueo transitorio. Se conservan respaldos anteriores. La orden de guardar/publicar y cerrar servidores no libera por sí sola el bloqueo de trabajo de este chat.
+
 # Cierre de sesión y respaldo acumulado — Antigravity — 2026-10-25
 
 **Cierre de sesión ordenado por Clawshoot.** Rol: interfaz, diseño visual, física de río, timing y eventos del Bosque. Rama `main`.
@@ -111,6 +121,10 @@ Pendientes: fluidez en el dispositivo afectado, teléfono físico, audio por aud
 Respaldo de este cierre: `.coordination/backups/Isla_Jaipo_2026-10-24_AXBYZ_cierre_ultima_local.zip`, con SHA256 hermano. Acumulado de código, Git, assets/documentos y auxiliares locales, salvo la propia carpeta de backups y el bloqueo transitorio. Se conservan los ZIP anteriores, referencias y Blender sin seguimiento.
 
 Verificaciones: primeras pruebas Chrome de Omniscopio/plataforma realizadas antes de los refinamientos recientes; no presentarlas como validación final. Cambios posteriores y último ajuste psicodélico pendientes de recorrido visual, audio y móvil; no se ejecutaron nuevas pruebas de implementación al cierre. Se libera únicamente la sesión Codex de este chat para permitir relevo; adquirir token nuevo. Sin staging, commit ni push.
+
+# Interfaz: recuperación de sesión — 2026-10-24
+
+Clawshoot confirmó que el otro chat dejó de editar y autorizó recuperar el bloqueo Codex `0d352bbc-d11a-4830-bfdd-2dfa43b85c34`. Liberado con finish y adquirido token propio `76cfb3d0-07f5-42c7-8e69-7034570197c6`, activo entre pedidos. Pedido actual: modo de prueba y ocultación de sus atajos, incluidos V/B. Trabajo local previo conservado; sin staging, commit, push ni gestión del servidor.
 
 # Publicación y respaldo final — Clawshoot, 2026-10-24
 

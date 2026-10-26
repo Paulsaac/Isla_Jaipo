@@ -257,6 +257,21 @@
             overflow: auto;
             overscroll-behavior: contain;
         }
+        #pause-test-controls { display: none; margin-top: 20px; font-size: 12px; color: #ffeb3b; }
+        body.test-mode #pause-test-controls { display: block; }
+        #pause-test-controls > p { margin: 10px 0; line-height: 1.8; }
+        #pause-test-controls .test-control-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 4px 20px;
+            text-align: left;
+            line-height: 1.8;
+        }
+        #pause-test-controls .test-control-grid > span:nth-child(even) { text-align: right; }
+        #pause-test-controls .pause-test-touch-exit { display: none; }
+        .touch-mode #pause-test-controls { font-size: 9px; }
+        .touch-mode #pause-test-controls .test-control-grid { column-gap: 12px; }
+        .touch-mode #pause-test-controls .pause-test-touch-exit { display: block; }
         .touch-mode #pause-menu { justify-content: center; }
         .touch-mode #pause-menu .game-menu-box {
             max-width: 90vw;
@@ -745,6 +760,22 @@
                     <span>Inventario</span><span style="text-align:right;">[Q]</span>
                     <span>Antorcha</span><span style="text-align:right;">[T]</span>
                 </div>
+                <section id="pause-test-controls" aria-labelledby="pause-test-heading">
+                    <p id="pause-test-heading" style="color:#fff;">MODO DE PRUEBA</p>
+                    <div class="test-control-grid">
+                        <span>Ir al Corazón del Bosque</span><span>[K]</span>
+                        <span>Obtener Corazón del Bosque</span><span>[L]</span>
+                        <span>Activar evento de la llave</span><span>[J]</span>
+                        <span>Alternar día / noche</span><span>[N]</span>
+                        <span>Detener música</span><span>[P]</span>
+                        <span>Cambiar vista de lentes</span><span>[V]</span>
+                        <span>Alternar filtro CRT</span><span>[B]</span>
+                        <span>Subir en vuelo</span><span>[Espacio]</span>
+                        <span>Bajar en vuelo</span><span>[C]</span>
+                    </div>
+                    <p>Salir del modo:<br>W W S S A D A D</p>
+                    <p class="pause-test-touch-exit">En móvil: ↑ ↑ ↓ ↓ ← → ← → B A</p>
+                </section>
             </div>
         </div>
     </div>

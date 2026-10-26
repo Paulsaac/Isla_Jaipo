@@ -5,6 +5,8 @@ import { createMateSet } from '../world/mate-set.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from '../world/diving-helmet-geometry.js';
 import { createInventoryMap } from '../world/inventory-map.js';
 import { createInventoryKey } from '../world/inventory-key.js';
+import { prepareProgramsInBatches } from './render-ready.js';
+import { createLoadingYield } from './loading-yield.js';
 
 
 // Modelos de inspección ligeros; no comparten recursos ni estado con los objetos de la partida.
@@ -17,6 +19,7 @@ export function createInventoryModel(host) {
 
     let mapTexture;
     let drag=null;
+    let selectionVersion=0,preparing=false;
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
     const label=document.createElement('p'); label.className='inventory-preview-label';
     label.textContent='Señala un objeto'; host.append(label);
@@ -133,7 +136,7 @@ export function createInventoryModel(host) {
     }
     function draw(time) {
         frame=null;
-        if(!visible || !renderer) return;
+        if(!visible || !renderer || preparing) return;
         const delta=previous ? Math.min(.05,(time-previous)/1000) : 0; previous=time;
 
         if(model && !drag && !reduced.matches) model.rotation.y+=delta*.65;
@@ -149,23 +152,31 @@ export function createInventoryModel(host) {
         if(!reduced.matches) frame=requestAnimationFrame(draw);
     }
     function requestDraw(){if(visible && renderer && frame==null)frame=requestAnimationFrame(draw);}
+    function prepare() {
+        if(renderer)return true;
+        try {
+            renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
+            renderer.setPixelRatio(1);renderer.setClearColor(0,0);renderer.setSize(1,1,false);
+            renderer.domElement.setAttribute('aria-hidden','true');host.prepend(renderer.domElement);
+            enableManualRotation(renderer.domElement);
+            scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1,.1,30);camera.position.set(0,.2,5.5);
+            scene.add(new THREE.HemisphereLight(0xffffff,0x43505d,2));
+            const light=new THREE.DirectionalLight(0xffddaa,3);light.position.set(3,4,5);scene.add(light);
+            return true;
+        } catch(error) {
+            renderer?.domElement.remove();renderer?.dispose();renderer=null;
+            return false;
+        }
+    }
     function select(item) {
         if(!names[item]) return;
+        const version=++selectionVersion;
+        preparing=true;
         stopDrag();
         selectedItem=item;
         const itemName=item==='helmet' ? (helmetBroken ? 'Escafandra rota' : helmetCracked ? 'Escafandra agrietada' : names[item])
             : item==='sea-heart' && !seaHeartComplete ? 'Fragmentos del Corazón del Mar' : names[item];
-        if(!renderer) {
-            try {
-                renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
-                renderer.setPixelRatio(1);renderer.setClearColor(0,0);
-                renderer.domElement.setAttribute('aria-hidden','true');host.prepend(renderer.domElement);
-                enableManualRotation(renderer.domElement);
-                scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(38,1,.1,30);camera.position.set(0,.2,5.5);
-                scene.add(new THREE.HemisphereLight(0xffffff,0x43505d,2));
-                const light=new THREE.DirectionalLight(0xffddaa,3);light.position.set(3,4,5);scene.add(light);
-            } catch(error) {label.textContent=itemName;return;}
-        }
+        if(!prepare()) {preparing=false;label.textContent=itemName;return;}
         clear();model=new THREE.Group();scene.add(model);
         function part(geometry,color,x=0,y=0,z=0){const mesh=new THREE.Mesh(geometry,
             new THREE.MeshStandardMaterial({color,roughness:.6,metalness:.15,flatShading:true}));
@@ -223,7 +234,12 @@ export function createInventoryModel(host) {
         } else if(item==='key') {
             model.add(createInventoryKey(THREE));
         }
-        model.rotation.set(.1,item==='helmet' ? -.65 : .35,0);label.textContent=itemName;requestDraw();
+        model.rotation.set(.1,item==='helmet' ? -.65 : .35,0);label.textContent=itemName;
+        // Compilar sin bloquear la primera aparición del modelo. Una selección
+        // posterior cancela la preparación antes de consultar programas desechados.
+        prepareProgramsInBatches(THREE,renderer,scene,camera,createLoadingYield(3),null,()=>version!==selectionVersion)
+            .then(()=>{if(version===selectionVersion){preparing=false;requestDraw();}})
+            .catch(error=>{if(version===selectionVersion){preparing=false;console.warn('No se pudo preparar la vista del inventario:',error);}});
     }
-    return {select,setTorchLit,setHelmetDamage,setSeaHeartComplete,setVisible(value){visible=value;previous=0;if(!value){stopDrag();cancelAnimationFrame(frame);frame=null;}else requestDraw();}};
+    return {prepare,select,setTorchLit,setHelmetDamage,setSeaHeartComplete,setVisible(value){visible=value;previous=0;if(!value){stopDrag();cancelAnimationFrame(frame);frame=null;}else requestDraw();}};
 }

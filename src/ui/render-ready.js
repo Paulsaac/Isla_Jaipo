@@ -28,27 +28,50 @@ export async function waitForRenderedFrame(renderer) {
 
 // Three r160 admite compilar un subconjunto usando la escena real como destino.
 // Mantener luces, niebla y variantes originales, cediendo entre preparaciones.
-export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null) {
+export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null, cancelled = () => false) {
     const objects = [];
     world.traverse(object => { if (object.material) objects.push(object); });
     const batch = new THREE.Group();
     // Las luces se toman solo del tercer argumento; no duplicar las del objeto.
     batch.traverseVisible = () => {};
     for (const object of objects) {
+        if (cancelled()) return;
         batch.traverse = callback => callback(object);
         const previous = renderer.getRenderTarget();
         try {
             renderer.setRenderTarget(target);
             renderer.compile(batch, view, world);
+            // El fundido cambia OPAQUE y, en materiales de dos caras, las pasadas.
+            // Preparar ambos estados antes de que el jugador se sumerja o emerja.
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            const fading = materials.filter(material => material.userData.preloadTransparency);
+            const transparencies = fading.map(material => material.transparent);
+            try {
+                fading.forEach(material => { material.transparent = !material.transparent; material.needsUpdate = true; });
+                if (fading.length) renderer.compile(batch, view, world);
+            } finally {
+                fading.forEach((material, index) => { material.transparent = transparencies[index]; material.needsUpdate = true; });
+            }
         } finally { renderer.setRenderTarget(previous); }
         const pause = checkpoint();
         if (pause) await pause;
     }
-    const previous = renderer.getRenderTarget();
-    let ready;
-    try {
-        renderer.setRenderTarget(target);
-        ready = renderer.compileAsync(world, view);
-    } finally { renderer.setRenderTarget(previous); }
-    await ready;
+    // compileAsync de r160 espera solo currentProgram de cada material. Un mismo
+    // material puede haber creado varias variantes (instancias, caras y fundido).
+    // Esperar todas evita bloquear getProgramInfoLog al dibujarlas por primera vez.
+    const pending = new Set(renderer.info.programs);
+    const gl = renderer.getContext(), started = performance.now();
+    while (pending.size) {
+        for (const program of pending) {
+            if (cancelled()) return;
+            if (!program.isReady()) continue;
+            program.getUniforms();
+            program.getAttributes();
+            pending.delete(program);
+            const pause = checkpoint();
+            if (pause) await pause;
+        }
+        if (gl.isContextLost() || performance.now() - started > 60000) throw new Error('No se pudieron preparar los programas gráficos.');
+        if (pending.size) await new Promise(resolve => setTimeout(resolve, 8));
+    }
 }

@@ -21,7 +21,7 @@ export function bindTouchControls({ actions, canvas, isActive, look, pause, canA
             lastKonamiStep = now;
             if (konamiIndex === konamiSequence.length) {
                 konamiIndex = 0;
-                actions.toggleFlight();
+                actions.toggleTestMode();
                 return true;
             }
             return konamiIndex > 8;

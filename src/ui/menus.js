@@ -250,5 +250,5 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         helmetItem.setAttribute('aria-label', label);
     }
 
-    return { isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { prepareInventory: inventoryPreview.prepare, isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
 }

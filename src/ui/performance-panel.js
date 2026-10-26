@@ -1,5 +1,5 @@
 // Diagnóstico optativo, solo con ?perf=1. No envía datos del equipo.
-export function createPerformancePanel(renderer) {
+export function createPerformancePanel(renderer, fpsLimit = 60) {
     if (new URLSearchParams(location.search).get('perf') !== '1') return null;
     const panel = document.createElement('div');
     panel.id = 'performance-panel';
@@ -10,14 +10,21 @@ export function createPerformancePanel(renderer) {
     const gpu = extension ? gl.getParameter(extension.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
     let frames = 0, began = null, work = 0;
     let samples = [];
+    let autoReset;
     panel.textContent = `Midiendo FPS…\nGPU: ${gpu}`;
     return {
+        begin() {
+            autoReset = renderer.info.autoReset;
+            renderer.info.autoReset = false;
+            renderer.info.reset();
+        },
         mark(stage) {
             const marks = JSON.parse(panel.dataset.startup || '{}');
             marks[stage] = Math.round(performance.now());
             panel.dataset.startup = JSON.stringify(marks);
         },
         record(timestamp, frameStart) {
+            if (autoReset !== undefined) { renderer.info.autoReset = autoReset; autoReset = undefined; }
             if (document.hidden) { frames = 0; began = null; work = 0; samples = []; return; }
             if (began === null) { began = timestamp; return; }
             frames++;
@@ -29,7 +36,7 @@ export function createPerformancePanel(renderer) {
             samples.sort((a,b) => a-b);
             const fps = frames * 1000 / windowMs;
             const p95 = samples[Math.min(samples.length-1, Math.floor(samples.length * .95))];
-            panel.textContent = `FPS: ${fps.toFixed(1)} / 30 · CPU/envío: ${(work/frames).toFixed(1)} ms (p95 ${p95.toFixed(1)})\nTriángulos: ${renderer.info.render.triangles.toLocaleString('es')} · Dibujos: ${renderer.info.render.calls}\nGPU: ${gpu}`;
+            panel.textContent = `FPS: ${fps.toFixed(1)} / ${fpsLimit} · CPU/envío: ${(work/frames).toFixed(1)} ms (p95 ${p95.toFixed(1)})\nTriángulos: ${renderer.info.render.triangles.toLocaleString('es')} · Dibujos: ${renderer.info.render.calls}\nGPU: ${gpu}`;
             frames = 0; began = timestamp; work = 0; samples = [];
         }
     };

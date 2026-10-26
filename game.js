@@ -6,6 +6,7 @@ import { createTelescopeView, TELESCOPE_ZOOM } from './src/player/telescope-view
 import { createObservatoryScope } from './src/player/observatory-scope.js';
 import { createObservatoryLadder } from './src/player/observatory-ladder.js';
 import { createHeldOverlay } from './src/player/held-overlay.js';
+import { createHeldTorch } from './src/player/held-torch.js';
 import { telescopePickup, telescopeWorkshopPosition } from './src/content/entities.js';
 import { createTelescopeWorkshop } from './src/world/telescope-workshop.js';
 import { createWizardUpperFloor, isWizardHouseRoofCell } from './src/world/wizard-upper-floor.js';
@@ -59,6 +60,7 @@ import { createMenus } from './src/ui/menus.js';
 import { createObservatoryMenu } from './src/ui/observatory-menu.js';
 import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
+import { testMode } from './src/input/test-mode.js';
 import { requestGamePointerLock, guardPointerLockMouse } from './src/input/pointer-lock.js';
 import { isTouchMode } from './src/input/touch-mode.js';
 import { bindTouchControls } from './src/input/touch-controls.js';
@@ -479,7 +481,7 @@ const torchLight = new THREE.PointLight(0xff8800, 0, 45, 1.0);
 let handTorchEnabled = false;
 let handTorchFlickerTime = 0;
 torchLight.visible = true; // Apagar por intensidad, manteniendo estable el shader de luces.
-torchLight.position.set(1.0, 0.2, -0.5); // Posicionada más alta y movida en X
+torchLight.position.set(-0.32, -0.12, -0.5); // La antorcha se sostiene con la mano izquierda.
 camera.add(torchLight);
 const heldHeartLight=new THREE.PointLight(0x35dfff,0,4.5,2);
 heldHeartLight.name='held-forest-heart-light';
@@ -565,7 +567,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(0.5); 
 document.body.appendChild(renderer.domElement);
-const performancePanel = createPerformancePanel(renderer);
+const performancePanel = createPerformancePanel(renderer, isTouchMode ? 30 : 60);
 const forestTrailStrength={value:0};
 const underwaterView = createUnderwaterView(THREE,renderer,underwaterStrength,underwaterViewTime,pinkSunglassesTint,sunglassesViewColor,sunglassesNegativeView,forestTrailStrength);
 
@@ -826,7 +828,7 @@ function setHeldItem(item) {
     menus.setItemActive('key', item === 'key');
     if (heldItemSprite && item) {
         heldItemSprite.material.map = heldItemTextures[item] || heldItemTextures.heart;
-        heldItemSprite.material.rotation = item === 'key' ? Math.PI + 1.35 : item === 'heart' ? -0.12 : 0.25;
+        heldItemSprite.rotation.z = item === 'key' ? Math.PI + 1.35 : item === 'heart' ? -0.12 : 0.25;
         updateHeldItemLayout();
     }
 }
@@ -847,7 +849,7 @@ function useInventoryItem(item) {
     } else if (item === 'pink-sunglasses' && hasPinkSunglasses) {
         pinkSunglassesEquipped = !pinkSunglassesEquipped;
         menus.setPinkSunglassesState(true, pinkSunglassesEquipped);
-        menus.setItemDescription(pinkSunglassesEquipped ? `Lentes equipados: ${LENS_VIEWS[lensViewIndex].name}. V cambia la vista al jugar; pulsa aquí para quitarlos.` : 'Lentes guardados.');
+        menus.setItemDescription(pinkSunglassesEquipped ? `Lentes equipados: ${LENS_VIEWS[lensViewIndex].name}. Pulsa aquí para quitarlos.` : 'Lentes guardados.');
     } else if (item === 'torch' && hasTorch) {
         const before = handTorchEnabled;
         gameActions.torch();
@@ -952,11 +954,12 @@ const inventoryMoveAxis = new THREE.Vector3();
 
 
 
-let isFlying = false;
+let isFlying = testMode.enabled;
 
-function toggleFlight() {
+function toggleTestMode() {
     if (seatedChair || observatoryScope?.seated || isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
-    isFlying = !isFlying;
+    testMode.toggle();
+    isFlying = testMode.enabled;
 
     let m = document.getElementById('system-msg');
     if (!m) {
@@ -972,7 +975,7 @@ function toggleFlight() {
         m.style.zIndex = '100';
         document.body.appendChild(m);
     }
-    m.innerText = "Modo Vuelo " + (isFlying ? "Activado" : "Desactivado");
+    m.innerText = "Modo de prueba " + (testMode.enabled ? "Activado" : "Desactivado");
     m.style.display = 'block';
 
     if (window.sysMsgTimeout) clearTimeout(window.sysMsgTimeout);
@@ -1393,13 +1396,13 @@ const gameActions = {
         const view = LENS_VIEWS[lensViewIndex];
         sunglassesViewColor.value.fromArray(view.tint);
         sunglassesNegativeView.value = view.negative ? 1 : 0;
-        menus.setItemDescription(`Lentes equipados: ${view.name}. V cambia la vista al jugar; pulsa aquí para quitarlos.`);
+        menus.setItemDescription(`Lentes equipados: ${view.name}. Pulsa aquí para quitarlos.`);
         hud.showLensMode(view.name);
     },
     isPaused: () => gameStarted && !isDead && !controls.isLocked && !inventoryRunning,
     isInventoryOpen: () => isInventoryOpen,
     cancelDialogue: cancelActiveDialog,
-    toggleFlight,
+    toggleTestMode,
     toggleDayNight,
     stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
     start() { if (mapLoaded && !gameStarted) resumeGame(); },
@@ -1621,11 +1624,14 @@ const woodcutting = createWoodcutting(THREE, {
         if (woodcuttingTorchWasEnabled && !isPlayerUnderwater()) setHandTorchEnabled(true);
     }
 });
-// Teclado y táctil comparten el bloqueo temporal; siempre se permite pausar.
-for (const name of ['toggleFlight', 'toggleDayNight', 'stopMusic', 'teleportToForestHeart', 'teleportToTelescope', 'teleportToWizardHouse', 'grantForestHeartForTesting', 'activateBridgeKeyEvent', 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
+const testActions = new Set(['toggleDayNight', 'stopMusic', 'cycleLensView', 'teleportToForestHeart',
+    'teleportToTelescope', 'teleportToWizardHouse', 'grantForestHeartForTesting', 'activateBridgeKeyEvent']);
+// Teclado y táctil comparten permisos de prueba y bloqueos de eventos; siempre se permite pausar.
+for (const name of ['toggleTestMode', ...testActions, 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
     gameActions[name] = (...args) => {
-        if(observatoryLadder?.active&&['toggleFlight','teleportToForestHeart','teleportToTelescope','teleportToWizardHouse','holdJump','jump','crouch','run'].includes(name))return;
+        if (testActions.has(name) && !testMode.enabled) return;
+        if(observatoryLadder?.active&&['toggleTestMode','teleportToForestHeart','teleportToTelescope','teleportToWizardHouse','holdJump','jump','crouch','run'].includes(name))return;
         if (woodcutting.active) {
             return;
         }
@@ -1763,8 +1769,9 @@ for (const texture of Object.values(heldItemTextures)) {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.magFilter = texture.minFilter = THREE.NearestFilter;
 }
-heldItemSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: heldItemTextures.heart, transparent: true, fog: false, depthWrite: false, depthTest: false
+heldItemSprite = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshPhongMaterial({
+    map: heldItemTextures.heart, transparent: true, alphaTest: 0.03, fog: false, depthWrite: false,
+    depthTest: false, side: THREE.DoubleSide
 }));
 heldItemSprite.name = 'held-inventory-item';
 applyForestHeartCyan(heldItemSprite.material,heldHeartCyan);
@@ -1780,7 +1787,10 @@ function updateHeldItemLayout() {
     const imageRatio = texture.image ? texture.image.width / texture.image.height : 1;
     const height = viewRadius * 0.6;
     const width = Math.min(height * imageRatio, viewRadius * 0.65);
-    heldItemSprite.position.set(viewRadius * 0.32, -viewRadius * (heldItem === 'key' ? 0.52 : 0.35), -distance);
+    const halfWidth = halfHeight * camera.aspect;
+    const edgePadding = Math.min(0.04, halfWidth * 0.08);
+    heldItemSprite.position.set(halfWidth - width * 0.55 - edgePadding,
+        -halfHeight + height * 0.55 + Math.min(0.035, halfHeight * 0.08), -distance);
     heldItemSprite.scale.set(width, height, 1);
 }
 updateHeldItemLayout();
@@ -1788,7 +1798,7 @@ heldMate = createHeldMate(THREE,camera);
 telescopeView = createTelescopeView(THREE,camera,controls,{
     onStrainComplete: () => hud.showNotification('el zoom parece que esta trabado...')
 });
-const heldOverlay = createHeldOverlay(THREE,renderer,camera);
+const heldOverlay = createHeldOverlay(THREE,renderer,camera,{ambientLight,directionalLight:dirLight,torchLight});
 heldOverlay.group.add(heldItemSprite,heldMate.object,telescopeView.object);
 function canUseTelescope() {
     return hasAstroscope && heldItem === 'astroscope' && gameStarted && mapLoaded && controls.isLocked
@@ -1849,6 +1859,8 @@ for (let i = 1; i <= 5; i++) {
     tTex.colorSpace = THREE.SRGBColorSpace;
     torchFrames.push(tTex);
 }
+const heldTorch = createHeldTorch(THREE,torchFrames,camera);
+heldOverlay.group.add(heldTorch.object);
 const npcTex = texLoader.load('./imagenes/Sprites/Graham.png?v=' + Date.now(), () => alignGrahamToFloor());
 const pino1Tex = texLoader.load('./imagenes/Sprites/arboles/pino1.png?v=' + Date.now());
 const pino2Tex = texLoader.load('./imagenes/Sprites/arboles/pino2.png?v=' + Date.now());
@@ -2043,9 +2055,15 @@ Promise.all([
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await buildWorld(prepared, checkpoint);
     performancePanel?.mark('Mundo construido');
+    // Construir y preparar las plantas durante la carga: estrenarlas bajo el agua
+    // consume aire mientras el driver crea sus programas y buffers.
+    await prepareUnderwaterPlants();
+    performancePanel?.mark('Vegetación submarina lista');
     await worldTexturesReady;
     await heartVision.ready;
     performancePanel?.mark('Texturas listas');
+    // Crear el contexto secundario con el inventario oculto evita estrenarlo al abrirlo.
+    menus.prepareInventory();
     // Subir texturas por tandas evita estrenar todas las cargas GPU en un dibujo.
     const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,...torchFrames]);
     if (heartVision.uniforms.skyPsychTexture.value.image) startupTextures.add(heartVision.uniforms.skyPsychTexture.value);
@@ -2071,6 +2089,7 @@ Promise.all([
     // Preparar también los materiales fuera de cámara durante la pantalla de carga.
     // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
     await prepareStartupPrograms(scene, camera, null);
+    await heldOverlay.prepare(prepareStartupPrograms);
     performancePanel?.mark('Shaders preparados');
     camera.position.y = getTerrainHeight(camera.position.x, camera.position.z) + PLAYER_HEIGHT;
     const preview = getIslandPreview();
@@ -5218,31 +5237,6 @@ function animate(timestamp = performance.now()) {
         forestDimmedLights.clear();
     }
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
-    const plantGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
-    const plantGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
-    const seaUnderfoot = ['WATER','BOAT'].includes(floorMap[plantGZ]?.[plantGX]);
-    const feetAtWater = controlObj.position.y - PLAYER_HEIGHT <= getWaterSurfaceHeight(controlObj.position.x,controlObj.position.z) + 0.15;
-    if (mapLoaded && !underwaterVegetationPreparation && (showUnderwaterPlants || (seaUnderfoot && feetAtWater && !isRidingBoat))) {
-        underwaterVegetationPreparation = (async()=>{
-            const plants = await createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
-                getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
-            const fade = createVegetationVisibility(plants.group,{value:0});
-            fade.set(0);
-            // Subir texturas anticipadamente y repartir ese trabajo entre fotogramas.
-            for (const mesh of plants.group.children) {
-                await new Promise(resolve=>requestAnimationFrame(resolve));
-                renderer.initTexture(mesh.material.map);
-            }
-            plants.update(camera,fogPlane,UNDERWATER_PLANT_DISTANCE);
-            prepareInactiveLights(THREE, plants.group);
-            scene.add(plants.group);
-            // Usar la escena real conserva las variantes de niebla y luces del juego.
-            await renderer.compileAsync(scene,camera);
-            await underwaterView.prepare(scene,camera,true);
-            underwaterVegetationFade = fade;
-            underwaterVegetation = plants;
-        })().catch(error=>console.error('No se pudo preparar la vegetación submarina:',error));
-    }
     const underwaterPlantsReady = !!underwaterVegetation;
     const vegetationTarget = showUnderwaterPlants && underwaterPlantsReady ? 1 : 0;
     vegetationBlend += (vegetationTarget-vegetationBlend)*(1-Math.exp(-vegetationDelta*2));
@@ -5263,8 +5257,12 @@ function animate(timestamp = performance.now()) {
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
     if ((!controls.isLocked && !inventoryRunning) || isDead) hud.hideDivingAir();
-    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
+    hud.updateCoordinates(caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, testMode.enabled && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
     heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'astroscope' && !observatoryScope?.active && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead;
+    heldTorch.update(Math.floor(altarFlameTime / 0.15) % torchFrames.length,
+        hasTorch && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead,
+        handTorchEnabled);
+    torchLight.position.set(heldTorch.object.position.x, heldTorch.object.position.y + heldTorch.object.scale.y * 0.2, -0.5);
     heldMate.update((controls.isLocked || inventoryRunning) ? vegetationDelta : 0, canDrinkMate()&&!observatoryScope?.active);
     const heartInHand=heldItemSprite.visible&&heldItem==='heart'&&heartQuest.hasHeart;
     const cyanBreath=.5-.5*Math.cos(underwaterViewTime.value*1.6);
@@ -5298,6 +5296,7 @@ function animate(timestamp = performance.now()) {
         scene.fog.color.set(0x000000);
     }
     try {
+        performancePanel?.begin();
         underwaterView.render(scene, camera);
         heldOverlay.render();
     } finally {
@@ -5314,6 +5313,20 @@ function animate(timestamp = performance.now()) {
         heartPull.restoreCameraShake();
         performancePanel?.record(timestamp, frameStart);
     }
+}
+
+function prepareUnderwaterPlants() {
+    if (!underwaterVegetationPreparation) underwaterVegetationPreparation = (async () => {
+        const plants = await createUnderwaterVegetation(THREE,texLoader,underwaterPlantDefinitions,
+            getTerrainHeight,UNIT_SIZE,WATER_SURFACE_HEIGHT,vegetationWindTime);
+        const fade = createVegetationVisibility(plants.group,{value:0});
+        fade.set(0);
+        prepareInactiveLights(THREE, plants.group);
+        scene.add(plants.group);
+        underwaterVegetationFade = fade;
+        underwaterVegetation = plants;
+    })();
+    return underwaterVegetationPreparation;
 }
 
 animate();

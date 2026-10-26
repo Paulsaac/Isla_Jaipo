@@ -10,7 +10,7 @@ export function createTelescopeView(THREE,camera,controls,{onStrainComplete=()=>
     const map = object.material.map;
     object.material.dispose();
     // La pasada independiente de mano conserva la oclusión entre las piezas del tubo.
-    object.material = new THREE.MeshBasicMaterial({map,vertexColors:true,transparent:true,fog:false,depthTest:true,depthWrite:true});
+    object.material = new THREE.MeshPhongMaterial({map,vertexColors:true,transparent:true,fog:false,depthTest:true,depthWrite:true});
     object.name = 'held-telescope'; object.renderOrder=1000; object.visible=false;
     camera.add(object);
     const mask = document.createElement('div');
@@ -139,7 +139,7 @@ export function createTelescopeView(THREE,camera,controls,{onStrainComplete=()=>
             const viewHeight=2*distance*normalTangent;
             const viewWidth=viewHeight*camera.aspect;
             const itemScale=Math.min(0.62,viewHeight*0.42/0.7);
-            const restingX=Math.min(viewWidth*0.34,viewWidth*0.5-itemScale*0.28);
+            const restingX=Math.max(0,viewWidth*0.5-itemScale*0.36);
             const restingY=-viewHeight*0.23;
             object.visible=allowed && (returning || (!requested && strainTime<0 && blend===0));
             object.scale.setScalar(itemScale);

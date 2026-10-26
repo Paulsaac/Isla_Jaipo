@@ -1,3 +1,7 @@
+## Estado vigente de Bosque — AxByZ, 2026-10-26
+
+Los ajustes posteriores de AxByZ sustituyen los valores visuales históricos siguientes: DEF8 directo, entrada de color desde marca 0, ascenso 41.320–49.320 s, aterrizaje 186.127 s, luces fijas con respiración de 4 s, feedback sutil y cielo continuo de 8 FPS. Detalle de marcas y opacidades en [FOREST_CUES.md](FOREST_CUES.md) y entrada propia del 26 en HANDOFF.md. Terreno, montaña, puente y exteriores se conservan durante el evento; ocultación temporal limitada a interiores del observatorio/casa del mago y sus objetos.
+
 ## Refinamiento del evento psicodélico del Bosque — Antigravity — 2026-10-25
 
 Por pedido explícito de Clawshoot, se calibraron los efectos celestes, de vegetación y de estela durante las marcas de la canción:
