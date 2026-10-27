@@ -113,6 +113,7 @@ export function createLakeHouseDome(THREE,baseY) {
         return 0;
     }
     const inEntrance=p=>p.x>=doorX-.65&&p.x<=mouth+.4&&Math.abs(p.z)<halfDoor-COLLISION_RADIUS;
+    const torchRay=new THREE.Raycaster(),torchDirection=new THREE.Vector3();
     return {
         group,baseY,
         floorHeight(x,z) {
@@ -135,9 +136,24 @@ export function createLakeHouseDome(THREE,baseY) {
             if(p.x>=doorX-.65&&Math.abs(p.z)<=1.1)return baseY+DOOR_HEIGHT-.05;
             return top-.12;
         },
-        torchMount(x,z) {
-            if(x!==lakeHouseLayout.center.x||Math.abs(z-lakeHouseLayout.center.z)!==2)return null;
-            return {x:origin.x,z:origin.z+Math.sign(z-lakeHouseLayout.center.z)*6.15,y:baseY+1.65};
+        torchMount(x,z,exterior=false) {
+            if(!exterior) {
+                if(x!==lakeHouseLayout.center.x||Math.abs(z-lakeHouseLayout.center.z)!==2)return null;
+                return {x:origin.x,z:origin.z+Math.sign(z-lakeHouseLayout.center.z)*6.15,y:baseY+1.65};
+            }
+            const {bounds}=lakeHouseLayout;
+            if(x<bounds.minX||x>bounds.maxX||z<bounds.minZ||z>bounds.maxZ)return null;
+            torchDirection.set((x-lakeHouseLayout.center.x)*UNIT_SIZE,0,(z-lakeHouseLayout.center.z)*UNIT_SIZE);
+            if(torchDirection.lengthSq()<.001)return null;
+            torchDirection.normalize();
+            const y=baseY+1.65;
+            // El centro del mango queda contra el panel real, incluido su ángulo y pendiente.
+            shell.updateWorldMatrix(true,false);
+            torchRay.set(new THREE.Vector3(origin.x,y-.25,origin.z),torchDirection);
+            const hit=torchRay.intersectObject(shell,false)[0];
+            if(!hit)return null;
+            const margin=.035;
+            return {x:hit.point.x+torchDirection.x*margin,z:hit.point.z+torchDirection.z*margin,y};
         }
     };
 }

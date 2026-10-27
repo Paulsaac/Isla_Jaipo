@@ -8,6 +8,9 @@ export function createWaterAudio(context) {
     context.createMediaElementSource(ambience).connect(ambienceGain);
     ambienceGain.connect(context.destination);
     const splashGain = context.createGain(); splashGain.gain.value = .35; splashGain.connect(context.destination);
+    // El despertar suena durante el fundido, con el reloj de la partida aún suspendido.
+    const wakeSplash = new Audio('./sonidos/fx/splash.mp3');
+    wakeSplash.preload = 'auto'; wakeSplash.volume = .35; wakeSplash.playbackRate = 1.25;
     const splashes = new Set();
     let splashBuffer = null, loading = null, paused = false, touching = false, submerged = false;
     let stopTimer = null, lastSplash = -Infinity;
@@ -74,6 +77,10 @@ export function createWaterAudio(context) {
         if (below !== submerged) { submerged = below; syncAmbience(); }
     }
     function setPaused(value) { paused = value; syncAmbience(); }
+    function playWakeSplash() {
+        wakeSplash.currentTime = 0;
+        wakeSplash.play().catch(error => console.warn('No se pudo reproducir el splash al despertar:', error));
+    }
     function reset() {
         cancelStop(); touching = submerged = false; lastSplash = -Infinity;
         ambience.pause(); ambience.currentTime = 0;
@@ -81,6 +88,7 @@ export function createWaterAudio(context) {
         ambienceGain.gain.setValueAtTime(0, context.currentTime);
         for (const source of splashes) { source.onended = null; source.stop(); source.disconnect(); }
         splashes.clear();
+        wakeSplash.pause(); wakeSplash.currentTime = 0;
     }
-    return { prepare, unlock, update, setPaused, reset };
+    return { prepare, unlock, update, setPaused, reset, playWakeSplash };
 }
