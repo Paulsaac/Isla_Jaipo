@@ -1,7 +1,11 @@
 .touch-mode #inventory-menu {justify-content:center;}
 #inventory-menu {background-color:rgba(0,0,0,.075);padding:0!important;}
 #inventory-menu .inventory-orbit {
-    --slot-size:clamp(48px,10vmin,86px);--edge:max(28px,8vmin);--side-edge:calc(var(--edge) + 4vmin);
+    --slot-size:clamp(48px,10vmin,86px);--edge:max(28px,8vmin);
+    --side-step:min(17vmin,180px);
+    --side-anchor:max(73%,calc(50% + min(190px,20vmin) + var(--side-step)*.95 + var(--slot-size)*.5 + 12px));
+    --side-edge:calc(100% - var(--side-anchor) - var(--slot-size)*.5);
+    --side-bottom:calc(58% - var(--slot-size)*.5);
     position:relative;display:block;width:100%;height:100%;max-width:none;
     max-height:none;overflow:hidden;padding:0;background:none;border-radius:0;isolation:isolate;
 }
@@ -21,6 +25,7 @@
     background:linear-gradient(140deg,#7b927866,#07140ed9);
 }
 #inventory-menu .inventory-orbit .orbit-slot:has(.inventory-item:hover),
+#inventory-menu .inventory-orbit .orbit-slot:has(.inventory-item.is-virtual-hover),
 #inventory-menu .inventory-orbit .orbit-slot:has(.inventory-item[aria-pressed="true"]) {background-color:#798d5e88;}
 #inventory-menu .inventory-orbit .inventory-item {border-radius:inherit;}
 #inventory-menu .inventory-orbit .inventory-item img,
@@ -32,6 +37,14 @@
 .inventory-model-preview canvas {display:block;width:100%;height:calc(100% - 35px);image-rendering:pixelated;cursor:grab;user-select:none;}
 .inventory-model-preview canvas.is-rotating {cursor:grabbing;}
 .inventory-preview-label {position:absolute;bottom:0;width:100%;margin:0;text-align:center;font:clamp(8px,1.6vw,12px)/1.6 'Press Start 2P',monospace;color:white;}
+.inventory-rotation-hint {
+    position:absolute;top:100%;left:50%;transform:translateX(-50%);width:100%;max-width:300px;
+    margin:8px 0 0;text-align:center;font:clamp(7px,1.2vmin,9px)/1.7 'Press Start 2P',monospace;
+    color:#e6dfcf;text-shadow:1px 2px 2px #000;pointer-events:none;visibility:hidden;
+}
+.inventory-model-preview:has(canvas:hover) .inventory-rotation-hint,
+.inventory-model-preview:has(canvas.is-virtual-hover) .inventory-rotation-hint,
+.inventory-model-preview:has(canvas.is-rotating) .inventory-rotation-hint {visibility:visible;}
 #diving-helmet-item .helmet-icon-cracks {display:none;}
 #diving-helmet-item[data-cracked="true"] .helmet-icon-cracks {display:inline;}
 #diving-helmet-item .helmet-icon-final-cracks {display:none;}
@@ -44,13 +57,20 @@
 #inventory-menu .orbit-slot[data-inventory-item="heart"] {margin-left:calc(var(--slot-size)*-1.7);}
 #inventory-menu #future-heart-slot {margin-left:calc(var(--slot-size)*1.7);}
 #inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:calc(var(--edge) + var(--slot-size)*1.05);}
-#inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*2.4);}
-#inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
-#inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
-#inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*2.4);}
-#inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(var(--side-edge) + var(--slot-size)*3.65);}
-#inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + var(--slot-size)*.703);bottom:calc(var(--side-edge) + var(--slot-size)*.703);}
-#inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + var(--slot-size)*2.4);bottom:var(--side-edge);}
+#inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:var(--side-bottom);}
+#inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + var(--side-step)*.18);bottom:calc(var(--side-bottom) - var(--side-step));}
+#inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
+#inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:var(--side-bottom);}
+#inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(var(--side-bottom) + var(--slot-size)*1.25);}
+#inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + var(--side-step)*.18);bottom:calc(var(--side-bottom) - var(--side-step));}
+#inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
 #inventory-menu .inventory-orbit #inventory-heading {top:var(--edge);font-size:clamp(10px,2vmin,18px);}
 #inventory-menu .inventory-orbit #inventory-item-description {left:30%;width:40%;bottom:var(--edge);}
 @media(max-width:600px) {#inventory-menu .inventory-orbit #inventory-item-description {left:10%;width:80%;bottom:calc(var(--edge) + var(--slot-size)*3.05);}}
+.inventory-virtual-cursor[hidden] {display:none;}
+.inventory-virtual-cursor {
+    position:fixed;left:0;top:0;width:15px;height:22px;z-index:700;pointer-events:none;
+    background:white;clip-path:polygon(0 0,0 90%,28% 68%,49% 100%,65% 92%,44% 61%,83% 61%);
+    filter:drop-shadow(1px 1px 1px black);will-change:transform;
+}
+#inventory-menu.has-virtual-cursor,#inventory-menu.has-virtual-cursor * {cursor:none;}

@@ -1,11 +1,13 @@
 import { arrangeInventory } from './inventory-layout.js';
 import { createBookReader } from './book-reader.js';
+import { createInventoryCursor } from '../input/inventory-cursor.js';
 // Presentación de menús. El estado y las reglas permanecen en game.js.
 export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const mainMenu = document.getElementById('main-menu');
     const pauseMenu = document.getElementById('pause-menu');
     const inventoryMenu = document.getElementById('inventory-menu');
     const inventoryPreview = arrangeInventory(inventoryMenu);
+    const inventoryCursor = createInventoryCursor(inventoryMenu);
     const dialogBox = document.getElementById('dialog-box');
     const dialogText = document.getElementById('dialog-text');
     const dialogHint = document.getElementById('dialog-hint');
@@ -27,13 +29,26 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const spokenCharacter = /[\p{L}\p{N}]/u;
 
     function setMenuVisible(menu, visible) {
-        if(menu===inventoryMenu) inventoryPreview.setVisible(visible);
+        if(menu===inventoryMenu) {inventoryPreview.setVisible(visible);inventoryCursor.setVisible(visible);}
         const previous = transitions.get(menu);
         if (previous?.visible === visible) return;
         if (!previous && (menu.style.display === 'flex') === visible) return;
         const panel = menu.firstElementChild;
-        const currentTransform = previous ? getComputedStyle(panel).transform : null;
-        previous?.animation.cancel();
+        const inventory = menu === inventoryMenu;
+        const targets = inventory ? [menu, ...panel.querySelectorAll('.orbit-slot')] : [panel];
+        const frames = targets.map(target => {
+            const property = inventory ? (target === menu ? 'opacity' : 'translate') : 'transform';
+            const current = previous ? getComputedStyle(target)[property] : null;
+            let hidden = 'translateY(100vh)', shown = 'translateY(0)';
+            if (property === 'opacity') { hidden = '0'; shown = '1'; }
+            if (property === 'translate') {
+                const left = ['torch', 'map', 'pink-sunglasses'].includes(target.dataset.inventoryItem);
+                hidden = target.classList.contains('heart-hex') ? '0 -100vh' : `${left ? '-100vw' : '100vw'} 100vh`;
+                shown = '0 0';
+            }
+            return { target, property, from: current || (visible ? hidden : shown), to: visible ? shown : hidden };
+        });
+        previous?.animations.forEach(animation => animation.cancel());
         menu.style.display = 'flex';
         menu.inert = !visible;
         menu.style.pointerEvents = visible ? '' : 'none';
@@ -42,17 +57,16 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
             menu.style.display = visible ? 'flex' : 'none';
             return;
         }
-        const animation = panel.animate([
-            { transform: currentTransform || (visible ? 'translateY(100vh)' : 'translateY(0)') },
-            { transform: visible ? 'translateY(0)' : 'translateY(100vh)' }
-        ], { duration: 420, easing: visible ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'cubic-bezier(0.64, 0, 0.78, 0)', fill: 'both' });
-        const transition = { animation, visible };
+        const animations = frames.map(({ target, property, from, to }) => target.animate([
+            { [property]: from }, { [property]: to }
+        ], { duration: 420, easing: visible ? 'cubic-bezier(0.22, 1, 0.36, 1)' : 'cubic-bezier(0.64, 0, 0.78, 0)', fill: 'both' }));
+        const transition = { animations, visible };
         transitions.set(menu, transition);
-        animation.finished.then(() => {
+        Promise.all(animations.map(animation => animation.finished)).then(() => {
             if (transitions.get(menu) !== transition) return;
             if (!visible) menu.style.display = 'none';
             transitions.delete(menu);
-            animation.cancel();
+            animations.forEach(animation => animation.cancel());
         }).catch(() => {}); // Una reapertura cancela la transición anterior.
     }
     const itemButtons = Object.fromEntries([...inventoryMenu.querySelectorAll('[data-item]')].map(button => [button.dataset.item, button]));

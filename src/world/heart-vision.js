@@ -230,6 +230,7 @@ export function createHeartVision() {
                 float treeGround = vHeartTreeOrigin.y - ${(TREE_SPRITE_HEIGHT / 2 - 0.5).toFixed(6)};
                 float focusHeight = clamp(cameraPosition.y - treeGround, 0.65, ${(TREE_SPRITE_HEIGHT - 0.5).toFixed(6)});
                 float trunkGlow = 0.0;
+                vec3 trunkGlowColor = vec3(0.0);
                 float nearby = 1.0 - smoothstep(10.0, 16.0, distance(cameraPosition.xz, vHeartTreeOrigin.xz));
                 if (heartAmount > 0.001 && nearby > 0.001) {
                     // Solo el punto más cercano puede contribuir a este píxel del tronco.
@@ -238,14 +239,21 @@ export function createHeartVision() {
                     float height = mix(0.65, ${(TREE_SPRITE_HEIGHT - 0.5).toFixed(6)}, level / 7.0);
                         vec2 spotDistance = vec2((vMapUv.x - 0.5) * 4.84, (trunkHeight - height) * 1.4);
                         float radiusSquared = dot(spotDistance, spotDistance);
-                        float gradient = 0.04 + 0.96 * exp(-abs(height - focusHeight) / 1.68);
+                        float focus = exp(-abs(height - focusHeight) / 1.3);
+                        float gradient = 0.22 + 0.78 * focus;
+                        // Cada altura conserva su propio tono, también lejos de los ojos.
+                        float hue = fract(level * 0.137 + vHeartTreeCycle * 0.113
+                            + dot(vHeartTreeOrigin.xz, vec2(0.017, 0.031)) + heartColorTime * 0.025);
+                        vec3 channels = abs(fract(vec3(hue) + vec3(0.0, 0.666667, 0.333333)) * 6.0 - 3.0);
+                        trunkGlowColor = mix(vec3(0.035), clamp(channels - 1.0, 0.0, 1.0), 0.96);
                         float phase = dot(vHeartTreeOrigin.xz, vec2(0.73, 1.17)) + level * 2.399;
                         float breath = 0.94 + 0.06 * sin(skyPsychTime * 1.5707963268 + phase);
-                        trunkGlow += (exp(-radiusSquared / 0.055) * 0.38
-                            + exp(-radiusSquared / 0.006) * 1.25) * gradient * breath;
+                        trunkGlow += (exp(-radiusSquared / mix(0.035, 0.072, focus)) * 0.38
+                            + exp(-radiusSquared / mix(0.0035, 0.009, focus)) * 1.25) * gradient * breath;
                 }
-                outgoingLight += vec3(0.78, 0.9, 1.0) * trunkGlow * nearby
-                    * clamp(heartAmount, 0.0, 1.0);
+                float trunkGlowAmount = trunkGlow * nearby * clamp(heartAmount, 0.0, 1.0);
+                outgoingLight = mix(outgoingLight, outgoingLight * trunkGlowColor, clamp(trunkGlowAmount * 0.65, 0.0, 0.75));
+                outgoingLight += trunkGlowColor * trunkGlowAmount;
                 #endif
                 ` : ''}
                 ${sky ? `
@@ -288,7 +296,7 @@ export function createHeartVision() {
                 }
             ` + shader.fragmentShader;
         };
-        material.customProgramCacheKey = () => key + '-heart-vision-v21-' + mode;
+        material.customProgramCacheKey = () => key + '-heart-vision-v22-' + mode;
     }
     return { ready, uniforms, update, apply, getTrailStrength: () => currentTrailStrength, getScreenKaleidoscope: () => currentScreenKaleidoscope };
 }

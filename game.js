@@ -403,7 +403,7 @@ function restorePlayerAfterDrowning() {
 function finishDrowningRescue() {
     controls.pointerSpeed = drowningRescueContext.pointerSpeed;
     clearGreetingInput(); isDead = false;
-    if (controls.isLocked) {
+    if (controls.isLocked && !drowningRescueContext.inventory) {
         inventoryRunning = isInventoryOpen = false;
         menus.hideForGameplay(); musicEvents.setPaused(false);
     } else if (drowningRescueContext.inventory) {
@@ -663,7 +663,7 @@ const controls = new PointerLockControls(camera, document.body);
 controls.disconnect();
 if (isTouchMode) controls.disconnect();
 else {
-    guardPointerLockMouse(controls);
+    guardPointerLockMouse(controls, () => isInventoryOpen);
     controls.lock=()=>requestGamePointerLock(document.body).catch(()=>{});
 }
 const dialogLookAnchor = new THREE.Quaternion();
@@ -722,7 +722,10 @@ function resumeGame() {
         musicEvents.unlock();
         controls.isLocked = true;
         controls.dispatchEvent({ type: 'lock' });
-    } else controls.lock();
+    } else if (controls.isLocked || document.pointerLockElement===document.body) {
+        controls.isLocked=true;controls.dispatchEvent({type:'lock'});
+    }
+    else controls.lock();
 }
 function pauseGame() {
     if(gardenNote.active){gardenNote.hide();menus.showPause();}
@@ -975,21 +978,25 @@ function useInventoryItem(item) {
 let gameStarted = false;
 let isDead = false;
 let isInventoryOpen = false;
-let inventoryRunning = false; // Inventario con cursor libre, simulación y movimiento activos.
+let inventoryRunning = false; // Inventario con cursor propio en escritorio; simulación y movimiento activos.
 const forestCueIndicator = document.getElementById('forest-cue-indicator');
+const forestCueValue = document.getElementById('forest-cue-value');
+const forestCueTime = document.getElementById('forest-cue-time');
 function updateForestCueIndicator(playbackTime, active) {
     forestCueIndicator.hidden = !active;
     if (!active) {
-        forestCueIndicator.textContent = '0';
+        forestCueValue.textContent = '0';
+        forestCueTime.textContent = '0.000000 s';
         forestCueIndicator.setAttribute('aria-label', 'Marca 0');
         return;
     }
     // La marca 0 también se ve durante la breve espera previa al audio.
     if (playbackTime === null) return;
+    forestCueTime.textContent = `${Math.max(0, playbackTime).toFixed(6)} s`;
     let mark = 0;
     while (mark < FOREST_CUES.length - 1 && playbackTime >= FOREST_CUES[mark + 1]) mark++;
-    if (forestCueIndicator.textContent !== String(mark)) {
-        forestCueIndicator.textContent = String(mark);
+    if (forestCueValue.textContent !== String(mark)) {
+        forestCueValue.textContent = String(mark);
         forestCueIndicator.setAttribute('aria-label', `Marca ${mark}`);
     }
 }
@@ -1010,6 +1017,11 @@ controls.addEventListener('lock', () => {
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    if (!isTouchMode && observatoryMenu.active && !document.pointerLockElement)observatoryMenu.hide();
+    if (!isTouchMode && inventoryRunning) {
+        inventoryRunning = isInventoryOpen = false;
+        menus.hideInventory();
+    }
     observatoryScope?.exit();
     telescopeView?.cancel();
     woodcutting.setVisible(false);
@@ -1136,7 +1148,7 @@ function showObservatoryChoice(kind) {
     clearGreetingInput();targetInteractable=null;hud.hideInteraction();
     const attaching=kind==='attach';
     observatoryMenu.show(attaching?'¿Acoplar el Astroscopio al Omniscopio?':'Elige qué quieres hacer.',
-        attaching?['Acoplar','Cancelar']:['Mirar','Retirar Astroscopio'],index=>{
+        attaching?['Sí','No']:['Mirar','Retirar Astroscopio'],index=>{
             if(attaching&&index===0) {
                 astroscopeInstalled=true;hasAstroscope=false;
                 summitObservatory.astroscopeDock.visible=true;menus.setAstroscopeVisible(false);
@@ -1149,8 +1161,7 @@ function showObservatoryChoice(kind) {
             } else if(!attaching&&index===0) observatoryScope.enter();
             if(gameStarted&&!isDead)resumeGame();
         },0);
-    if(isTouchMode){controls.isLocked=false;controls.dispatchEvent({type:'unlock'});}
-    else controls.unlock();
+    controls.isLocked=false;controls.dispatchEvent({type:'unlock'});
 }
 
 function interact() {
@@ -1671,11 +1682,12 @@ const gameActions = {
             inventoryRunning = true;
             isInventoryOpen = true;
             musicEvents.setPaused(false);
-            if (controls.isLocked) {
-                if (isTouchMode) {
-                    controls.isLocked = false;
-                    controls.dispatchEvent({type:'unlock'});
-                } else controls.unlock();
+            if (controls.isLocked && isTouchMode) {
+                controls.isLocked = false;
+                controls.dispatchEvent({type:'unlock'});
+            } else if (controls.isLocked) {
+                observatoryScope?.exit();telescopeView?.cancel();woodcutting.setVisible(false);
+                hud.hideInteraction();menus.hideDialog();keyboardBinding.resetSequence();
             }
             menus.showInventory();
         }
@@ -4745,7 +4757,7 @@ function animate(timestamp = performance.now()) {
         }
         const intersects = interactionHits;
         
-        if (woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen || metalRoom?.busy) {
+        if (isInventoryOpen || woodcutting.active || spawnGreeting.active || heartPull.active || grahamDap.active || isDialogOpen || metalRoom?.busy) {
             targetInteractable = null;
             hud.hideInteraction();
         } else if (observatoryScope?.active) {
@@ -5153,7 +5165,8 @@ function animate(timestamp = performance.now()) {
                 }
             }
         
-            // Colisión de techos (tanto normal como vuelo)
+            // El vuelo de prueba atraviesa los techos sin ajustar su altura al interior.
+            if (!isFlying) {
             const roofGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
             const roofGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
             const wizardCeiling=(metalRoom?.active?metalRoom.upperLimit():null)
@@ -5219,7 +5232,9 @@ function animate(timestamp = performance.now()) {
                 }
             }
 
-            if (controlObj.position.y > riverBridgeCeiling) {
+            }
+
+            if (!isFlying && controlObj.position.y > riverBridgeCeiling) {
                 controlObj.position.y = riverBridgeCeiling;
                 velocityY = Math.min(0, velocityY);
             }
@@ -5494,10 +5509,12 @@ function animate(timestamp = performance.now()) {
     if ((!controls.isLocked && !inventoryRunning) || isDead) hud.hideDivingAir();
     hud.updateCoordinates(metalRoom?.active?metalRoom.localPosition(controlObj.position):caveMap?.active ? caveMap.localPosition(controlObj.position) : controlObj.position, UNIT_SIZE, testMode.enabled && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
     heldItemSprite.visible = !!heldItem && heldItem !== 'mate' && heldItem !== 'astroscope' && !observatoryScope?.active && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead;
+    const viewingThroughScope=telescopeView.zoomed || telescopeView.lookScale<1
+        || telescopeView.struggling || telescopeView.returning || observatoryScope?.active;
     heldTorch.update(Math.floor(altarFlameTime / 0.15) % torchFrames.length,
-        hasTorch && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead,
+        hasTorch && !viewingThroughScope && !woodcutting.active && gameStarted && (controls.isLocked || inventoryRunning) && !isDead,
         handTorchEnabled);
-    torchLight.position.set(heldTorch.object.position.x, heldTorch.object.position.y + heldTorch.object.scale.y * 0.2, -0.5);
+    torchLight.position.set(heldTorch.object.position.x, heldTorch.object.position.y + heldTorch.object.scale.y * 1.2, -0.5);
     heldMate.update((controls.isLocked || inventoryRunning) ? vegetationDelta : 0, canDrinkMate()&&!observatoryScope?.active);
     const heartInHand=heldItemSprite.visible&&heldItem==='heart'&&heartQuest.hasHeart;
     const cyanBreath=.5-.5*Math.cos(underwaterViewTime.value*1.6);

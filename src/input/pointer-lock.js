@@ -48,7 +48,7 @@ export function createMouseMovementFilter(apply) {
 
 // Three.js r160 mantiene el listener enlazado en _onMouseMove. Envolverlo conserva
 // su cálculo YXZ, límites verticales, pointerSpeed y eventos lock/unlock/change.
-export function guardPointerLockMouse(controls) {
+export function guardPointerLockMouse(controls, isLookBlocked = () => false) {
     const original=controls._onMouseMove;
     const filter=createMouseMovementFilter(original);
     let previousSpeed=controls.pointerSpeed;
@@ -56,7 +56,7 @@ export function guardPointerLockMouse(controls) {
     controls._onMouseMove=event=>{
         // No conservar muestras durante una mirada bloqueada por una interacción.
         if (controls.pointerSpeed!==previousSpeed) { filter.reset(); previousSpeed=controls.pointerSpeed; }
-        if (!controls.isLocked || controls.pointerSpeed===0) { filter.reset(); return; }
+        if (!controls.isLocked || controls.pointerSpeed===0 || isLookBlocked()) { filter.reset(); return; }
         filter.move(event);
     };
     controls.connect();

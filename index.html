@@ -6,8 +6,14 @@
     <link rel="stylesheet" href="./src/ui/touch-controls.css">
     <title>Isla Jaipó</title>
     <link rel="preload" href="./src/ui/fonts/SuperLegendBoy-4w8Y.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="./src/ui/fonts/Caveat-variable.ttf" as="font" type="font/ttf" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        html, body, body * {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
         @font-face {
             font-family: 'Super Legend Boy';
             src: url('./src/ui/fonts/SuperLegendBoy-4w8Y.ttf') format('truetype');
@@ -489,6 +495,18 @@
         .touch-mode #forest-cue-indicator {
             top: calc(max(12px, env(safe-area-inset-top)) + 54px);
         }
+        #forest-cue-time {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: -2px;
+            padding: 5px 7px;
+            border-radius: 3px;
+            background: #000a;
+            color: #fff;
+            font: 13px/1.3 monospace;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
         #hud {
             position: absolute;
             bottom: 20px;
@@ -624,6 +642,7 @@
         }
     </style>
     <link rel="stylesheet" href="./src/ui/inventory-layout.css">
+    <link rel="stylesheet" href="./src/ui/observatory-scope.css">
     <link rel="stylesheet" href="./src/ui/mobile-menus.css">
     <link rel="stylesheet" href="./src/ui/book-reader.css">
 </head>
@@ -632,7 +651,7 @@
     <!-- <div id="hud">Llaves: <span id="key-count">0</span></div> -->
     <div id="hud"></div>
     <div id="position-coordinates"></div>
-    <div id="forest-cue-indicator" role="status" aria-label="Marca 0" hidden>0</div>
+    <div id="forest-cue-indicator" role="status" aria-label="Marca 0" hidden><span id="forest-cue-value">0</span><span id="forest-cue-time" aria-hidden="true">0.000000 s</span></div>
     <div id="interaction-msg">Presiona E para interactuar</div>
     <div id="river-warning-msg">La corriente no me dejará pasar</div>
     <div id="item-notification" role="status" aria-live="polite" aria-atomic="true"></div>

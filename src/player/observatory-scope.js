@@ -4,12 +4,14 @@ import {createObservatoryZoomBar} from '../ui/observatory-zoom-bar.js';
 export function createObservatoryScope(THREE,camera,controls,observatory,onMotion=()=>{},onLensChange=()=>{}) {
     const root=controls.getObject(),mask=document.createElement('div');
     mask.id='observatory-scope-view';mask.hidden=true;mask.setAttribute('aria-hidden','true');
-    mask.style.cssText='position:fixed;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at center,transparent 0 38vmin,rgba(12,18,27,.86) 38.5vmin,#000 43vmin);';
+    mask.style.cssText='position:fixed;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at center,transparent 0 var(--omniscopio-radius,40vmin),rgba(12,18,27,.86) calc(var(--omniscopio-radius,40vmin) + .5vmin),#000 calc(var(--omniscopio-radius,40vmin) + 5vmin));';
     document.body.append(mask);
-    const tint=document.createElement('div');tint.style.cssText='position:absolute;inset:0;background:radial-gradient(circle at center,#d62fa4,#8030c8);clip-path:circle(38.5vmin at 50% 50%);opacity:0;';mask.append(tint);
+    const tint=document.createElement('div');tint.style.cssText='position:absolute;inset:0;background:radial-gradient(circle at center,#d62fa4,#8030c8);clip-path:circle(calc(var(--omniscopio-radius,40vmin) + .5vmin) at 50% 50%);opacity:0;';mask.append(tint);
     const shutter=document.createElement('div');shutter.style.cssText='position:absolute;inset:0;background:#000;opacity:0;';mask.append(shutter);
     let blink=0,blinkDuration=.14,stellarTint=0;
-    const bar=createObservatoryZoomBar((direction,pressed)=>setZoomInput(direction,pressed));
+    const bar=createObservatoryZoomBar((direction,pressed)=>setZoomInput(direction,pressed),{
+        onAim:(direction,pressed)=>setAimInput(direction,pressed),onExit:()=>exit()
+    });
     const zoomState=createObservatoryZoom((value,previous)=>{
         bar.setZoom(value);
         if(value===previous)return;

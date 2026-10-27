@@ -10,6 +10,19 @@ export function createHeldMate(THREE, camera) {
     // La pasada de mano conserva profundidad entre las piezas de este modelo.
     // Igual que el modelo de la mesa: mismos colores y facetas planas.
     object.material = new THREE.MeshPhongMaterial({vertexColors:true,flatShading:true,shininess:18,fog:false,transparent:true,opacity:1,depthTest:true,depthWrite:true});
+    // Proyectar la silueta a la profundidad del objeto: evita el ensanchamiento
+    // de perspectiva en la esquina de la pantalla sin deformar su geometría.
+    object.material.onBeforeCompile = shader => {
+        shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `
+            #include <project_vertex>
+            vec4 mateCenter = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+            vec4 mateCenterClip = projectionMatrix * mateCenter;
+            vec2 mateOffset = (mvPosition.xy - mateCenter.xy)
+                * vec2(projectionMatrix[0][0], projectionMatrix[1][1]) / -mateCenter.z;
+            gl_Position.xy = (mateCenterClip.xy / mateCenterClip.w + mateOffset) * gl_Position.w;
+        `);
+    };
+    object.material.customProgramCacheKey = () => 'held-mate-stable-projection-v1';
     object.name = 'held-mate'; object.position.set(0,0,0);
     object.renderOrder = 1000; object.visible = false; camera.add(object);
     let held = false, minimum = 0, blend = 0;
@@ -17,7 +30,7 @@ export function createHeldMate(THREE, camera) {
     function cancel() { held = false; minimum = 0; blend = 0; }
     return {
         object,
-        press() { held = true; minimum = 1.5; },
+        press() { held = true; minimum = 1; },
         release() { held = false; },
         cancel,
         get drinking() { return held || minimum > 0; },
@@ -38,7 +51,7 @@ export function createHeldMate(THREE, camera) {
                 THREE.MathUtils.lerp(restingX,-.05*scale,t),
                 THREE.MathUtils.lerp(-radius*.90,-.394*scale-.03,t),
                 THREE.MathUtils.lerp(-.55,-.27,t));
-            object.rotation.set(.18*t,-Math.PI/2*t,-.10*(1-t));
+            object.rotation.set(THREE.MathUtils.lerp(.22,.18,t),-Math.PI/2*t,-.10*(1-t));
         }
     };
 }
