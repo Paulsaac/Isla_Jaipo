@@ -4,6 +4,7 @@ import { createTelescope } from './src/world/telescope.js';
 import { createTelescopeGlare } from './src/world/telescope-glare.js';
 import { createTelescopeView, TELESCOPE_ZOOM } from './src/player/telescope-view.js';
 import { createRiverCameraMotion } from './src/player/river-camera-motion.js';
+import { createSeaHeartSoundMotion } from './src/systems/sea-heart-sound-motion.js';
 import { createObservatoryScope } from './src/player/observatory-scope.js';
 import { createObservatoryLadder } from './src/player/observatory-ladder.js';
 import { createHeldOverlay } from './src/player/held-overlay.js';
@@ -41,10 +42,10 @@ import { waitForRenderedFrame, prepareProgramsInBatches } from './src/ui/render-
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
-import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, grahamRescueDialogs, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
+import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, grahamRescueDialogs, riverDrowningMessage, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
 import { createDrowningRescue } from './src/ui/drowning-rescue.js';
 import { grahamJournal } from './src/content/readables.js';
-import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, riverDrowningLanding, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
 import { DOOR_SIDE_MARGIN } from './src/config.js';
@@ -237,6 +238,7 @@ let helmetBreakSound = null;
 let seaHeart = null;
 const seaHeartSprites = new Map();
 const seaHeartSoundPosition = new THREE.Vector3();
+const seaHeartSoundMotion = createSeaHeartSoundMotion(THREE,seaHeartSoundPosition);
 const seaHeartSoundRelative = new THREE.Vector3();
 const seaHeartListenerPosition = new THREE.Vector3();
 const seaHeartListenerRotation = new THREE.Quaternion();
@@ -251,7 +253,7 @@ const forestAmbienceSources = Array.from({length:4},()=>({x:0,y:0,z:0,weight:0})
 let seaHeartLight = null;
 let altarWaterHeight = null;
 
-function revealNextSeaHeartFragment() {
+function revealNextSeaHeartFragment(animateSound=false) {
     const next = seaHeart?.next;
     for (const [id, sprite] of seaHeartSprites) {
         const active = id === next?.id;
@@ -268,7 +270,8 @@ function revealNextSeaHeartFragment() {
     }
     const activeSprite = next && seaHeartSprites.get(next.id);
     // Al completar la ruta conserva la posición del último fragmento (altar).
-    if (activeSprite) seaHeartSoundPosition.copy(activeSprite.position);
+    if (activeSprite && animateSound) seaHeartSoundMotion.moveTo(activeSprite.position,camera);
+    else seaHeartSoundMotion.snapTo(activeSprite?.position ?? seaHeartSoundPosition);
     if (seaHeartLight) {
         seaHeartLight.intensity = activeSprite ? 2.4 : 0;
         if (activeSprite) {
@@ -289,7 +292,8 @@ function collectSeaHeartFragment(fragment) {
     // Conservar el modelo oculto para restaurar la ruta si se pierde la inmersión.
     fragment.visible=false;
     fragment.userData.visibilityEnabled=false;
-    revealNextSeaHeartFragment();
+    if (reward.complete) seaHeartSoundPosition.copy(fragment.position);
+    revealNextSeaHeartFragment(!reward.complete);
     if (targetInteractable === fragment) targetInteractable = null;
     hud.hideInteraction();
     menus.setSeaHeartState(reward.count,reward.complete);
@@ -343,6 +347,7 @@ function beginDrowningRescue() {
     const atSea = seaSoundField?.surface[gz * mapWidth + gx] === 1;
     telescopeView?.cancel();
     drowningRescueContext = {
+        river: riverSoundField?.river[gz * mapWidth + gx] === 1,
         preserveFragments: atSea,
         repairHelmet: atSea && !seaHeart.complete && seaHeart.count > 0 && (helmetCracked || helmetBroken),
         inventory: inventoryRunning, pointerSpeed: controls.pointerSpeed
@@ -350,15 +355,17 @@ function beginDrowningRescue() {
     isDead = true;
     cancelActiveDialog(); clearGreetingInput();
     controls.pointerSpeed = 0;
-    heldMate?.cancel(); riverCameraMotion.reset();
+    heldMate?.cancel();
+    if (!drowningRescueContext.river) riverCameraMotion.reset();
     menus.hideForGameplay(); hud.hideInteraction(); hud.hideDivingAir(); hud.hideStamina(); hud.setRiverWarning(false);
     touchControls?.sync(false);
     touchControls?.hide();
     musicEvents.setPaused(true);
-    drowningRescue.start();
+    drowningRescue.start({ waitForInput: drowningRescueContext.river });
     return true;
 }
 function restorePlayerAfterDrowning() {
+    riverCameraMotion.reset();
     if (drowningRescueContext.repairHelmet) {
         helmetBroken = false; helmetCracked = false; helmetCrackStage = 0;
     } else if (seaHeart.complete && helmetCracked) {
@@ -384,9 +391,12 @@ function restorePlayerAfterDrowning() {
     divingAir.reset(); stamina = STAMINA_MAX;
     clearGreetingInput(); isCrouching = false; canJump = true; bedSettleIndex = -1;
     seatedChair = chairEntryPosition = null; isFlying = false;
-    const x = playerStartX * UNIT_SIZE, z = playerStartZ * UNIT_SIZE;
+    const landing = drowningRescueContext.river ? riverDrowningLanding : { x: playerStartX, z: playerStartZ };
+    const x = landing.x * UNIT_SIZE, z = landing.z * UNIT_SIZE;
     camera.position.set(x, getTerrainHeight(x, z) + PLAYER_HEIGHT, z);
-    camera.rotation.set(0, 0, 0); camera.updateMatrixWorld(true);
+    camera.rotation.set(0, 0, 0);
+    if (drowningRescueContext.river) camera.lookAt(lakeHouseLayout.origin.x, camera.position.y, lakeHouseLayout.origin.z);
+    camera.updateMatrixWorld(true);
     previousPlayerPosition.copy(camera.position);
     playerWasSubmerged = false; underwaterBlend = 0; vegetationBlend = 0; surfaceVegetationBlend = 1;
     targetInteractable = null;
@@ -397,8 +407,12 @@ function restorePlayerAfterDrowning() {
     musicEvents.resetWaterAudio(); musicEvents.resetRiverAmbience(); musicEvents.resetSeaAmbience();
     forestAmbienceSample = riverSoundSample = seaSoundSample = null;
     forestAmbienceSampleTime = riverSoundSampleTime = seaSoundSampleTime = 0;
-    grahamRescuePending = true;
-    hud.showNotification('Te ahogaste. Graham logro rescatarte otra vez', { immediate: true });
+    if (drowningRescueContext.river) {
+        menus.showDialog(riverDrowningMessage, { speaker: '?', blurBackdrop: false });
+    } else {
+        grahamRescuePending = true;
+        hud.showNotification('Te ahogaste. Graham logro rescatarte otra vez', { immediate: true });
+    }
 }
 function finishDrowningRescue() {
     controls.pointerSpeed = drowningRescueContext.pointerSpeed;
@@ -514,6 +528,7 @@ const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerH
 const riverCameraMotion = createRiverCameraMotion(THREE, camera);
 const riverCenterOffset = { x: 0, z: 0 };
 const riverLakeDirection = { x: 0, z: 0 };
+const riverDisplacement = { x: 0, z: 0 };
 const riverBridgeBounds = new THREE.Box3();
 scene.add(camera);
 const underwaterBackdrop = new THREE.Mesh(new THREE.SphereGeometry(100, 8, 6),
@@ -586,6 +601,33 @@ function isHelmetSubmergedInRiver() {
     const gz = Math.floor((camera.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
     return gx >= 0 && gz >= 0 && gx < mapWidth && gz < mapHeight
         && riverSoundField.river[gz * mapWidth + gx] === 1;
+}
+function getRiverDisplacement(x,z,delta) {
+    getRiverCenterOffset(riverSoundField,UNIT_SIZE,x,z,riverCenterOffset);
+    getRiverLakeDirection(riverSoundField,UNIT_SIZE,x,z,riverLakeDirection);
+    const alongFlow=riverCenterOffset.x*riverLakeDirection.x+riverCenterOffset.z*riverLakeDirection.z;
+    riverCenterOffset.x-=riverLakeDirection.x*alongFlow;
+    riverCenterOffset.z-=riverLakeDirection.z*alongFlow;
+    const maximum=getRiverCurrentSpeed(UNIT_SIZE)*delta;
+    let dx=riverLakeDirection.x*maximum,dz=riverLakeDirection.z*maximum;
+    const distance=Math.hypot(riverCenterOffset.x,riverCenterOffset.z);
+    if(distance>.001) {
+        const travel=Math.min(maximum,distance*(1-Math.exp(-delta*4)));
+        dx+=riverCenterOffset.x*travel/distance;dz+=riverCenterOffset.z*travel/distance;
+    }
+    const scale=Math.min(1,maximum/(Math.hypot(dx,dz)||1));
+    riverDisplacement.x=dx*scale;riverDisplacement.z=dz*scale;
+    return riverDisplacement;
+}
+function advanceDrowningRiver(delta) {
+    const position=controls.getObject().position;
+    // Mantener el arrastre hasta negro, con las mismas colisiones que durante la inmersión.
+    while(delta>0 && isHelmetSubmergedInRiver()) {
+        const step=Math.min(delta,.05),push=getRiverDisplacement(position.x,position.z,step);
+        if(!isWall(position.x+push.x,position.z))position.x+=push.x;
+        if(!isWall(position.x,position.z+push.z))position.z+=push.z;
+        delta-=step;
+    }
 }
 function getWaterSurfaceHeight(x,z) {
     if (caveMap?.active) return caveMap.getWaterHeight(x);
@@ -1010,6 +1052,7 @@ controls.addEventListener('lock', () => {
     touchControls?.sync(true);
 });
 controls.addEventListener('unlock', () => {
+    if (drowningRescue.active) return;
     observatoryScope?.exit();
     telescopeView?.cancel();
     woodcutting.setVisible(false);
@@ -1154,6 +1197,14 @@ function showObservatoryChoice(kind) {
 }
 
 function interact() {
+    if (drowningRescue.active) {
+        if (drowningRescue.waitingForContinue) {
+            if (menus.completeDialogText()) return true;
+            menus.hideDialog();
+            if (drowningRescue.continue()) musicEvents.playWakeSplash();
+        }
+        return true;
+    }
     if (!controls.isLocked || isDead || observatoryMenu.active || gardenNote.active) return false;
     if(metalRoom?.busy)return true;
     if(metalRoom?.active) {
@@ -1494,6 +1545,7 @@ function interact() {
 
 const gameActions = {
     isEnabled: () => mapLoaded && !drowningRescue.active,
+    isDrowningTransitionActive: () => drowningRescue.active,
     cycleLensView() {
         if (!gameStarted || !mapLoaded || !controls.isLocked || isDead || isInventoryOpen || isDialogOpen
             || !hasPinkSunglasses || !pinkSunglassesEquipped || woodcutting.active || grahamDap.active
@@ -1788,10 +1840,11 @@ const touchActions = {
 const touchControls = isTouchMode ? bindTouchControls({
     actions: touchActions, canvas: renderer.domElement,
     isActive: () => gameStarted && controls.isLocked && !isDead && !isDialogOpen && !spawnGreeting.active,
-    canAdvanceDialogue: () => controls.isLocked && !isDead && menus.isDialogVisible() && ((isDialogOpen && !grahamDap.active)
-        || (spawnGreeting.active && spawnGreeting.phase === 'invitation')),
+    canAdvanceDialogue: () => drowningRescue.waitingForContinue || (controls.isLocked && !isDead && menus.isDialogVisible() && ((isDialogOpen && !grahamDap.active)
+        || (spawnGreeting.active && spawnGreeting.phase === 'invitation'))),
     pause: pauseGame,
     look(dx, dy) {
+        if (drowningRescue.active) return;
         if (woodcutting.active || spawnGreeting.active || grahamDap.active) return;
         const zoomLookScale=telescopeView?.lookScale ?? 1;
         dx*=zoomLookScale; dy*=zoomLookScale;
@@ -2762,7 +2815,7 @@ async function buildWorld(prepared, checkpoint) {
                     wallZ = posZ + dz * (UNIT_SIZE / 2 - 0.04);
                     supportHeight = elevationMap[z+dz][x+dx];
                 }
-                const domeMount=lakeHouseDome.torchMount(x,z);
+                const domeMount=lakeHouseDome.torchMount(x,z,prepared.externalTorchMap[z][x]);
                 if(domeMount){wallX=domeMount.x;wallZ=domeMount.z;}
                 const torchY = domeMount?.y ?? supportHeight + TORCH_MOUNT_HEIGHT;
                 worldTorches.push({ x: wallX, z: wallZ, y: torchY, isBlue: isBlueTorch, isIndoor: woodFloorMap[z][x], gx: x, gz: z });
@@ -4335,12 +4388,14 @@ function animate(timestamp = performance.now()) {
 
     // Espera, órbita y viaje no avanzan físicas, misiones, reloj del cielo ni audio.
     if (!mapLoaded) return;
+    const riverFadeDelta=drowningRescueContext?.river ? Math.min(cameraDelta,drowningRescue.fadeOutRemaining) : 0;
+    if(riverFadeDelta>0)advanceDrowningRiver(riverFadeDelta);
     drowningRescue.update(cameraDelta);
 
     updateMetalRoomTravel((controls.isLocked||inventoryRunning)&&!isDead?Math.min(cameraDelta,.1):0);
 
     const controlObj = controls.getObject();
-    touchControls?.syncDialogue(controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active));
+    touchControls?.syncDialogue(drowningRescue.waitingForContinue || (controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active)));
     if (isDialogOpen) constrainDialogLook(cameraDelta);
     let vegetationDelta = 0;
 
@@ -4380,6 +4435,7 @@ function animate(timestamp = performance.now()) {
         for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
         camera.getWorldPosition(seaHeartListenerPosition);
         camera.getWorldQuaternion(seaHeartListenerRotation).invert();
+        seaHeartSoundMotion.update(rawDelta);
         seaHeartSoundRelative.copy(seaHeartSoundPosition).sub(seaHeartListenerPosition)
             .applyQuaternion(seaHeartListenerRotation);
         musicEvents.setUnderwaterPosition(seaHeartSoundRelative.x, seaHeartSoundRelative.y, seaHeartSoundRelative.z);
@@ -4939,21 +4995,8 @@ function animate(timestamp = performance.now()) {
 
             // Centrar en el cauce mientras avanza hacia el lago, respetando obstáculos.
             if (!trappedInBedCeiling && isHelmetSubmergedInRiver()) {
-                getRiverCenterOffset(riverSoundField, UNIT_SIZE, startX, startZ, riverCenterOffset);
-                getRiverLakeDirection(riverSoundField, UNIT_SIZE, startX, startZ, riverLakeDirection);
-                const alongFlow = riverCenterOffset.x * riverLakeDirection.x + riverCenterOffset.z * riverLakeDirection.z;
-                riverCenterOffset.x -= riverLakeDirection.x * alongFlow;
-                riverCenterOffset.z -= riverLakeDirection.z * alongFlow;
-                const maximum = getRiverCurrentSpeed(UNIT_SIZE) * delta;
-                let pushX = riverLakeDirection.x * maximum, pushZ = riverLakeDirection.z * maximum;
-                const distance = Math.hypot(riverCenterOffset.x, riverCenterOffset.z);
-                if (distance > 0.001) {
-                    const travel = Math.min(maximum, distance * (1 - Math.exp(-delta * 4)));
-                    pushX += riverCenterOffset.x * travel / distance;
-                    pushZ += riverCenterOffset.z * travel / distance;
-                }
-                const scale = Math.min(1, maximum / (Math.hypot(pushX, pushZ) || 1));
-                dx += pushX * scale; dz += pushZ * scale;
+                const push=getRiverDisplacement(startX,startZ,delta);
+                dx+=push.x;dz+=push.z;
             }
 
             if(heartLevitationHeight>.15&&!isFlying&&!isRidingBoat&&!caveMap?.active&&forestMovementBoundary) {
@@ -5449,9 +5492,10 @@ function animate(timestamp = performance.now()) {
     if(camera.far!==opticalFar){camera.far=opticalFar;camera.updateProjectionMatrix();}
     const forestInteriorsHidden = !caveMap?.active && (musicEvents.isEventActive('forest')
         || heartVision.uniforms.heartStrength.value > 0.001 || heartLevitationHeight > 0.15);
-    if (!gameStarted || isDead) riverCameraMotion.reset();
-    else riverCameraMotion.update(vegetationDelta,
-        !isDialogOpen && !observatoryScope?.active && isHelmetSubmergedInRiver());
+    const riverDrowningFade=!!drowningRescueContext?.river && drowningRescue.fadeOutRemaining>0;
+    if (!gameStarted || (isDead && !riverDrowningFade)) riverCameraMotion.reset();
+    else riverCameraMotion.update(riverDrowningFade ? riverFadeDelta : vegetationDelta,
+        riverDrowningFade || (!isDialogOpen && !observatoryScope?.active && isHelmetSubmergedInRiver()));
     riverCameraMotion.apply();
     const fogPlane = fogCulling?.update(camera);
     if (forestInteriorsHidden) {

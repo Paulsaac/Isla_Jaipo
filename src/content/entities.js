@@ -32,6 +32,9 @@ export const grahamPosition = { x: 230, z: 440, offset: { x: 1.3, z: 1.0 } };
 
 export const spawnRoomExit = { x: 235, z: 442 };
 
+// Orilla del lago mostrada en la referencia de Clawshoot, en coordenadas de mapa.
+export const riverDrowningLanding = { x: 403, z: 316 };
+
 // Tabique corto y sacos de la casa trasladados junto con su planta 19 celdas al sur.
 export const grahamRoomDivider = { fromX: 231.5, toX: 229, z: 446, torchX: 230.5 };
 

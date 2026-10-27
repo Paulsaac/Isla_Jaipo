@@ -7,6 +7,8 @@ export const grahamRescueDialogs = [
     'Tuviste suerte de que te encontrara otra vez. Ten mas cuidado para la proxima'
 ];
 
+export const riverDrowningMessage = 'La corriente del rio te arrastro hacia el lago hasta perder la consciencia... Pero este no será tu final.';
+
 // Dialogo introductorio vigente de Graham; conservar el orden.
 export const npcDialogs = [
     "Ya me estaba preocupando porque no despertabas.",

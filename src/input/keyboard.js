@@ -7,6 +7,11 @@ export function bindKeyboard(actions, target = document) {
     const scopeDirections=new Set();
 
     function onKeyDown(event) {
+        if (actions.isDrowningTransitionActive?.()) {
+            event.preventDefault();
+            if (event.code === 'KeyE' && !event.repeat) actions.interact();
+            return;
+        }
         if (actions.isEnabled?.() === false) return;
         if (actions.isPaused?.()) {
             sequence.reset();
