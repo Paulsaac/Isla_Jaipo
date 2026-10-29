@@ -64,16 +64,30 @@ export function smoothMountainPath(floorMap, heights, mountainMask, summitHeight
 }
 
 // Proyectar sobre segmentos evita bultos transversales y escalones de celda en celda.
-export function sampleMountainPath(profile, x, z) {
+export function sampleMountainPath(profile, x, z, naturalHeight) {
     if(profile?.contourTrail) {
         let distance=Infinity,height=0,coreRadius=profile.coreRadius,blendRadius=profile.blendRadius,snowCut=false;
+        let carvedHeight=naturalHeight;
         for(const index of profile.bins[Math.round(z)]?.[Math.round(x)]??[]) {
             const s=profile.segments[index],t=Math.max(0,Math.min(1,((x-s.x)*s.dx+(z-s.z)*s.dz)/s.l2));
             const d=Math.hypot(x-s.x-s.dx*t,z-s.z-s.dz*t);
+            if(Number.isFinite(naturalHeight)) {
+                const core=(s.coreRadius??profile.coreRadius)+(s.coreDelta??0)*t;
+                const radius=(s.blendRadius??profile.blendRadius)+(s.blendDelta??0)*t;
+                if(d<radius) {
+                    const edge=Math.max(0,Math.min(1,(d-core)/(radius-core)));
+                    const blend=edge*edge*(3-2*edge);
+                    const bed=Math.min(naturalHeight,s.y+s.dy*t);
+                    // Unión de excavaciones continuas: elegir solo el eje más próximo
+                    // intercambiaba bruscamente alturas y levantaba crestas entre taludes.
+                    carvedHeight=Math.min(carvedHeight,bed*(1-blend)+naturalHeight*blend);
+                }
+            }
             if(d<distance){distance=d;height=s.y+s.dy*t;
                 coreRadius=(s.coreRadius??profile.coreRadius)+(s.coreDelta??0)*t;
                 blendRadius=(s.blendRadius??profile.blendRadius)+(s.blendDelta??0)*t;snowCut=s.snowCut;}
         }
+        if(Number.isFinite(naturalHeight)) return carvedHeight<naturalHeight?{offset:carvedHeight-naturalHeight}:null;
         return distance<blendRadius?{height,distance,coreRadius,blendRadius,snowCut}:null;
     }
     if(!profile || (profile.followsTerrain && !profile.carved)) return null;

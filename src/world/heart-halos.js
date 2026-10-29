@@ -1,6 +1,7 @@
 // Cuatro luces reutilizadas: brillo local sin crear una luz por cada árbol.
 import { getTreeColorCycle, getTreeColorAngle } from './tree-color-cycle.js';
 import { TREE_SPRITE_HEIGHT } from '../config.js';
+import { getForestLightPulse, getForestLightSeed } from './forest-light-pulse.js';
 export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight) {
     const slots = Array.from({length: 4}, () => {
         const light = new THREE.PointLight(0xffffff, 0, 18, 2);
@@ -11,7 +12,7 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
     });
     let refresh = 0;
     function update(delta, position, uniforms) {
-        const amount = uniforms.heartStrength.value;
+        const amount = uniforms.heartTreeGlow.value * 1.25;
         const time = uniforms.heartColorTime.value;
         refresh -= delta;
         if (amount > 0.001 && refresh <= 0) {
@@ -49,13 +50,15 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
             slot.light.position.set(target.x, y + height, target.z);
             const focusHeight = Math.max(0.65, Math.min(TREE_SPRITE_HEIGHT - 0.5, position.y - y));
             const gradient = 0.04 + 0.96 * Math.exp(-Math.abs(height - focusHeight) / 1.68);
-            const phase = target.x * 0.73 + target.z * 1.17 + 2.399 * 3;
-            const breath = 0.94 + 0.06 * Math.sin(uniforms.skyPsychTime.value * (Math.PI / 2) + phase);
-            slot.light.intensity = lightAmount * 14 * gradient * breath;
+            const spacing=(TREE_SPRITE_HEIGHT-1.15)/7;
+            const pulseDistance=Math.max(0,Math.abs(0.65+spacing*3-focusHeight)-spacing/2);
+            const seed=getForestLightSeed(target.x,target.z,3,unitSize);
+            const pulse=getForestLightPulse(uniforms.skyPsychTime.value,seed,pulseDistance);
+            slot.light.intensity = lightAmount * 14 * gradient * pulse;
             const cycle = getTreeColorCycle(target.x, target.z, unitSize);
             const angle = getTreeColorAngle(time, cycle, uniforms.heartTreble.value);
             slot.light.color.setHSL((angle / (Math.PI * 2)) % 1, 1.0, 0.4);
         }
     }
-    return {update};
+    return {update,seek(position,uniforms){refresh=0;update(10,position,uniforms);}};
 }

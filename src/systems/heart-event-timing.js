@@ -8,8 +8,8 @@ export const HEIGHT_LOW = 7.8; // Altura acotada en marca 4 (7.8 m, no baja tant
 export const HEIGHT_HIGH_2_TREES = 2.0 * TREE_SPRITE_HEIGHT - PLAYER_HEIGHT; // Aprox. 2 árboles de altura (~21.59 m)
 
 const FIRST_MARK_SLOW_RISE_SPEED = 0.012; // m/s
-const FIRST_MARK_NAV_RANGE = 0.4;
-const SECOND_MARK_NAV_RANGE = 0.5;
+const SECOND_MARK_RISE_END = FOREST_CUES[2];
+const SECOND_MARK_RISE_START = 39;
 
 export const HEART_EVENT_END_MARGIN = 0;
 export const HEART_LEVITATION_MAX_RISE = HEIGHT_HIGH_2_TREES;
@@ -23,8 +23,15 @@ export function smoothest(t) {
     return Math.max(0, Math.min(1, t * t * t * (t * (t * 6 - 15) + 10)));
 }
 
+export function getForestSunDimming(elapsed) {
+    const time=Number.isFinite(elapsed)?Math.max(0,elapsed):0;
+    const entrance=smoothest(Math.min(1,time/FOREST_CUES[1])**2);
+    const exit=1-smoothest((time-FOREST_CUES[8])/(FOREST_CUES[9]-FOREST_CUES[8]));
+    return .20*entrance*exit;
+}
+
 function levitationProfile(duration, remaining) {
-    if (!Number.isFinite(duration) || !Number.isFinite(remaining) || duration <= 0) return { base: 0, range: 0, fade: 0, navigation: 0 };
+    if (!Number.isFinite(duration) || !Number.isFinite(remaining) || duration <= 0) return { base: 0, fade: 0 };
     const elapsed = Math.max(0, duration - remaining);
     const [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9] = FOREST_CUES;
     let base = 0, landingFade = 1;
@@ -33,13 +40,21 @@ function levitationProfile(duration, remaining) {
         // Marca 0: levita hasta llegar a la mitad en marca 1
         const rise = smoothest(elapsed / c1);
         base = HEIGHT_HALF_TREE * rise + FIRST_MARK_SLOW_RISE_SPEED * elapsed * (1 - rise);
-    } else if (elapsed < c2 - 2.0) {
-        // Marca 1: se mantiene hasta dos segundos antes de la marca 2.
-        base = HEIGHT_HALF_TREE;
-    } else if (elapsed < c3) {
-        // Ascenso de 8 s: empieza antes y termina en el mismo instante (marca 2 + 6 s).
-        const rise = smoothest((elapsed - (c2 - 2.0)) / 8.0);
+    } else if (elapsed < SECOND_MARK_RISE_START) {
+        // Flotación lenta tras marca 1, con entrada y salida suaves antes del ascenso.
+        const hoverTime = elapsed - c1;
+        const envelope = smoothest(hoverTime / 2.0) * smoothest((SECOND_MARK_RISE_START - elapsed) / 3.0);
+        base = HEIGHT_HALF_TREE + Math.sin(hoverTime * (2.0 * Math.PI / 14.0)) * 0.3 * envelope;
+    } else if (elapsed < c2) {
+        // Inicio muy lento, impulso concentrado al final y frenada suave en marca 2.
+        const progress = Math.max(0, Math.min(1, (elapsed - SECOND_MARK_RISE_START) / (SECOND_MARK_RISE_END - SECOND_MARK_RISE_START)));
+        const rise = smoothest(progress ** 2.2);
         base = HEIGHT_HALF_TREE + (HEIGHT_CANOPY_PLUS - HEIGHT_HALF_TREE) * rise;
+    } else if (elapsed < c3) {
+        // Tras la frenada empieza bajando; vaivén pequeño sin alterar las alturas de las marcas.
+        const hoverTime = elapsed - c2;
+        const envelope = smoothest(hoverTime / 3) * smoothest((c3 - elapsed) / 3);
+        base = HEIGHT_CANOPY_PLUS - Math.sin(hoverTime * (2 * Math.PI / 18)) * 0.08 * envelope;
     } else if (elapsed < c4) {
         // Marca 3: se mantiene arriba hasta los últimos 3 segundos del 3 para el 4,
         // donde desciende lentamente hacia la altura baja de la marca 4.
@@ -93,19 +108,48 @@ function levitationProfile(duration, remaining) {
         base = final7;
     }
 
-    const expansion = smoothest((elapsed - c1) / (c2 - c1));
-    const navigation = smoothest((elapsed - c1) / 3);
-    return { base, range: (FIRST_MARK_NAV_RANGE + (SECOND_MARK_NAV_RANGE - FIRST_MARK_NAV_RANGE) * expansion) * navigation, fade: landingFade, navigation };
+    return { base, fade: landingFade };
+}
+
+// Color de árboles independiente de deformación, paisaje y puntos luminosos.
+const FOREST_TREE_COLOR_LEVELS = Object.freeze([0, 0.45, 0.85, 1.25, 0.85, 0.85, 1.25, 0.85, 1.25]);
+function forestTreeIntensityTime(elapsed) {
+    const time = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+    const mark1 = FOREST_CUES[1], mark2 = FOREST_CUES[2], reference = 26.522;
+    // Adelantar el estado de 26.522 s a marca 1 y volver al reloj original en marca 2.
+    if (time < mark1) return time * reference / mark1;
+    if (time < mark2) return reference + (time - mark1) * (mark2 - reference) / (mark2 - mark1);
+    return time;
+}
+function getForestTreeColorBaseStrength(elapsed) {
+    const time = forestTreeIntensityTime(elapsed);
+    if (time < FOREST_CUES[1]) return FOREST_TREE_COLOR_LEVELS[1] * smoothest(time / FOREST_CUES[1]);
+    for (let mark = 2; mark <= 8; mark++) {
+        if (time >= FOREST_CUES[mark]) continue;
+        const from = FOREST_TREE_COLOR_LEVELS[mark - 1], to = FOREST_TREE_COLOR_LEVELS[mark];
+        return from + (to - from) * smoothest((time - (FOREST_CUES[mark] - 3)) / 3);
+    }
+    return FOREST_TREE_COLOR_LEVELS[8] * (1 - smoothest((time - FOREST_CUES[8]) / (FOREST_CUES[9] - FOREST_CUES[8])));
+}
+
+export function getForestTreeColorStrength(elapsed) {
+    const base = getForestTreeColorBaseStrength(elapsed);
+    // Reloj real de canción: el remapeo previo del color no adelanta este pulso.
+    const offset = elapsed - FOREST_CUES[1];
+    const attack = 0.001, decay = 1.5, peak = 1.65;
+    if (offset < -attack || offset >= decay) return base;
+    const envelope = offset < 0 ? smoothest((offset + attack) / attack)
+        : (1 - offset / decay) ** 4;
+    // Caída rápida y cola suave; vuelve al valor normal del instante actual.
+    return base + (peak - getForestTreeColorBaseStrength(FOREST_CUES[1])) * envelope;
 }
 
 export function getForestVisualProfile(elapsed) {
     const time = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
     const [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9] = FOREST_CUES;
 
-    // 1. Árboles:
-    // Marca 0: entrada leve de color y deformación; marca 1 continúa hasta el nivel de marca 2.
-    // Marca 5: mayor intensidad en los colores de los árboles pedida por el usuario.
-    // Marca 7: intensidad moderada a 1.05.
+    // Envolvente general existente del paisaje y la deformación.
+    // El color de los árboles tiene su propia secuencia de marcas.
     let treeColorStrength = 0;
     let warp = 0;
     if (time < c1) {
@@ -204,8 +248,14 @@ export function getForestVisualProfile(elapsed) {
         hyperSaturation = fadeOut;
     }
 
+    const treeIntensityTime = forestTreeIntensityTime(time);
     return {
         strength: treeColorStrength,
+        treeColor: getForestTreeColorStrength(time),
+        // Brillo adelantado con el color, conservando el estado exacto de marca 2.
+        treeGlow: (0.25 * smoothest((treeIntensityTime - c1) / (c2 - 3 - c1))
+            + 0.75 * smoothest((treeIntensityTime - (c2 - 3)) / 3))
+            * (1 - smoothest((time - c8) / (c9 - c8))),
         warp,
         speed: 0.35 + 0.65 * warp,
         trailStrength,
@@ -221,28 +271,39 @@ export function getHeartLevitationHeight(duration, remaining) {
     return profile.base * profile.fade;
 }
 
+let forestMotionIntegral=null;
+export function getForestMotionTime(seconds) {
+    const step=.05,last=FOREST_CUES.at(-1);
+    if(!forestMotionIntegral) {
+        forestMotionIntegral=new Float64Array(Math.ceil(last/step)+1);
+        for(let i=1;i<forestMotionIntegral.length;i++)forestMotionIntegral[i]=forestMotionIntegral[i-1]
+            +getForestVisualProfile((i-.5)*step).speed*step;
+    }
+    const time=Math.max(0,seconds),index=Math.min(forestMotionIntegral.length-1,Math.floor(time/step));
+    return forestMotionIntegral[index]+(time-index*step)*getForestVisualProfile(time).speed;
+}
+
 export function createHeartLevitation() {
-    let height = 0, cancelFrom = 0, cancelTime = null, desiredOffset = 0, offset = 0;
+    let height = 0, cancelFrom = 0, cancelTime = null;
     return {
-        update(delta, duration, remaining, active, navigation = {}) {
+        captureState(){return {height,cancelFrom,cancelTime};},
+        restoreState(state){({height,cancelFrom,cancelTime}=state);},
+        seek(duration,time){
+            cancelTime=null;
+            height=getHeartLevitationHeight(duration,Math.max(0,duration-time));return height;
+        },
+        update(delta, duration, remaining, active) {
             delta = Math.max(0, Math.min(delta, 0.1));
             if (active) {
                 cancelTime = null;
                 const profile = levitationProfile(duration, remaining);
-                const pitch = Math.max(-1, Math.min(1, navigation.lookY || 0));
-                const pitchAmount = Math.sign(pitch) * smoothest((Math.abs(pitch) - 0.1) / 0.6);
-                const moving = navigation.forward ? Math.min(1, Math.max(0, navigation.distance || 0) / Math.max(0.0001, 2.5 * delta)) : 0;
-                desiredOffset += pitchAmount * moving * profile.navigation * 0.55 * delta;
-                desiredOffset = Math.max(-profile.range, Math.min(profile.range, desiredOffset));
-                offset += (desiredOffset - offset) * (1 - Math.exp(-delta / 0.8));
-                height = (profile.base + offset) * profile.fade;
+                height = profile.base * profile.fade;
             } else if (height > 0.00001) {
                 if (cancelTime === null) { cancelTime = 0; cancelFrom = height; }
                 cancelTime = Math.min(HEART_VISION_FADE_OUT_SECONDS, cancelTime + delta);
                 height = cancelFrom * (1 - smoothest(cancelTime / HEART_VISION_FADE_OUT_SECONDS));
             } else {
                 height = 0;
-                desiredOffset = offset = 0;
             }
             return height;
         }

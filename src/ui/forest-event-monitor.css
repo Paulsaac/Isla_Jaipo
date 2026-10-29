@@ -1,0 +1,51 @@
+.forest-event-monitor {
+    position:absolute;z-index:20;left:50%;bottom:12px;transform:translateX(-50%);
+    width:min(680px,calc(100% - 32px));box-sizing:border-box;
+    background:#101913ed;border:1px solid #9cae9270;border-radius:7px;
+    color:#e4e9dc;font:10px/1.5 monospace;text-shadow:1px 1px #000;touch-action:manipulation;
+}
+.forest-event-monitor summary {padding:7px 10px;cursor:pointer;user-select:none;}
+.forest-event-monitor summary span {float:right;color:#a8b7a0;font-size:9px;}
+.forest-monitor-body {padding:0 12px 7px;}
+.forest-monitor-controls {display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.forest-event-monitor button {
+    background:#263026;color:#f0efdf;border:1px solid #78866f;border-radius:3px;
+    padding:4px 7px;font:10px monospace;cursor:pointer;min-height:26px;
+}
+.forest-event-monitor button:hover,.forest-event-monitor button.is-virtual-hover,
+.forest-event-monitor button:focus-visible {background:#52614a;outline:1px solid #e6e9c9;}
+.forest-event-monitor button:disabled {opacity:.4;cursor:default;}
+.forest-monitor-time {flex:1;min-width:135px;white-space:nowrap;text-align:center;font-variant-numeric:tabular-nums;}
+.forest-monitor-timeline {height:22px;position:relative;touch-action:none;cursor:ew-resize;}
+.forest-monitor-timeline:focus-visible {outline:1px solid #e6e9c9;}
+.forest-monitor-track {position:absolute;left:0;right:0;top:11px;height:4px;background:#596456;pointer-events:none;}
+.forest-monitor-progress {display:block;height:100%;width:0;background:#c2dab0;}
+.forest-monitor-thumb {position:absolute;left:0;top:-6px;width:9px;height:16px;background:#ecf2dc;transform:translateX(-50%);}
+.forest-monitor-marks {height:20px;position:relative;margin:0 0 2px;}
+.forest-monitor-marks button {position:absolute;transform:translateX(-50%);padding:0 4px;min-height:18px;min-width:17px;
+    font-size:9px;border-color:transparent;background:transparent;}
+.forest-monitor-marks button::before {content:'';position:absolute;left:50%;top:-6px;height:5px;width:1px;background:#8f9b83;}
+.forest-monitor-marks button.is-current {color:#f4ffd3;border-color:#b4cc9c;background:#3d5034;}
+.forest-monitor-status {margin:0;color:#b6c1ae;font-size:9px;min-height:14px;}
+#inventory-menu.forest-monitor-expanded .inventory-orbit #inventory-item-description {bottom:150px;}
+.touch-mode .forest-event-monitor {bottom:calc(168px + env(safe-area-inset-bottom));}
+.touch-mode .forest-event-monitor button {min-height:30px;}
+.touch-mode .forest-monitor-marks {height:32px;}
+.touch-mode .forest-monitor-marks button {min-width:25px;}
+.touch-mode .forest-monitor-timeline {height:30px;}
+.touch-mode .forest-monitor-track {top:15px;}
+@media(max-width:600px) {
+    .forest-event-monitor {width:calc(100% - 20px);font-size:10px;}
+    .forest-monitor-body {padding:0 10px 6px;}
+    .forest-monitor-controls {gap:4px;}
+    .forest-monitor-controls button {padding:4px;}
+    .forest-monitor-time {min-width:125px;}
+    .forest-monitor-controls [data-action="forest"],.forest-monitor-controls [data-action="stop"] {flex:1;}
+    #inventory-menu.forest-monitor-expanded .inventory-orbit #inventory-item-description {visibility:hidden;}
+}
+@media(max-height:500px) {
+    .touch-mode .forest-event-monitor {bottom:calc(62px + env(safe-area-inset-bottom));width:min(540px,calc(100% - 260px));}
+    .forest-event-monitor summary {padding:4px 8px;}
+    .forest-monitor-status {display:none;}
+    #inventory-menu.forest-monitor-expanded .inventory-orbit #inventory-item-description {visibility:hidden;}
+}

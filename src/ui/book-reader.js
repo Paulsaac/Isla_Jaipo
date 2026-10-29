@@ -11,9 +11,15 @@ export function createBookReader() {
     </div><p class="book-reader-hint"></p>`;
     document.body.append(reader);
     const columns=reader.querySelectorAll('.book-prose');
+    let fontLoaded=!document.fonts, openingVersion=0;
+    const fontReady=document.fonts ? Promise.all([
+        document.fonts.load('400 36px "Caveat Book"'),
+        document.fonts.load('500 16px "Caveat Book"')
+    ]).catch(()=>{}).then(()=>{fontLoaded=true;}) : Promise.resolve();
     return {
         get visible(){return !reader.hidden;},
         show(book) {
+            const version=++openingVersion;
             const title=reader.querySelector('h2');
             title.textContent=book.title || '';title.hidden=!book.title;
             reader.querySelectorAll('.book-page-number').forEach((number,index)=>{
@@ -26,8 +32,12 @@ export function createBookReader() {
             });
             reader.querySelector('.book-reader-hint').textContent=document.body.classList.contains('touch-mode')
                 ? 'Toca la pantalla para cerrar' : '[E] Salir';
+            reader.style.visibility=fontLoaded ? '' : 'hidden';
             reader.hidden=false;
+            if(!fontLoaded)fontReady.then(()=>{
+                if(version===openingVersion && !reader.hidden)reader.style.visibility='';
+            });
         },
-        hide(){reader.hidden=true;}
+        hide(){openingVersion++;reader.hidden=true;}
     };
 }

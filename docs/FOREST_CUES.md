@@ -32,3 +32,10 @@ Los segundos se cuentan desde el primer instante de audio, no desde agarrar el c
 Por pedido de AxByZ, el panel de cuadrados/números y la captura con Y ya no se crean ni actualizan en game.js. Se conserva `src/ui/forest-cue-recorder.js` como herramienta histórica, sin importarlo en la partida. El botón Y de celular sigue siendo correr; no registra tiempos.
 
 Se mantienen los datos originales de la toma en `.coordination/forest-cues/a4ec118a-f96e-4764-9f6c-e4d1ea1553f1.json`, con marca9 tipo end, y cualquier copia del navegador. No borrar esos registros ni regenerarlos al recargar. FOREST_CUES permite usar los tiempos aunque la copia privada de autoría no acompañe otra transferencia. Estos registros son datos de diseño, no guardado persistente del progreso del jugador.
+
+## Cierre local AXBYZ — 2026-10-28
+
+Prevalece sobre valores históricos del 26: audio vigente spscn reverb.mp3 (bosque.mp3),199.584s; marcas intactas0..189.127s, con aterrizaje186.127s y efectos hasta189.127s. Ascenso anticipado36–44s, luces diente de sierra91BPM sincronizadas cerca de ojos y progresivamente irregulares lejos. Anochecer compartido60.029–64.029s queda fijado en noche tanto partida como monitor. Reproductor permite buscar/arrastrar, Ir al corazón y Volver a posición, movimiento con altura de marca; Konami disponible, vuelo forzado apagado durante evento. Estado, módulos, verificaciones y pendientes completos en ../CONTINUAR_AXBYZ_2026-10-28_BOSQUE.md. No equiparar duración actual del MP3 con marca9.
+
+## Cierre AXBYZ — 2026-10-29 (prevalece sobre valores anteriores)
+Audio vigente bosque.mp3=sps reverb3.mp3, sin alterar marcas originales. Ascenso39→43.320s; pulso de color en22.248s con pico1.65 y caída1.5s; altura no depende de navegación/mirada. Copas46BPM/zonas10m. Atardecer→noche continuo43.320–64.029s, hue de cielo/horizonte sale suavemente al final y noche retenida hasta permiso de misión. Marca9=fin de efectos, no duración actual del archivo. Relevo completo ../CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md.

@@ -4,7 +4,6 @@ import './ui/crt-filter.js';
 import { isTouchMode } from './input/touch-mode.js';
 import { requestIslandStart, setIslandPreview } from './ui/island-start.js';
 import { createSavedIslandPreview } from './ui/saved-island-preview.js';
-import { requestGamePointerLock } from './input/pointer-lock.js';
 import { menuMusic } from './ui/menu-music.js';
 menuMusic.start();
 let loading = false;
@@ -25,10 +24,6 @@ function start(event) {
     requestIslandStart();
     loadPlayableWorld();
     setTimeout(() => musicEvents.prepare('forest').catch(() => {}), 0);
-    if (!isTouchMode) try {
-        const request = requestGamePointerLock(document.body);
-        if (request?.catch) request.catch(() => {});
-    } catch (_) { /* El menú permite reintentar captura del ratón. */ }
 }
 document.addEventListener('keydown', start);
 if (isTouchMode) startMenu.addEventListener('pointerdown', start);

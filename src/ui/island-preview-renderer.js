@@ -24,6 +24,14 @@ function loadingOrbitAngle(seconds) {
 }
 const ARRIVAL_SECONDS = 2.4;
 
+export function getLoadingPreviewZoom(seconds,fullDistance) {
+    // Reservar distancia para la llegada: una carga larga nunca atraviesa la casa.
+    const minimumScale=Math.min(1,12/fullDistance);
+    const travel=(1-minimumScale)*Math.exp(-LOADING_ZOOM_RATE*Math.max(0,seconds));
+    const scale=minimumScale+travel;
+    return {scale,logVelocity:-LOADING_ZOOM_RATE*travel/scale};
+}
+
 function readSavedModel(buffer) {
     const view = new DataView(buffer);
     if (buffer.byteLength < 36 || view.getUint32(0, true) !== 0x324d4a49) {
@@ -274,7 +282,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
     const reduced = options.reduced;
     const smooth = t => t * t * (3 - 2 * t);
     let angle = 0, loadingTime = -1, arrival = -1, lastTime = 0, finished = false;
-    let loadingFocus = 0, loadingScale = 1;
+    let loadingFocus = 0, loadingScale = 1, loadingLogVelocity = 0;
     let arrivalScale = 1, arrivalLogVelocity = 0, arrivalAngle = 0;
     let arrivalSouthAngle = 0;
     let fadeTime = -1;
@@ -323,14 +331,15 @@ export async function createIslandPreviewRenderer(THREE, options) {
         }
         const aspect = width / height;
         const fullHeight = Math.max(model.depth * 0.65, model.width / (2 * aspect) * 1.12);
+        const fullDistance = fullHeight / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         // Mantener el giro durante la carga y la llegada hasta la casa.
         if (!reduced && arrival < 0) angle += loadingTime < 0 ? delta * IDLE_ORBIT_SPEED
             : loadingOrbitAngle(loadingTime + delta) - loadingOrbitAngle(loadingTime);
         if (loadingTime >= 0 && arrival < 0) {
             loadingTime += delta;
-            // Acercamiento suave y uniforme: distancia reducida6% por segundo, sin
-            // desaceleración hacia un límite que parezca una parada intermedia.
-            loadingScale = Math.exp(-LOADING_ZOOM_RATE * loadingTime);
+            // Conservar el acercamiento sin sobrepasar el destino durante cargas largas.
+            const zoom=getLoadingPreviewZoom(loadingTime,fullDistance);
+            loadingScale=zoom.scale;loadingLogVelocity=zoom.logVelocity;
         }
         if (arrival >= 0) {
             arrival += delta;
@@ -346,7 +355,6 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 : arrivalAngle + (arrivalSouthAngle - arrivalAngle) * progress
                     + arrivalOrbitSpeed * duration * travel * (1 - travel) * (1 - travel);
         }
-        const fullDistance = fullHeight / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         // Terminar bajo la cubierta de la casa, no con una vista del tejado.
         const finalDistance = 2.5;
         const finalScale = finalDistance / fullDistance;
@@ -425,7 +433,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 options.onStats?.({ frames: loadingFrames, seconds: loadingTime,
                     maxGapMs: maxLoadingGap, focus: loadingFocus, scale: loadingScale });
                 arrivalScale = reduced ? 1 : loadingScale;
-                arrivalLogVelocity = reduced || loadingTime < 0 ? 0 : -LOADING_ZOOM_RATE;
+                arrivalLogVelocity = reduced || loadingTime < 0 ? 0 : loadingLogVelocity;
                 arrivalAngle = angle;
                 arrivalOrbitSpeed = loadingOrbitSpeed(loadingTime);
                 const turn = Math.PI * 2;

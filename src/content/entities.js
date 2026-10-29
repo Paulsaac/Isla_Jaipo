@@ -66,6 +66,8 @@ export const keyBindings = [{
 }];
 
 // Marcadores amarillos del naufragio; el suelo es playa, no un muelle.
+// Regreso del rescate marino, en arena libre detrás de los restos.
+export const seaDrowningLanding = { x: 240, z: 481 };
 export const shipwreckProps = [
     { id: 'wreck-plank', type: 'WOOD', position: { x: 239, z: 484 }, model: 'BROKEN_PLANK', ground: 'WET_SAND', rotationY: -0.35 },
     { id: 'wreck-life-ring', type: 'WOOD', position: { x: 241, z: 484 }, model: 'LIFE_RING', ground: 'WET_SAND', rotationY: 0.3 },

@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { UNIT_SIZE, TREE_SPRITE_HEIGHT } from '../config.js';
 import { FOREST_CUES } from '../content/forest-cues.js';
 import { TREE_COLOR_ANGLE_GLSL } from './tree-color-cycle.js';
-import { HEART_VISION_FADE_OUT_SECONDS, getForestVisualProfile, smoothest } from '../systems/heart-event-timing.js';
+import { FOREST_LIGHT_PULSE_GLSL } from './forest-light-pulse.js';
+import { getForestSkyHueShift, getForestHorizonHueShift } from './forest-sky-hue.js';
+import { HEART_VISION_FADE_OUT_SECONDS, getForestVisualProfile, getForestMotionTime, getForestSunDimming, smoothest } from '../systems/heart-event-timing.js';
 
 export function createHeartVision() {
     let settleTexture;
@@ -15,17 +17,20 @@ export function createHeartVision() {
     psychTexture.generateMipmaps = false;
 
     const uniforms = {
-        heartStrength: { value: 0 }, heartBass: { value: 0 },
+        heartStrength: { value: 0 }, heartTreeColorStrength: { value: 0 }, heartTreeGlow: { value: 0 }, heartBass: { value: 0 },
         heartTreble: { value: 0 }, heartTime: { value: 0 }, heartColorTime: { value: 0 },
         heartTreeMotion: { value: 0 }, heartVegetationStrength: { value: 0 }, heartWarpStrength: { value: 0 },
         heartHyperSaturation: { value: 0 },
         skyPsychOpacity: { value: 0 },
         skyPsychTime: { value: 0 },
+        heartDuskHueShift: { value: 0 },
+        heartHorizonHueShift: { value: 0 }, heartSunDimming: { value: 0 },
         skyKaleidoAmount: { value: 0 },
         skyPsychTexture: { value: psychTexture }
     };
     let releaseTime = null, releaseFrom = 0, releaseVegetationFrom = 0, releaseWarpFrom = 0;
-    let releaseHyperSatFrom = 0, releaseSkyOpacityFrom = 0;
+    let releaseHyperSatFrom = 0, releaseSkyOpacityFrom = 0, releaseTreeGlowFrom = 0, releaseTreeColorFrom = 0;
+    let releaseSunDimmingFrom = 0;
     let motionSpeed = 0.35;
     let currentTrailStrength = 0;
     let currentScreenKaleidoscope = 0;
@@ -36,15 +41,20 @@ export function createHeartVision() {
             const profile = getForestVisualProfile(elapsed);
             motionSpeed = profile.speed;
             uniforms.heartStrength.value = profile.strength;
+            uniforms.heartTreeColorStrength.value = profile.treeColor;
+            uniforms.heartTreeGlow.value = profile.treeGlow;
             uniforms.heartVegetationStrength.value = profile.strength;
             uniforms.heartWarpStrength.value = profile.warp;
             uniforms.heartHyperSaturation.value = profile.hyperSaturation;
             uniforms.skyPsychOpacity.value = profile.skyPsychOpacity;
             uniforms.skyKaleidoAmount.value = profile.skyKaleidoAmount;
             uniforms.skyPsychTime.value = elapsed;
+            uniforms.heartDuskHueShift.value = getForestSkyHueShift(elapsed);
+            uniforms.heartHorizonHueShift.value = getForestHorizonHueShift(elapsed);
+            uniforms.heartSunDimming.value = getForestSunDimming(elapsed);
             currentTrailStrength = profile.trailStrength;
             currentScreenKaleidoscope = profile.screenKaleidoscope;
-        } else if (uniforms.heartStrength.value > 0.00001 || uniforms.skyPsychOpacity.value > 0.00001) {
+        } else if (uniforms.heartStrength.value > 0.00001 || uniforms.skyPsychOpacity.value > 0.00001 || uniforms.heartTreeGlow.value > 0.00001 || uniforms.heartSunDimming.value > 0.00001) {
             currentTrailStrength = 0;
             currentScreenKaleidoscope = 0;
             if (releaseTime === null) {
@@ -53,10 +63,16 @@ export function createHeartVision() {
                 releaseWarpFrom = uniforms.heartWarpStrength.value;
                 releaseHyperSatFrom = uniforms.heartHyperSaturation.value;
                 releaseSkyOpacityFrom = uniforms.skyPsychOpacity.value;
+                releaseTreeGlowFrom = uniforms.heartTreeGlow.value;
+                releaseTreeColorFrom = uniforms.heartTreeColorStrength.value;
+                releaseSunDimmingFrom = uniforms.heartSunDimming.value;
             }
             releaseTime = Math.min(HEART_VISION_FADE_OUT_SECONDS, releaseTime + delta);
             const fade = 1 - smoothest(releaseTime / HEART_VISION_FADE_OUT_SECONDS);
             uniforms.heartStrength.value = releaseFrom * fade;
+            uniforms.heartTreeGlow.value = releaseTreeGlowFrom * fade;
+            uniforms.heartTreeColorStrength.value = releaseTreeColorFrom * fade;
+            uniforms.heartSunDimming.value = releaseSunDimmingFrom * fade;
             uniforms.heartVegetationStrength.value = releaseVegetationFrom * fade;
             uniforms.heartWarpStrength.value = releaseWarpFrom * fade;
             uniforms.heartHyperSaturation.value = releaseHyperSatFrom * fade;
@@ -64,6 +80,10 @@ export function createHeartVision() {
             uniforms.skyKaleidoAmount.value = fade;
         } else {
             uniforms.heartStrength.value = uniforms.heartVegetationStrength.value = uniforms.heartWarpStrength.value = 0;
+            uniforms.heartTreeGlow.value = 0;
+            uniforms.heartTreeColorStrength.value = 0;
+            uniforms.heartDuskHueShift.value = 0;
+            uniforms.heartHorizonHueShift.value = uniforms.heartSunDimming.value = 0;
             uniforms.heartHyperSaturation.value = uniforms.skyPsychOpacity.value = uniforms.skyKaleidoAmount.value = 0;
         }
         uniforms.heartTime.value += delta * motionSpeed;
@@ -106,10 +126,10 @@ export function createHeartVision() {
                         vHeartTreeCycle = mod(heartTreeCell.x + heartTreeCell.y, 8.0);
                     #endif
                 `);
-                shader.fragmentShader = 'varying float vHeartTreeCycle;\nvarying vec3 vHeartTreeOrigin;\n' + TREE_COLOR_ANGLE_GLSL + shader.fragmentShader;
+                shader.fragmentShader = 'varying float vHeartTreeCycle;\nvarying vec3 vHeartTreeOrigin;\n' + TREE_COLOR_ANGLE_GLSL + FOREST_LIGHT_PULSE_GLSL + shader.fragmentShader;
             }
             const mask = terrain ? 'clamp(vSplat.x + vSplat.y + vSplat.z + vWetSand, 0.0, 1.0) * (1.0 - smoothstep(3.0, 10.0, vTerrainHeight))' : '1.0';
-            shader.fragmentShader = `uniform float heartStrength;
+            shader.fragmentShader = `uniform float heartStrength; uniform float heartTreeGlow; uniform float heartTreeColorStrength;
                 uniform float heartBass; uniform float heartTreble; uniform float heartTime; uniform float heartColorTime;
                 uniform float heartVegetationStrength; uniform float heartWarpStrength;
                 uniform float heartHyperSaturation;
@@ -158,7 +178,7 @@ export function createHeartVision() {
                 .replace('dFdy(vMapUv)', 'dFdy(heartWarpUv)');
             shader.fragmentShader = shader.fragmentShader.replace(/void main\s*\(\s*\)\s*\{/, `
                 void main() {
-                float heartAmount = ${tree || mode === 'vegetation' ? 'heartVegetationStrength' : 'heartStrength'} * (${mask});
+                float heartAmount = ${tree ? 'heartTreeColorStrength' : mode === 'vegetation' ? 'heartVegetationStrength' : 'heartStrength'} * (${mask});
                 ${celestial || water ? '' : `#ifdef USE_MAP
                     vec2 heartWarpUv = vMapUv;
                     // Condición uniforme: conserva las derivadas de textura en los bordes.
@@ -202,7 +222,9 @@ export function createHeartVision() {
                 ` : `
                 // Brillo del propio dibujo: los píxeles oscuros conservan sus sombras.
                 outgoingLight += diffuseColor.rgb * heartAmount * ${terrain ? '(0.035 + clamp(vSplat.x, 0.0, 1.0) * 0.065)' : tree ? '(0.42 + heartBass * 0.18)' : '0.0'};
-                float heartAngle = ${terrain ? 'heartColorTime * 0.14 + heartBass * 0.20' : water ? 'heartColorTime * 0.20 + 3.1 + heartBass * 0.25' : tree ? 'heartTreeColorAngle(heartColorTime, vHeartTreeCycle, heartTreble)' : 'heartColorTime * 0.31 + 1.8 + heartTreble * 0.45'};
+                // Acelerar solo el tono de los árboles entre marcas 2 y 3.
+                // Conservar el desfase acumulado después evita un salto de color al salir.
+                float heartAngle = ${terrain ? 'heartColorTime * 0.14 + heartBass * 0.20' : water ? 'heartColorTime * 0.20 + 3.1 + heartBass * 0.25' : tree ? `heartTreeColorAngle(heartColorTime + 0.5 * clamp(skyPsychTime - ${FOREST_CUES[2].toFixed(6)}, 0.0, ${(FOREST_CUES[3] - FOREST_CUES[2]).toFixed(6)}), vHeartTreeCycle, heartTreble)` : 'heartColorTime * 0.31 + 1.8 + heartTreble * 0.45'};
                 vec3 heartAxis = normalize(vec3(1.0));
                 vec3 heartShift = outgoingLight * cos(heartAngle)
                     + cross(heartAxis, outgoingLight) * sin(heartAngle)
@@ -230,22 +252,34 @@ export function createHeartVision() {
                 float treeGround = vHeartTreeOrigin.y - ${(TREE_SPRITE_HEIGHT / 2 - 0.5).toFixed(6)};
                 float focusHeight = clamp(cameraPosition.y - treeGround, 0.65, ${(TREE_SPRITE_HEIGHT - 0.5).toFixed(6)});
                 float trunkGlow = 0.0;
+                vec3 trunkGlowColor = vec3(0.0);
                 float nearby = 1.0 - smoothstep(10.0, 16.0, distance(cameraPosition.xz, vHeartTreeOrigin.xz));
-                if (heartAmount > 0.001 && nearby > 0.001) {
+                if (heartTreeGlow > 0.001 && nearby > 0.001) {
                     // Solo el punto más cercano puede contribuir a este píxel del tronco.
                     // Las colas de los otros siete son menores que un paso de color de 8 bits.
                     float level = clamp(floor((trunkHeight - 0.65) / ${((TREE_SPRITE_HEIGHT - 1.15) / 7).toFixed(9)} + 0.5), 0.0, 7.0);
                     float height = mix(0.65, ${(TREE_SPRITE_HEIGHT - 0.5).toFixed(6)}, level / 7.0);
                         vec2 spotDistance = vec2((vMapUv.x - 0.5) * 4.84, (trunkHeight - height) * 1.4);
                         float radiusSquared = dot(spotDistance, spotDistance);
-                        float gradient = 0.04 + 0.96 * exp(-abs(height - focusHeight) / 1.68);
-                        float phase = dot(vHeartTreeOrigin.xz, vec2(0.73, 1.17)) + level * 2.399;
-                        float breath = 0.94 + 0.06 * sin(skyPsychTime * 1.5707963268 + phase);
-                        trunkGlow += (exp(-radiusSquared / 0.055) * 0.38
-                            + exp(-radiusSquared / 0.006) * 1.25) * gradient * breath;
+                        // El punto más próximo a los ojos mantiene el foco completo;
+                        // los siguientes pierden brillo rápido, sin saltos entre alturas.
+                        float focusDistance = max(0.0, abs(height - focusHeight) - ${((TREE_SPRITE_HEIGHT - 1.15) / 14).toFixed(9)});
+                        float focus = exp(-focusDistance / 0.38);
+                        float gradient = 0.07 + 1.18 * focus;
+                        // Cada altura conserva su propio tono, también lejos de los ojos.
+                        float hue = fract(level * 0.137 + vHeartTreeCycle * 0.113
+                            + dot(vHeartTreeOrigin.xz, vec2(0.017, 0.031)) + heartColorTime * 0.025);
+                        vec3 channels = abs(fract(vec3(hue) + vec3(0.0, 0.666667, 0.333333)) * 6.0 - 3.0);
+                        trunkGlowColor = mix(vec3(0.035), clamp(channels - 1.0, 0.0, 1.0), 0.96);
+                        vec2 pulseCell=floor(vHeartTreeOrigin.xz/${UNIT_SIZE.toFixed(6)}+0.5);
+                        float pulseSeed=pulseCell.x*37.0+pulseCell.y*101.0+level*271.0;
+                        float pulse=forestLightPulse(skyPsychTime,pulseSeed,focusDistance);
+                        trunkGlow += (exp(-radiusSquared / mix(0.035, 0.072, focus)) * 0.38
+                            + exp(-radiusSquared / mix(0.0035, 0.009, focus)) * 1.25) * gradient * pulse;
                 }
-                outgoingLight += vec3(0.78, 0.9, 1.0) * trunkGlow * nearby
-                    * clamp(heartAmount, 0.0, 1.0);
+                float trunkGlowAmount = trunkGlow * nearby * heartTreeGlow;
+                outgoingLight = mix(outgoingLight, outgoingLight * trunkGlowColor, clamp(trunkGlowAmount * 0.65, 0.0, 0.75));
+                outgoingLight += trunkGlowColor * trunkGlowAmount;
                 #endif
                 ` : ''}
                 ${sky ? `
@@ -288,7 +322,28 @@ export function createHeartVision() {
                 }
             ` + shader.fragmentShader;
         };
-        material.customProgramCacheKey = () => key + '-heart-vision-v21-' + mode;
+        material.customProgramCacheKey = () => key + '-heart-vision-v27-' + mode;
     }
-    return { ready, uniforms, update, apply, getTrailStrength: () => currentTrailStrength, getScreenKaleidoscope: () => currentScreenKaleidoscope };
+    function setTimelineTime(time,motionBase=0,colorBase=0) {
+        const phase=getForestMotionTime(time);
+        uniforms.heartTime.value=motionBase+phase;
+        uniforms.heartColorTime.value=colorBase+phase*1.25;
+    }
+    function captureState() {
+        return {values:Object.fromEntries(Object.entries(uniforms).filter(([,u])=>typeof u.value==='number').map(([key,u])=>[key,u.value])),
+            releaseTime,releaseFrom,releaseVegetationFrom,releaseWarpFrom,releaseHyperSatFrom,releaseSkyOpacityFrom,releaseTreeGlowFrom,releaseTreeColorFrom,releaseSunDimmingFrom,
+            motionSpeed,currentTrailStrength,currentScreenKaleidoscope};
+    }
+    function restoreState(state) {
+        for(const [key,value] of Object.entries(state.values))uniforms[key].value=value;
+        ({releaseTime,releaseFrom,releaseVegetationFrom,releaseWarpFrom,releaseHyperSatFrom,releaseSkyOpacityFrom,releaseTreeGlowFrom,releaseTreeColorFrom,releaseSunDimmingFrom,
+            motionSpeed,currentTrailStrength,currentScreenKaleidoscope}=state);
+    }
+    function seek(time,motionBase=0,colorBase=0,energy={bass:0,treble:0}) {
+        update(0,true,energy,time);
+        uniforms.heartBass.value=energy.bass;uniforms.heartTreble.value=energy.treble;
+        setTimelineTime(time,motionBase,colorBase);
+    }
+    return { ready, uniforms, update, apply,seek,setTimelineTime,captureState,restoreState,
+        getTrailStrength: () => currentTrailStrength, getScreenKaleidoscope: () => currentScreenKaleidoscope };
 }

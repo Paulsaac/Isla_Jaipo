@@ -5,6 +5,7 @@ function refresh() {
     document.body.classList.toggle('crt-disabled', !enabled);
 }
 export const crtFilter = {
+    get enabled() { return enabled; },
     toggle() { enabled = !enabled; refresh(); }
 };
 // B físico pertenece al modo de prueba; B táctil conserva interacción.

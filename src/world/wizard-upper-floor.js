@@ -12,9 +12,10 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     const origin={...wizardHouseLayout.origin}, middleLevel=3.2, level=6.4, stepsPerTurn=32, steps=64, rise=level/steps;
     const middleFloorThickness=.45;
     const stair={x:0,z:1.7,inner:.2,outer:2.05,hole:2.14};
+    const straight={start:-2,end:4.4,z:6.05,half:.8,steps:20,holeStart:-.1,holeHalf:.96};
     const partitionZ=-1.9,landingHalfWidth=.72;
     const middleBounds={x:7.8,z:7.8},towerBounds={apothem:4.8},towerCeiling=11;
-    const stairStart=Math.PI;
+    const stairStart=Math.PI,stairDirection=-1;
     const towerNormals=Array.from({length:6},(_,i)=>({x:Math.cos(i*Math.PI/3),z:Math.sin(i*Math.PI/3)}));
     const hexagon=(apothem)=>Array.from({length:6},(_,i)=>{
         const angle=Math.PI/6+i*Math.PI/3,radius=apothem/Math.cos(Math.PI/6);
@@ -89,7 +90,12 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         opening.closePath();
         // El hueco debe recorrer el sentido inverso al contorno exterior:
         // de otro modo el canto apunta hacia dentro de la losa y desaparece desde la escalera.
-        const openingPoints=opening.getPoints(32);
+        const openingPoints=height===middleLevel
+            ?[new THREE.Vector2(straight.holeStart,-straight.z-straight.holeHalf),
+                new THREE.Vector2(straight.end,-straight.z-straight.holeHalf),
+                new THREE.Vector2(straight.end,-straight.z+straight.holeHalf),
+                new THREE.Vector2(straight.holeStart,-straight.z+straight.holeHalf)]
+            :opening.getPoints(32);
         if(THREE.ShapeUtils.isClockWise(openingPoints))openingPoints.reverse();
         outline.holes.push(new THREE.Path(openingPoints));
         const floorThickness=height===middleLevel?middleFloorThickness:HOUSE_UPPER_FLOOR_THICKNESS;
@@ -179,18 +185,10 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     box(2,groundWallTop,18,9,groundWallTop/2,0,stone,'wizard-ground-back-wall');
     for(const z of [-8,8])box(16,groundWallTop,2,0,groundWallTop/2,z,stone,'wizard-ground-side-wall');
     floorAt(middleLevel,middleBounds);
-    floorAt(level,towerBounds);
-    // Cielo del piso intermedio alrededor de la base de la torre.
-    const ceilingX=middleBounds.x-.14,ceilingZ=middleBounds.z-.14;
-    const middleCeiling=new THREE.Shape();middleCeiling.moveTo(-ceilingX,-ceilingZ);
-    middleCeiling.lineTo(ceilingX,-ceilingZ);middleCeiling.lineTo(ceilingX,ceilingZ);
-    middleCeiling.lineTo(-ceilingX,ceilingZ);middleCeiling.closePath();
-    const towerOpening=new THREE.Path();hexagon(towerBounds.apothem).forEach((p,i)=>
-        i?towerOpening.lineTo(p.x,-p.z):towerOpening.moveTo(p.x,-p.z));towerOpening.closePath();
-    middleCeiling.holes.push(towerOpening);
-    const middleCeilingGeometry=new THREE.ExtrudeGeometry(middleCeiling,{depth:.16,bevelEnabled:false});
-    middleCeilingGeometry.rotateX(-Math.PI/2);middleCeilingGeometry.translate(0,level-.16,0);tileUV(middleCeilingGeometry);
-    mesh(middleCeilingGeometry,wood,'wizard-middle-ceiling-around-tower');
+    // Una sola losa de madera, con el hueco de la caracol. El antiguo encuentro
+    // entre el piso hexagonal y el cielo rectangular dejaba ver la piedra de
+    // la torre y formaba franjas al mirar desde abajo.
+    floorAt(level,middleBounds);
     // La primera cornisa enlaza los muros originales con el primer tejado.
     for(const x of [-9,9])box(.28,.3,16,x,3.05,0,stone,'wizard-ground-cornice');
     for(const z of [-8,8])box(18,.3,.28,0,3.05,z,stone,'wizard-ground-cornice');
@@ -245,11 +243,32 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     // Holgura real entre hoja, jambas y hueco de piedra; ninguna cara comparte plano.
     for(const side of [-1,1])box(.14,2.30,.34,side*.86,level+1.11,partitionZ,wood,'wizard-bedroom-door-jamb');
     box(1.86,.14,.34,0,level+2.30,partitionZ,wood,'wizard-bedroom-door-header');
-    // Dos vueltas: desembarco intermedio y llegada al piso de la torre.
+    // Primer tramo recto junto al muro, con madera y herrajes de la caracol.
+    const treadDepth=(straight.end-straight.start)/straight.steps;
+    for(let i=0;i<straight.steps;i++) {
+        const x=straight.start+(i+.5)*treadDepth,y=(i+1)*middleLevel/straight.steps;
+        box(treadDepth,.075,straight.half*2,x,y-.0375,straight.z,wood,'wizard-straight-step');
+        if(i%2===0)for(const side of [-1,1]) {
+            const z=straight.z+side*straight.half;
+            rod([x,y,z],[x,y+.9,z],.022);
+        }
+    }
+    for(const side of [-1,1]) {
+        const z=straight.z+side*straight.half;
+        rod([straight.start,.98,z],[straight.end,middleLevel+.98,z],.032,wood);
+        rod([straight.start,-.04,z],[straight.end,middleLevel-.04,z],.045,iron);
+        const guardZ=straight.z+side*straight.holeHalf;
+        rod([straight.holeStart,middleLevel+.95,guardZ],[straight.end,middleLevel+.95,guardZ],.033,wood);
+        for(let x=straight.holeStart;x<=straight.end+.001;x+=.9)
+            rod([x,middleLevel,guardZ],[x,middleLevel+.95,guardZ],.025);
+    }
+    rod([straight.holeStart,middleLevel+.95,straight.z-straight.holeHalf],
+        [straight.holeStart,middleLevel+.95,straight.z+straight.holeHalf],.033,wood);
+    // Solo la vuelta superior de caracol conecta el segundo piso con la torre.
     const delta=Math.PI*2/stepsPerTurn;
-    rod([stair.x,0,stair.z],[stair.x,level+1.05,stair.z],.095,iron);
-    for(let i=0;i<steps;i++) {
-        const a=stairStart+i*delta,b=stairStart+(i+1)*delta,shape=new THREE.Shape();
+    rod([stair.x,middleLevel,stair.z],[stair.x,level+1.05,stair.z],.095,iron);
+    for(let i=stepsPerTurn;i<steps;i++) {
+        const a=stairStart+stairDirection*i*delta,b=stairStart+stairDirection*(i+1)*delta,shape=new THREE.Shape();
         shape.moveTo(stair.x+stair.inner*Math.cos(a),-(stair.z+stair.inner*Math.sin(a)));
         for(let s=0;s<=3;s++) {const angle=a+(b-a)*s/3;shape.lineTo(stair.x+stair.outer*Math.cos(angle),-(stair.z+stair.outer*Math.sin(angle)));}
         for(let s=3;s>=0;s--) {const angle=a+(b-a)*s/3;shape.lineTo(stair.x+stair.inner*Math.cos(angle),-(stair.z+stair.inner*Math.sin(angle)));}
@@ -265,8 +284,8 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         }
     }
     // Baranda de protección del hueco, dejando abierto el desembarco oriental.
-    for(const height of [middleLevel,level])for(let i=0;i<28;i++) {
-        const a=stairStart+.42+i*(Math.PI*2-.84)/28,b=stairStart+.42+(i+1)*(Math.PI*2-.84)/28;
+    for(const height of [level])for(let i=0;i<28;i++) {
+        const a=stairStart+stairDirection*(.42+i*(Math.PI*2-.84)/28),b=stairStart+stairDirection*(.42+(i+1)*(Math.PI*2-.84)/28);
         const x=stair.x+stair.hole*Math.cos(a),z=stair.z+stair.hole*Math.sin(a);
         const nx=stair.x+stair.hole*Math.cos(b),nz=stair.z+stair.hole*Math.sin(b);
         if(i%3===0)rod([x,height,z],[x,height+.95,z],.025);
@@ -356,17 +375,21 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     const local=(x,z)=>({x:x-origin.x,z:z-origin.z});
     const contains=(x,z,margin=0)=>{const p=local(x,z);return Math.abs(p.x)<9-margin&&Math.abs(p.z)<8-margin;};
-    const angleAt=p=>(Math.atan2(p.z-stair.z,p.x-stair.x)-stairStart+Math.PI*2)%(Math.PI*2);
+    const angleAt=p=>((Math.atan2(p.z-stair.z,p.x-stair.x)-stairStart)*stairDirection+Math.PI*2)%(Math.PI*2);
     const inside=(p,bounds,margin=0)=>bounds.apothem
         ? towerNormals.every(n=>p.x*n.x+p.z*n.z<bounds.apothem-margin)
         : Math.abs(p.x)<bounds.x-margin&&Math.abs(p.z)<bounds.z-margin;
     const landing=p=>p.x<=stair.x-1.25&&p.x>=stair.x-3.15&&Math.abs(p.z-stair.z)<=landingHalfWidth;
-    // La misma posición horizontal contiene peldaños de ambas vueltas.
-    // Elegir el más alto alcanzable evita saltar al tramo de arriba.
+    const inStraight=(p,margin=0)=>p.x>=straight.start-margin&&p.x<=straight.end+margin
+        &&Math.abs(p.z-straight.z)<=straight.half+margin;
+    const inStraightHole=p=>p.x>=straight.holeStart&&p.x<straight.end
+        &&Math.abs(p.z-straight.z)<straight.holeHalf;
+    const straightHeight=p=>baseY+Math.max(0,Math.min(middleLevel,
+        middleLevel*(p.x-straight.start)/(straight.end-straight.start)+middleLevel/(straight.steps*2)));
     function treadLevels(p) {
         // Apoyo continuo sobre los peldaños visuales: la cámara no salta cada 10 cm.
         const heightInTurn=Math.min(middleLevel,angleAt(p)/(Math.PI*2)*middleLevel+rise*.5);
-        return [baseY+heightInTurn,baseY+middleLevel+heightInTurn];
+        return [baseY+middleLevel+heightInTurn];
     }
     function treadAt(p,feetY) {
         let height=-Infinity;
@@ -380,9 +403,11 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         const p=local(x,z),r=Math.hypot(p.x-stair.x,p.z-stair.z);
         let height=-Infinity;
         for(const [heightHere,bounds] of [[middleLevel,middleBounds],[level,towerBounds]]) {
-            if(inside(p,bounds)&&(r>=stair.hole||landing(p))&&feetY>=baseY+heightHere-.25)
+            const opening=heightHere===middleLevel?inStraightHole(p):r<stair.hole&&!landing(p);
+            if(inside(p,bounds)&&!opening&&feetY>=baseY+heightHere-.25)
                 height=baseY+heightHere;
         }
+        if(inStraight(p)&&straightHeight(p)<=feetY+.25)height=Math.max(height,straightHeight(p));
         if(r>=stair.inner&&r<=stair.outer) {
             height=Math.max(height,treadAt(p,feetY));
         }
@@ -405,12 +430,24 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
                 if(doorOverlap(p,pivot.rotation.y))return true;
             }
         }
-        if(r<stair.inner+COLLISION_RADIUS)return true;
         const overlaps=(bottom,top)=>feetY<top&&feetY+PLAYER_HEIGHT>bottom;
+        if(r<stair.inner+COLLISION_RADIUS&&overlaps(baseY+middleLevel,baseY+level+1.05))return true;
+        if(inStraight(p,COLLISION_RADIUS)) {
+            const y=straightHeight(p);
+            if(Math.abs(p.z-straight.z)>straight.half-COLLISION_RADIUS
+                &&p.x>=straight.start&&p.x<=straight.end&&overlaps(y-.1,y+.95))return true;
+            if(inStraight(p)&&y>feetY+.25&&overlaps(y-.075,y))return true;
+        }
+        if(feetY>=baseY+middleLevel-.25&&p.x>=straight.holeStart-COLLISION_RADIUS&&p.x<=straight.end) {
+            const z=Math.abs(p.z-straight.z);
+            if(Math.abs(z-straight.holeHalf)<COLLISION_RADIUS
+                ||Math.abs(p.x-straight.holeStart)<COLLISION_RADIUS&&z<straight.holeHalf)
+                if(overlaps(baseY+middleLevel,baseY+middleLevel+.98))return true;
+        }
         if(r>stair.outer-COLLISION_RADIUS&&r<stair.hole+COLLISION_RADIUS) {
             // Barandas de los pisos y de cada vuelta, sin proyectarlas al suelo.
             if(angle>.42&&angle<Math.PI*2-.42
-                &&[middleLevel,level].some(y=>overlaps(baseY+y,baseY+y+.98)))return true;
+                &&overlaps(baseY+level,baseY+level+.98))return true;
             const stepIndex=Math.floor(angle/delta);
             if(stepIndex>1&&stepIndex<stepsPerTurn-2
                 &&treadLevels(p).some(y=>overlaps(y-.1,y+.93)))return true;
@@ -426,7 +463,12 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         const p=local(x,z),r=Math.hypot(p.x-stair.x,p.z-stair.z);
         if(feetY>=baseY+level-.25)
             return baseY+(Math.abs(p.z-partitionZ)<.3&&Math.abs(p.x)<.8 ? level+2 : towerCeiling-.2);
-        if(r<stair.hole) {
+        if(inStraight(p)) {
+            const y=straightHeight(p);
+            if(y>feetY+.25)return Math.min(baseY+middleLevel-middleFloorThickness-.06,y-.135);
+        }
+        if(inStraightHole(p))return baseY+level-.36;
+        if(r<stair.hole&&feetY>=baseY+middleLevel-.25) {
             let ceiling=baseY+towerCeiling-.2;
             if(r>=stair.inner&&r<=stair.outer)for(const y of treadLevels(p)) {
                 if(y>feetY+.25)ceiling=Math.min(ceiling,y-.075-.06);
@@ -453,5 +495,6 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     return {group,interior,interiorLights,door,pivot,supportHeight,blocksMovement,upperLimit,toggleDoor,update,contains,
         baseY,levelY:baseY+level,middleLevelY:baseY+middleLevel,
-        stair:{x:origin.x+stair.x,z:origin.z+stair.z,radius:1.3,steps,rise,turns:2,startAngle:stairStart},origin};
+        stair:{x:origin.x+stair.x,z:origin.z+stair.z,radius:1.3,steps:stepsPerTurn,rise,turns:1,startAngle:stairStart,direction:stairDirection,baseY:baseY+middleLevel},
+        straightStair:{...straight,start:origin.x+straight.start,end:origin.x+straight.end,z:origin.z+straight.z},origin};
 }

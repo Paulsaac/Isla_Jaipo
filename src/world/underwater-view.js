@@ -137,6 +137,7 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
     const camera = new THREE.Camera();
     let preparation = null;
     return {
+        resetHistory(){trail.reset();},
         prepare(world,view,refresh=false,preparePrograms=null){
             if (preparation && !refresh) return preparation;
             const previous = renderer.getRenderTarget();

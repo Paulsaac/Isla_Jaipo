@@ -74,3 +74,10 @@ Minimapa: mapa_menu superpuesto a canvas lógico en la misma extensión completa
 5. Mantener sesión entre pedidos. Documentación explícita puede actualizarse durante la sesión; al cierre actualizar solo documentos pertinentes al rol y su entrada en HANDOFF.md y liberar el bloqueo según docs/PROTOCOL.md. Sin staging, commit ni push automáticos; Clawshoot publica manualmente.
 
 Pendientes heredados: revalidar recorrido marino con velocidad final y aire 10/30, controles/inventario durante menús y eventos, y definir progreso al morir. Son pendientes de verificación/diseño, no fallos confirmados ni autorización para nuevas funciones.
+
+## Cierre local AXBYZ — 2026-10-28
+
+Vuelo Konami unificado:12*slider^1.5u/s horizontal y vertical, Shift x2 en todos los ejes; slider.25–4x y rueda. Sustituye multiplicadores/curvas históricas independientes. Durante Bosque se puede habilitar Konami, pero vuelo permanece apagado. Monitor Ir al corazón teletransporta sin congelar partida normal; durante preview permite movimiento manteniendo altura de marca. Volver a posición restaura estado/ubicación. Cursor de inventario1:1 con movimiento ajustado por SO; sliders arrastrables y giro3D preservados. Instrucción central solo dos líneas; sin nombres bajo slots. Hexágonos café76% con glow persistente y laterales gris oscuro76%; panel Pruebas enmarcado como reproductor, conserva atenuado disabled. Relevo completo: ../CONTINUAR_AXBYZ_2026-10-28_BOSQUE.md.
+
+## Cierre AXBYZ — 2026-10-29
+Reproductor Evento Bosque soloKonami, compacto cada activación. Reproducir permite moverse, conserva ubicación dentro de contorno inferior y lleva al corazón desde fuera; retorno/restauración y altura por marca conservados. Cielo de pruebas bloqueado duranteBosque. Panel titulado Menú de pruebas / Velocidad de vuelo, interruptorCRT y botón central para vuelo. Vuelo con respuesta.06s, velocidad compartida12*slider^1.5u/s yShift×2. Recuadros/modelo16–32px más abajo, entrada animada hasta destino real; título/instrucciones/paneles conservados. Glow vacío desaparece al salir, con objeto persiste y se borra al retirarlo. Relevo ../CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md.

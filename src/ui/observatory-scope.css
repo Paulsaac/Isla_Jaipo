@@ -1,0 +1,68 @@
+:root {--omniscopio-radius:40vmin;}
+#omniscopio-hud[hidden] {display:none;}
+#omniscopio-hud {
+    --scope-radius:var(--omniscopio-radius);position:fixed;inset:0;z-index:8;pointer-events:none;
+    color:#eee;font:12px 'Super Legend Boy',monospace;text-shadow:1px 2px 2px #000;text-align:center;
+}
+#omniscopio-zoom {
+    position:absolute;left:min(calc(50% + var(--scope-radius) + 13vw),calc(100% - 76px));
+    top:50%;transform:translate(-50%,-50%);width:clamp(92px,8vw,120px);
+}
+.scope-zoom-value {display:block;margin-bottom:18px;font-size:19px;}
+.scope-zoom-track {position:relative;width:2px;height:min(36vh,240px);margin:0 auto;background:#ffffff40;}
+.scope-zoom-fill {position:absolute;bottom:0;width:2px;background:#d9e9ef;}
+.scope-zoom-track > span {position:absolute;left:9px;transform:translateY(50%);font-size:10px;white-space:nowrap;}
+.scope-lens-name {display:block;margin:19px 0 16px;font-size:9px;}
+.scope-zoom-keys {display:flex;gap:24px;justify-content:center;}
+.scope-zoom-keys > span {display:flex;flex-direction:column;gap:8px;}
+.scope-zoom-keys > span > span {font-size:22px;line-height:1;}
+.scope-zoom-keys kbd {font:12px 'Super Legend Boy',monospace;}
+#omniscopio-aim {position:absolute;left:calc(50% - var(--scope-radius) - 12vw);top:50%;transform:translate(-50%,-50%);}
+.scope-aim-keys {display:grid;grid-template:repeat(2,36px)/repeat(3,36px);gap:6px;justify-content:center;}
+.scope-aim-keys kbd {display:grid;place-items:center;border:1px solid #ffffff80;border-radius:2px;box-sizing:border-box;font:16px 'Super Legend Boy',monospace;}
+.scope-aim-keys [data-key="W"] {grid-area:1/2;}
+.scope-aim-keys [data-key="A"] {grid-area:2/1;}
+.scope-aim-keys [data-key="S"] {grid-area:2/2;}
+.scope-aim-keys [data-key="D"] {grid-area:2/3;}
+.scope-aim-label {margin:14px 0 0;font-size:12px;white-space:nowrap;}
+#omniscopio-exit {
+    position:absolute;left:50%;bottom:max(8px,calc(50% - var(--scope-radius) - 50px));transform:translateX(-50%);
+    padding:8px 16px;min-height:36px;border:0;background:transparent;color:inherit;
+    font:12px 'Super Legend Boy',monospace;text-shadow:inherit;pointer-events:auto;cursor:pointer;touch-action:manipulation;
+}
+.scope-touch-zoom,.scope-touch-aim,.scope-exit-touch {display:none;}
+.scope-control-button {
+    width:44px;height:44px;box-sizing:border-box;border:1px solid #ffffff40;border-radius:6px;
+    background:#ffffff0d;color:#eee;font:22px Arial,sans-serif;text-shadow:1px 2px 2px #000;
+    pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;
+}
+.scope-control-button.pressed {background:#ffffff38;}
+body.observatory-scoping #touch-controls {display:none;}
+.touch-mode #omniscopio-zoom {left:calc(50% + var(--scope-radius) + 10vw);width:76px;}
+.touch-mode .scope-zoom-value {font-size:16px;margin-bottom:12px;}
+.touch-mode .scope-zoom-track {height:min(34vh,200px);}
+.touch-mode .scope-zoom-track > span {font-size:8px;}
+.touch-mode .scope-lens-name {font-size:8px;margin:14px 0 0;}
+.touch-mode .scope-zoom-keys,.touch-mode .scope-aim-keys,.touch-mode .scope-exit-desktop {display:none;}
+.touch-mode .scope-exit-touch {display:inline;}
+.touch-mode #omniscopio-exit {
+    left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));bottom:auto;transform:none;
+    width:44px;height:44px;padding:0;border:1px solid #ffffff40;border-radius:6px;background:#ffffff0d;font:32px Arial,sans-serif;
+}
+.touch-mode .scope-touch-zoom {position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;}
+.touch-mode #omniscopio-aim {left:max(76px,calc(50% - var(--scope-radius) - 15vw));}
+.touch-mode .scope-touch-aim {display:grid;grid-template:repeat(3,44px)/repeat(3,44px);gap:4px;}
+.scope-touch-aim [data-direction="forward"] {grid-area:1/2;}
+.scope-touch-aim [data-direction="left"] {grid-area:2/1;}
+.scope-touch-aim [data-direction="right"] {grid-area:2/3;}
+.scope-touch-aim [data-direction="backward"] {grid-area:3/2;}
+.touch-mode .scope-aim-label {font-size:10px;margin-top:10px;}
+@media (orientation:portrait) and (max-width:600px) {
+    .touch-mode #omniscopio-zoom {left:66%;top:calc(50% + var(--scope-radius) + 106px);}
+    .touch-mode .scope-zoom-track {height:min(18vh,140px);}
+    .touch-mode .scope-zoom-value {margin-bottom:10px;}
+    .touch-mode .scope-lens-name {margin-top:10px;}
+    .touch-mode #omniscopio-aim {left:max(64px,20%);top:calc(50% + var(--scope-radius) + 106px);}
+    .touch-mode .scope-touch-aim {grid-template:repeat(3,38px)/repeat(3,38px);gap:3px;}
+    .touch-mode .scope-touch-aim .scope-control-button {width:38px;height:38px;}
+}

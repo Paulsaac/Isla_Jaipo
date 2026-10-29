@@ -2,6 +2,7 @@ import { createMountainReliefMap } from './mountain-relief.js';
 import { createMountainHeights } from './mountain-height.js';
 import { smoothMountainSlope } from './mountain-slope.js';
 import { carveMountainTrail } from './mountain-trail.js';
+import { shapeSummitRidge } from './summit-ridge.js';
 import { createWoodFloorMap, createWaterDeckMap } from './surfaces.js';
 import { createSeaFloorHeights } from './sea-depth.js';
 
@@ -16,7 +17,8 @@ export function computeWorldFields(type, data) {
     }
     if (type === 'mountain') return createMountainHeights(data.floorMap, data.width, data.height, data.targetHeight);
     smoothMountainSlope(data.relief, data.elevations, data.mask, data.profile?.summitHeight, data.profile?.followsTerrain);
-    const profile = carveMountainTrail(data.floorMap, data.elevations, data.mask, data.profile,data.collisionMap);
+    let profile = carveMountainTrail(data.floorMap, data.elevations, data.mask, data.profile,data.collisionMap);
+    profile=shapeSummitRidge(data.floorMap,data.elevations,data.mask,profile,data.collisionMap);
     return {elevations:data.elevations,profile,platforms:data.elevations.buildingPlatforms,floorMap:data.floorMap,collisionMap:data.collisionMap};
 }
 
