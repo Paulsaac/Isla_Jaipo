@@ -23,3 +23,5 @@ Rama de entrega codex/bosque-pulido-20261029, basada en6c41123 y main4eb86bb. In
 Respaldo de cierre previsto: .coordination/backups/Isla_Jaipo_2026-10-29_AXBYZ_cierre.zip y .sha256. Incluye copia actual completa, Git, archivos no seguidos, recursos privados, notas/capturas y cambios excluidos delPR; omite solo la carpeta de respaldos anteriores y .coordination/session.json. No restaurar un bloqueo antiguo.
 
 Servidor localhost8000 yLAN8001 deben seguir activos hasta orden expresa; túnel existente preservado. El próximo chat lee AGENTS/PROTOCOL/HANDOFF/DECISIONS, adquiere token propio y revisa diferencias antes de editar. Este cierre libera solo token48a60ec9-b08d-4f2c-ad48-408f81b7c776.
+
+PR de entrega: https://github.com/Paulsaac/Isla_Jaipo/pull/13 (abierto, sin fusionar). Commit de producto60f16c220969053163cf07f29f575cc16eb6a58b; después se añade este registro documental. La versión exacta publicada completó intro→mundo enChrome156 sin errores (30.907s en la prueba de cierre). Índice limpio después de publicar; cambios independientes conservados en árbol de trabajo, identificados en HANDOFF y cubiertos por el respaldo completo.
