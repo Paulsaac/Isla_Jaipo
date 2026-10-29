@@ -20,7 +20,7 @@ export async function createSavedIslandPreview() {
         menu.prepend(canvas);
         return canvas;
     }
-    let canvas = canvasElement(), driver, worker, night = false, themeHint = null;
+    let canvas = canvasElement(), driver, worker, readyTimer, night = false, themeHint = null;
     let themeSwitchActive = true;
     function updateThemeHint() {
         if (!themeHint) return;
@@ -96,6 +96,7 @@ export async function createSavedIslandPreview() {
             const ready = new Promise((resolve,reject) => { readyResolve = resolve; readyReject = reject; });
             const fail = error => { readyReject(error); rejectArrival(error); };
             worker.onerror = event => fail(new Error(event.message || 'Falló la portada 3D.'));
+            worker.onmessageerror = () => fail(new Error('No se pudo recibir la portada 3D.'));
             worker.onmessage = ({data}) => {
                 if (data.type === 'frame') {
                     if (data.state.phase !== 'arrival') {
@@ -123,6 +124,9 @@ export async function createSavedIslandPreview() {
                 else if (data.type === 'camera') reportCamera(data.state);
                 else if (data.type === 'error') fail(new Error(data.message));
             };
+            // Una descarga o un worker detenido no debe retener la portada para siempre.
+            // El respaldo usa la misma maqueta y materiales en el hilo principal.
+            readyTimer = setTimeout(() => fail(new Error('La portada 3D no respondió a tiempo.')), 20000);
             worker.postMessage({type:'init',...settings,threeUrl,canvas:offscreen},[offscreen]);
             await ready;
             driver = {
@@ -139,6 +143,8 @@ export async function createSavedIslandPreview() {
             canvas.remove();
             canvas = canvasElement();
             console.warn('Portada: usando render compatible.',error);
+        } finally {
+            clearTimeout(readyTimer);
         }
     }
     // Compatibilidad para navegadores sin transferencia de canvas a workers.
@@ -186,6 +192,9 @@ export async function createSavedIslandPreview() {
         begin() {
             stopThemeSwitch();
             markTransition('begin');
+            // El mundo ya tiene su primer fotograma listo: fundir junto con el viaje final.
+            markTransition('fadeStarted');
+            menuMusic.fadeOut();
             menu.classList.add('intro-arriving');
             return driver.begin();
         },

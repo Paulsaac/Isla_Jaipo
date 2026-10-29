@@ -308,3 +308,16 @@
 - Durante Bosque se conserva todo el paisaje, montaña, vegetación, puente y exteriores. Ocultar solo interiores de casa del mago/observatorio, taller y CRT, restaurándolos al salir. La optimización no autoriza recortar la mitad norte ni reducir resolución o detalle acordados.
 - Guardado, respaldo, apagado de servidores y publicación de PR autorizados expresamente en este pedido. No autoriza fusión automática ni modifica el protocolo compartido de cierre.
 
+
+## 2026-10-28 — Cierre AXBYZ: relevo Bosque y controles de revisión
+
+- La siguiente conversación retoma con «Hola, soy AXBYZ, retomemos lo de hoy para trabajar en el evento del bosque.» Fuente de relevo CONTINUAR_AXBYZ_2026-10-28_BOSQUE.md; reconoce identificación explícita AXBYZ y estado local acumulado.
+- Audio vigente spscn reverb.mp3 conserva marcas originales; no asumir que marca9 equivale a fin de pista. Cielo queda nocturno tras anochecer durante evento/monitor; triggers de entrega y puente conservados.
+- Ir al corazón funciona como traslado normal y permite Konami; durante evento vuelo se fuerza apagado. Preview permite moverse con altura correspondiente a la marca. Vuelo fuera del evento usa velocidad común WASD/vertical, Shift compartido.
+- Cierre documental sin staging/commit/push ni apagado de servidores; próximo chat adquiere token propio y aplica inicio seguro. Estado y pendientes en relevo/HANDOFF.
+
+## 2026-10-29 — Bosque e interfaz: estado final de AXBYZ
+- Audio vigente sps reverb3.mp3 directo, marcas originales conservadas. Ascenso39–43.320s y altura fijada por timeline; pulso de color22.248–23.748s. Copas46BPM, distribución por zonas10m y una pasada de puntos; no una luz por árbol.
+- Transición atardecer→noche ocupa43.320–64.029s con curva suave y salida de hue continua; cielo nocturno retenido, entrega/puente siguen siendo habilitadores de amanecer. La espera/suspensión del audio no avanza un reloj alternativo del cielo.
+- Reproductor Evento Bosque visible solo enKonami, compactado en cada activación; permite movimiento y conserva ubicación dentro de zona inferior, trasladando al corazón desde fuera. Herramienta sin progreso persistente.
+- Petición explícita de este cierre autoriza publicar PR y crear respaldo completo; no modifica regla general de cierre sin Git automático ni autoriza merge. Relevo final CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md.

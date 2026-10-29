@@ -72,6 +72,7 @@ export function createForestMovementBoundary(floorMap,waterDeckMap,seed,bridgeDo
         return {dx:0,dz:0};
     }
     return {
+        contains,
         constrain(x,z,dx,dz) {
             const length=Math.hypot(dx,dz);
             if(length<1e-9)return {dx,dz};

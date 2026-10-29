@@ -43,8 +43,12 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
             if (property === 'opacity') { hidden = '0'; shown = '1'; }
             if (property === 'translate') {
                 const left = ['torch', 'map', 'pink-sunglasses'].includes(target.dataset.inventoryItem);
-                hidden = target.classList.contains('heart-hex') ? '0 -100vh' : `${left ? '-100vw' : '100vw'} 100vh`;
-                shown = '0 0';
+                // Incluir la posición final también en la trayectoria, sin salto
+                // al retirar la animación y recuperar el translate del CSS.
+                const drop = 'var(--inventory-content-drop, 0px)';
+                hidden = target.classList.contains('heart-hex') ? `0 calc(-100vh + ${drop})`
+                    : `${left ? '-100vw' : '100vw'} calc(100vh + ${drop})`;
+                shown = `0 ${drop}`;
             }
             return { target, property, from: current || (visible ? hidden : shown), to: visible ? shown : hidden };
         });

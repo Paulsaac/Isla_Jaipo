@@ -21,8 +21,8 @@ export function createTorchModel(THREE, frames) {
     part(new THREE.CylinderGeometry(.22,.23,.05,6),0x100c0a,.73);
     const flame=new THREE.Sprite(new THREE.SpriteMaterial({map:flameMaps[0],
         transparent:true,alphaTest:.1,depthWrite:false,toneMapped:false,fog:false}));
-    // El billboard mira a cámara, pero su base permanece en la tapa al girar la antorcha.
+    // Base centrada y apenas hundida en la tapa para evitar una separación al verla de lado.
     flame.center.set(.5,0);
-    flame.position.set(0,.755,0);flame.scale.set(.72,.96,1);flame.visible=false;object.add(flame);
+    flame.position.set(0,.725,0);flame.scale.set(.72,.96,1);flame.visible=false;object.add(flame);
     return {object,flame,textures,updateFrame(frameIndex){flame.material.map=flameMaps[frameIndex];}};
 }

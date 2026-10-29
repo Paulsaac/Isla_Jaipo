@@ -23,6 +23,8 @@ import { applyLakeHouseLayout } from './src/world/lake-house-layout.js';
 import { lakeHouseLayout, isLakeHouseCell, isLakeHouseDoor } from './src/content/lake-house-layout.js';
 import { createObservatorySky } from './src/world/observatory-sky.js';
 import { wizardHouseLayout, summitStonePlatform } from './src/content/summit-layout.js';
+import { createSummitPathTexture } from './src/world/summit-path-texture.js';
+import { createSummitPathGround } from './src/world/summit-path-ground.js';
 import { applySummitLayout } from './src/world/summit-layout.js';
 import { createWoodcutting } from './src/systems/woodcutting.js';
 import { createWoodcuttingHud } from './src/ui/woodcutting.js';
@@ -45,7 +47,7 @@ import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT,
 import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, grahamRescueDialogs, riverDrowningMessage, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
 import { createDrowningRescue } from './src/ui/drowning-rescue.js';
 import { grahamJournal } from './src/content/readables.js';
-import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, riverDrowningLanding, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, spawnRoomExit, riverDrowningLanding, seaDrowningLanding, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
 import { DOOR_SIDE_MARGIN } from './src/config.js';
@@ -71,6 +73,7 @@ import { createObservatoryMenu } from './src/ui/observatory-menu.js';
 import { createHud } from './src/ui/hud.js';
 import { bindKeyboard } from './src/input/keyboard.js';
 import { testMode } from './src/input/test-mode.js';
+import { crtFilter } from './src/ui/crt-filter.js';
 import { requestGamePointerLock, guardPointerLockMouse } from './src/input/pointer-lock.js';
 import { isTouchMode } from './src/input/touch-mode.js';
 import { bindTouchControls } from './src/input/touch-controls.js';
@@ -90,7 +93,11 @@ import { steerBoat } from './src/world/boat-steering.js';
 import { applyVegetationWind } from './src/world/vegetation-wind.js';
 import { createHeartVision } from './src/world/heart-vision.js';
 import { createHeartHalos } from './src/world/heart-halos.js';
-import { createHeartLevitation, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
+import { createForestTipGlows } from './src/world/forest-tip-glows.js';
+import { applyForestSkyHue } from './src/world/forest-sky-hue.js';
+import { createHeartLevitation, getForestMotionTime, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
+import { createForestEventMonitor } from './src/ui/forest-event-monitor.js';
+import { createTestControls } from './src/ui/test-controls.js';
 import { FOREST_CUES } from './src/content/forest-cues.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { createOceanSurfaceGeometry, createOceanSeabedGeometry } from './src/world/ocean-surface.js';
@@ -105,13 +112,13 @@ import { createChestGeometry, createChestOpening } from './src/world/chest-geome
 import { createDryVineShrine } from './src/world/dry-vine-geometry.js';
 import { applyForestHeartCyan } from './src/world/forest-heart-color.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
-import { FLIGHT_MULTIPLIER, FLIGHT_SPRINT_MULTIPLIER, FLIGHT_VERTICAL_MULTIPLIER } from './src/config.js';
 import { bridgeKeyDeliveryDialogs, bridgeKeyReceivedDialogs } from './src/content/dialogues.js';
 import { pushPlayerFromMovingDoors } from './src/player/door-push.js';
 import { createForestMovementBoundary } from './src/player/forest-movement-boundary.js';
 import { createTerrainSectorsAsync } from './src/world/terrain-sectors.js';
 import { createInstanceSectorsAsync } from './src/world/instance-sectors.js';
 import { createFogCulling } from './src/world/fog-culling.js';
+import { createMountainInteriorProximity } from './src/world/mountain-interior-proximity.js';
 import { mergeRoofBlocks } from './src/world/roof-blocks.js';
 import { createBedGeometry } from './src/world/bed-geometry.js';
 import { createBedDebrisLanding, createBedDebrisTargets, bedDebrisTravel } from './src/world/bed-debris.js';
@@ -128,6 +135,7 @@ import {createGardenNote} from './src/ui/garden-note.js';
 import { createWoodFenceGeometry } from './src/world/wood-fence.js';
 import { createPinkSunglasses } from './src/world/pink-sunglasses.js';
 import { createAltarBlueFire, updateAltarBlueFire } from './src/world/altar-blue-fire.js';
+import { createAltarCrystal } from './src/world/altar-crystal.js';
 import { LENS_VIEWS } from './src/content/lens-views.js';
 import { createWardrobeGeometry } from './src/world/wardrobe-geometry.js';
 import { createDeskGeometry } from './src/world/desk-geometry.js';
@@ -145,7 +153,7 @@ import { createDivingAir } from './src/systems/diving-air.js';
 import { DIVING_AIR_SECONDS, DIVING_WATER_SPEED_MOD, SEA_FLOOR_HEIGHT } from './src/config.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from './src/world/diving-helmet-geometry.js';
 import { createSeaHeart } from './src/systems/sea-heart.js';
-import { createQuestSkyCycle } from './src/systems/quest-sky.js';
+import { createQuestSkyCycle, getForestSkyTime } from './src/systems/quest-sky.js';
 import { createSunFlare } from './src/world/sun-flare.js';
 import { furniture, doorOverrides, mapCellOverrides } from './src/content/entities.js';
 
@@ -348,7 +356,7 @@ function beginDrowningRescue() {
     telescopeView?.cancel();
     drowningRescueContext = {
         river: riverSoundField?.river[gz * mapWidth + gx] === 1,
-        preserveFragments: atSea,
+        shipwreck: atSea && hasDivingHelmet,
         repairHelmet: atSea && !seaHeart.complete && seaHeart.count > 0 && (helmetCracked || helmetBroken),
         inventory: inventoryRunning, pointerSpeed: controls.pointerSpeed
     };
@@ -372,13 +380,13 @@ function restorePlayerAfterDrowning() {
         helmetBroken = true; helmetCrackStage = 3;
     }
     helmetBreakRemaining = null; helmetBreakSound = null;
-    if (!seaHeart.complete && !drowningRescueContext.preserveFragments) {
+    if (!seaHeart.complete) {
         seaHeart.reset();
         musicEvents.resetSeaHeartEvent();
         for (const flame of altarFlames) { flame.visible = false; flame.userData.visibilityEnabled = false; }
         for (const torch of altarFireTorches) torch.enabled = false;
     }
-    // Continuar desde el mismo fragmento pendiente cuando el rescate fue en el mar.
+    // Volver al primer fragmento al perder el intento, reutilizando sus modelos.
     revealNextSeaHeartFragment();
     helmetEquipped = false;
     pinkSunglassesEquipped = false;
@@ -391,11 +399,13 @@ function restorePlayerAfterDrowning() {
     divingAir.reset(); stamina = STAMINA_MAX;
     clearGreetingInput(); isCrouching = false; canJump = true; bedSettleIndex = -1;
     seatedChair = chairEntryPosition = null; isFlying = false;
-    const landing = drowningRescueContext.river ? riverDrowningLanding : { x: playerStartX, z: playerStartZ };
+    const landing = drowningRescueContext.river ? riverDrowningLanding
+        : drowningRescueContext.shipwreck ? seaDrowningLanding : { x: playerStartX, z: playerStartZ };
     const x = landing.x * UNIT_SIZE, z = landing.z * UNIT_SIZE;
     camera.position.set(x, getTerrainHeight(x, z) + PLAYER_HEIGHT, z);
     camera.rotation.set(0, 0, 0);
     if (drowningRescueContext.river) camera.lookAt(lakeHouseLayout.origin.x, camera.position.y, lakeHouseLayout.origin.z);
+    else if (drowningRescueContext.shipwreck) camera.lookAt(divingHelmet.position.x*UNIT_SIZE,camera.position.y,divingHelmet.position.z*UNIT_SIZE);
     camera.updateMatrixWorld(true);
     previousPlayerPosition.copy(camera.position);
     playerWasSubmerged = false; underwaterBlend = 0; vegetationBlend = 0; surfaceVegetationBlend = 1;
@@ -411,7 +421,6 @@ function restorePlayerAfterDrowning() {
         menus.showDialog(riverDrowningMessage, { speaker: '?', blurBackdrop: false });
     } else {
         grahamRescuePending = true;
-        hud.showNotification('Te ahogaste. Graham logro rescatarte otra vez', { immediate: true });
     }
 }
 function finishDrowningRescue() {
@@ -435,6 +444,7 @@ let forestHeartShrine = null;
 const heartBeaconPosition = new THREE.Vector3();
 const heartBeaconCameraRotation = new THREE.Quaternion();
 const slabTops = new Map();
+let naturalShrineGround = null;
 const SLAB_HEIGHT = 0.4;
 const WATER_DECK_THICKNESS = 0.25;
 const solidInteractables = []; // Incluye cofres abiertos y hojas de puerta en su posición actual.
@@ -461,9 +471,8 @@ let heartHalos = null;
 const heartLevitation = createHeartLevitation();
 let heartLevitationHeight = 0;
 let forestMovementBoundary = null;
-const forestHiddenRoots = new Map();
-const forestDimmedLights = new Map();
 const forestInteriorLights = [];
+let mountainProximity = null;
 const waterWaveTime = { value: 0 };
 const raisedWaterCell = {value:new THREE.Vector4()};
 let vegetationSectors = null;
@@ -645,13 +654,21 @@ let dayTransition = skyCycle.update(0, true, dayNightTimer);
 const nightFogColor = new THREE.Color(0x030304);
 const dayFogColor = new THREE.Color(0xc3cbd5); // Gris blanquecino con un leve matiz azul.
 const duskFogColor = new THREE.Color(0xd99966); // Naranja cálido del horizonte al atardecer.
+const eventDuskFogColor = duskFogColor.clone();
 const dawnFogColor = new THREE.Color(0xbfa0ad); // Rosa apagado acorde al cielo del amanecer.
 function updateFogColor() {
     const { night, day, dusk, dawn } = skyCycle.weights;
+    // El horizonte sigue el giro del cielo con un pequeño retraso musical.
+    const skyHueShift=heartVision.uniforms.heartHorizonHueShift.value;
+    const skyHueStrength=Math.max(0,Math.min(1,heartVision.uniforms.heartStrength.value*2));
+    eventDuskFogColor.copy(duskFogColor);
+    if(Math.abs(skyHueShift)>.00001&&skyHueStrength>.00001) {
+        eventDuskFogColor.offsetHSL(skyHueShift,0,0).lerp(duskFogColor,1-skyHueStrength);
+    }
     scene.fog.color.setRGB(
-        nightFogColor.r * night + dayFogColor.r * day + duskFogColor.r * dusk + dawnFogColor.r * dawn,
-        nightFogColor.g * night + dayFogColor.g * day + duskFogColor.g * dusk + dawnFogColor.g * dawn,
-        nightFogColor.b * night + dayFogColor.b * day + duskFogColor.b * dusk + dawnFogColor.b * dawn
+        nightFogColor.r * night + dayFogColor.r * day + eventDuskFogColor.r * dusk + dawnFogColor.r * dawn,
+        nightFogColor.g * night + dayFogColor.g * day + eventDuskFogColor.g * dusk + dawnFogColor.g * dawn,
+        nightFogColor.b * night + dayFogColor.b * day + eventDuskFogColor.b * dusk + dawnFogColor.b * dawn
     );
     underwaterLightLevel = day + night * 0.15 + dusk * 0.5 + dawn * 0.6;
     underwaterCurrentColor.copy(underwaterFogColor).multiplyScalar(underwaterLightLevel);
@@ -666,9 +683,13 @@ const nightDirColor = new THREE.Color(0x445577);
 const dayDirColor = new THREE.Color(0xffffee);
 updateFogColor();
 ambientLight.color.lerpColors(nightAmbientColor, dayAmbientColor, dayTransition);
-ambientLight.intensity = 0.2 + 0.6 * dayTransition;
+function updateSunlightIntensity() {
+    const scale=1-heartVision.uniforms.heartSunDimming.value;
+    ambientLight.intensity=(0.2+0.6*dayTransition)*scale;
+    dirLight.intensity=(0.3+0.7*dayTransition)*scale;
+}
 dirLight.color.lerpColors(nightDirColor, dayDirColor, dayTransition);
-dirLight.intensity = 0.3 + 0.7 * dayTransition;
+updateSunlightIntensity();
 
 function toggleDayNight() {
     if (!controls.isLocked || !gameStarted || isDead || isDialogOpen) return;
@@ -758,8 +779,12 @@ function constrainDialogLook(dt) {
         Math.atan2(-dialogLookDirection.x, -dialogLookDirection.z), 0, 'YXZ');
     camera.quaternion.setFromEuler(dialogLookEuler);
 }
+function startReadyGame(event) {
+    if (event.button === 0 && mapLoaded && !gameStarted) resumeGame();
+}
 function resumeGame() {
     if (isDead || !mapLoaded || observatoryMenu.active || gardenNote.active) return;
+    if(isInventoryOpen){inventoryRunning=isInventoryOpen=false;menus.hideInventory();}
     if (isTouchMode) {
         musicEvents.unlock();
         controls.isLocked = true;
@@ -890,7 +915,8 @@ function showActiveDialog() {
         : { speaker: activeDialogSpeaker });
 }
 const spawnGreeting = createSpawnGreeting({
-    door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN
+    door: spawnRoomExit, unitSize: UNIT_SIZE, halfWidth: UNIT_SIZE / 2 - DOOR_SIDE_MARGIN,
+    exitClearance: 1.4
 });
 const guidedLook = createGuidedLook(THREE);
 const previousPlayerPosition = new THREE.Vector3();
@@ -917,6 +943,7 @@ function showGreetingPhase() {
 }
 
 function updateSpawnGreeting(delta) {
+    if(forestMonitorSnapshot)return;
     if (woodcutting.active || seatedChair) return;
     if (!spawnGreeting.active) {
         if (spawnGreeting.played || isDead || isFlying || isRidingBoat || isDialogOpen || !grahamSprite) return;
@@ -945,8 +972,11 @@ function updateSpawnGreeting(delta) {
 
 function toggleDivingHelmet() {
     if (!hasDivingHelmet || helmetBroken || helmetBreakRemaining !== null || !isInventoryOpen || isDead) return;
+    if(musicEvents.isEventActive('forest'))return;
     helmetEquipped = !helmetEquipped;
     menus.setHelmetState(hasDivingHelmet, helmetEquipped, helmetBroken, helmetCracked);
+    hud.setHelmetViewVisible(true);
+    hud.setHelmetEquipped(helmetEquipped);
 }
 
 function setHeldItem(item) {
@@ -973,6 +1003,7 @@ function updateKeyInventory() {
 }
 
 function useInventoryItem(item) {
+    if(forestMonitorSnapshot)return;
     if (!gameStarted || !isInventoryOpen || isDead) return;
     if (item === 'helmet' && helmetBroken) {
         menus.setItemDescription('El cristal de la escafandra termino de romperse. Ya no puedes volver a equiparlo');
@@ -1021,6 +1052,122 @@ let gameStarted = false;
 let isDead = false;
 let isInventoryOpen = false;
 let inventoryRunning = false; // Inventario con cursor propio en escritorio; simulación y movimiento activos.
+let forestMonitorSnapshot=null;
+let forestMonitorReturnPosition=null;
+function moveMonitorToForest() {
+    if(!forestHeartShrine)throw new Error('El bosque todavía no está listo.');
+    const shrine=forestHeartShrine;
+    for(const radius of [3.5,4.5,5.5,6.5])for(let step=0;step<12;step++) {
+        const angle=shrine.rotation.y+step*Math.PI/6;
+        const x=shrine.position.x+Math.sin(angle)*radius,z=shrine.position.z+Math.cos(angle)*radius;
+        if(!isSafeGroundPosition(x,z))continue;
+        camera.position.set(x,getTerrainHeight(x,z)+PLAYER_HEIGHT,z);
+        camera.lookAt(shrine.position.x,shrine.position.y+3,shrine.position.z);
+        previousPlayerPosition.copy(camera.position);return;
+    }
+    throw new Error('No se encontró un lugar libre junto al corazón.');
+}
+function monitorSkyTime(time) {
+    return getForestSkyTime(time);
+}
+function applyForestMonitorTime(time,reset=false) {
+    const snapshot=forestMonitorSnapshot;if(!snapshot)return;
+    if(reset) {
+        heartVision.seek(time,snapshot.motionBase,snapshot.colorBase,musicEvents.forestPreview.getEnergy());
+        heartLevitationHeight=heartLevitation.seek(musicEvents.forestPreview.duration,time);
+        camera.position.y=getTerrainHeight(camera.position.x,camera.position.z)+PLAYER_HEIGHT+heartLevitationHeight;
+        heartHalos?.seek(camera.position,heartVision.uniforms);underwaterView.resetHistory();
+    } else heartVision.setTimelineTime(time,snapshot.motionBase,snapshot.colorBase);
+    underwaterViewTime.value=snapshot.timeBase+time;
+    vegetationWindTime.value=snapshot.windBase+time;
+    waterWaveTime.value=snapshot.waterBase+time;
+    nightSkyMesh.rotation.y=snapshot.rotationBase+NIGHT_SKY_ROTATION_SPEED*time;
+    daySkyMesh.rotation.y=dawnSkyMesh.rotation.y=duskSkyMesh.rotation.y=nightSkyMesh.rotation.y;
+    dayNightTimer=monitorSkyTime(time);targetDayState=time<FOREST_CUES[3];
+    dayTransition=skyCycle.seek(dayNightTimer);
+}
+async function seekForestMonitor(time,playing=false) {
+    if(!forestMonitorSnapshot) {
+        if(!gameStarted||!mapLoaded||isDead||drowningRescue.active||isDialogOpen||spawnGreeting.active
+            ||heartPull.active||grahamDap.active||woodcutting.active||isRidingBoat||seatedChair
+            ||observatoryScope?.seated||observatoryLadder?.active||metalRoomLadder?.active
+            ||caveTransitionPending||caveMap?.active||metalRoom?.active||metalRoom?.busy)
+            throw new Error('Abre el monitor estando libre en el exterior.');
+        const originalTime=musicEvents.getEventPlaybackTime('forest')??0;
+        const phase=getForestMotionTime(originalTime);
+        forestMonitorSnapshot={position:camera.position.clone(),quaternion:camera.quaternion.clone(),allowMovement:true,
+            flying:isFlying,crouching:isCrouching,crouchRequested,levitation:heartLevitation.captureState(),levitationHeight:heartLevitationHeight,
+            vision:heartVision.captureState(),sky:skyCycle.captureState(),dayNightTimer,dayTransition,targetDayState,
+            time:underwaterViewTime.value,wind:vegetationWindTime.value,water:waterWaveTime.value,rotation:nightSkyMesh.rotation.y,
+            motionBase:heartVision.uniforms.heartTime.value-phase,
+            colorBase:heartVision.uniforms.heartColorTime.value-phase*1.25,
+            timeBase:underwaterViewTime.value-originalTime,windBase:vegetationWindTime.value-originalTime,
+            waterBase:waterWaveTime.value-originalTime,
+            rotationBase:nightSkyMesh.rotation.y-originalTime*NIGHT_SKY_ROTATION_SPEED,
+            torch:handTorchEnabled,helmetEquipped,stamina,underwaterBlend,playerWasSubmerged,vegetationBlend,surfaceVegetationBlend};
+        try {
+            if(!forestMovementBoundary?.contains(camera.position.x,camera.position.z))moveMonitorToForest();
+            clearGreetingInput();isFlying=false;setHandTorchEnabled(false);
+            underwaterBlend=vegetationBlend=0;playerWasSubmerged=false;surfaceVegetationBlend=1;
+        } catch(error) {stopForestMonitor();throw error;}
+    }
+    try {
+        await musicEvents.forestPreview.seek(time,playing);
+        if(forestMonitorSnapshot&&musicEvents.forestPreview.active)applyForestMonitorTime(musicEvents.forestPreview.time,true);
+    } catch(error) {stopForestMonitor();throw error;}
+}
+function stopForestMonitor() {
+    musicEvents.forestPreview.stop();
+    const snapshot=forestMonitorSnapshot;if(!snapshot)return;forestMonitorSnapshot=null;
+    camera.position.copy(snapshot.position);camera.quaternion.copy(snapshot.quaternion);
+    previousPlayerPosition.copy(camera.position);isFlying=snapshot.flying;stamina=snapshot.stamina;
+    heartLevitation.restoreState(snapshot.levitation);heartLevitationHeight=snapshot.levitationHeight;
+    heartVision.restoreState(snapshot.vision);skyCycle.restoreState(snapshot.sky);
+    dayNightTimer=snapshot.dayNightTimer;dayTransition=snapshot.dayTransition;targetDayState=snapshot.targetDayState;
+    underwaterViewTime.value=snapshot.time;vegetationWindTime.value=snapshot.wind;waterWaveTime.value=snapshot.water;
+    nightSkyMesh.rotation.y=daySkyMesh.rotation.y=dawnSkyMesh.rotation.y=duskSkyMesh.rotation.y=snapshot.rotation;
+    ({underwaterBlend,playerWasSubmerged,vegetationBlend,surfaceVegetationBlend}=snapshot);
+    helmetEquipped=snapshot.helmetEquipped&&hasDivingHelmet&&!helmetBroken;
+    menus.setHelmetState(hasDivingHelmet,helmetEquipped,helmetBroken,helmetCracked);
+    setHandTorchEnabled(snapshot.torch);heartHalos?.seek(camera.position,heartVision.uniforms);
+    underwaterView.resetHistory();clearGreetingInput();updateForestCueIndicator(null,false);
+    isCrouching=snapshot.crouching;crouchRequested=snapshot.crouchRequested;
+}
+function returnFromForestMonitor() {
+    stopForestMonitor();
+    if(!forestMonitorReturnPosition)return;
+    camera.position.copy(forestMonitorReturnPosition.position);
+    camera.quaternion.copy(forestMonitorReturnPosition.quaternion);
+    previousPlayerPosition.copy(camera.position);clearGreetingInput();
+    forestMonitorReturnPosition=null;
+}
+const forestEventMonitor=createForestEventMonitor({
+    parent:document.getElementById('inventory-menu'),
+    getState:()=>({enabled:testMode.enabled,active:musicEvents.forestPreview.active,playing:musicEvents.forestPreview.playing,
+        time:musicEvents.forestPreview.active?musicEvents.forestPreview.time:musicEvents.getEventPlaybackTime('forest')??0,
+        duration:musicEvents.forestPreview.duration||musicEvents.getEventDuration('forest'),returnAvailable:!!forestMonitorReturnPosition}),
+    onSeek:seekForestMonitor,onStop:returnFromForestMonitor,
+    async onToggle(){
+        if(!musicEvents.forestPreview.active)await seekForestMonitor(musicEvents.getEventPlaybackTime('forest')??0,true);
+        else if(musicEvents.forestPreview.playing)musicEvents.forestPreview.pause();
+        else await musicEvents.forestPreview.play();
+    },
+    async onForest(){
+        if(!forestMonitorSnapshot) {
+            if(!gameStarted||!mapLoaded||isDead||isDialogOpen||spawnGreeting.active||drowningRescue.active
+                ||seatedChair||observatoryScope?.seated||isRidingBoat||woodcutting.active||heartPull.active
+                ||grahamDap.active||observatoryLadder?.active||metalRoomLadder?.active||caveTransitionPending
+                ||caveMap?.active||metalRoom?.active||metalRoom?.busy)return;
+            const position={position:camera.position.clone(),quaternion:camera.quaternion.clone()};
+            moveMonitorToForest();forestMonitorReturnPosition??=position;clearGreetingInput();
+            if(musicEvents.isEventActive('forest'))camera.position.y+=heartLevitationHeight;
+            return;
+        }
+        if(!forestMonitorSnapshot||!musicEvents.forestPreview.active)return;
+        moveMonitorToForest();clearGreetingInput();forestMonitorSnapshot.allowMovement=true;
+        applyForestMonitorTime(musicEvents.forestPreview.time,true);
+    }
+});
 const forestCueIndicator = document.getElementById('forest-cue-indicator');
 const forestCueValue = document.getElementById('forest-cue-value');
 const forestCueTime = document.getElementById('forest-cue-time');
@@ -1045,6 +1192,10 @@ function updateForestCueIndicator(playbackTime, active) {
 
 controls.addEventListener('lock', () => {
     if (isDead || !mapLoaded) return;
+    // Cambiar entrada raw/ajustada conserva la captura y vuelve a emitir lock;
+    // no equivale a pedir que se cierre el inventario.
+    if(inventoryRunning&&isInventoryOpen&&controls.isLocked)return;
+    renderer.domElement.removeEventListener('click', startReadyGame);
     gameStarted = true;
     inventoryRunning = false;
     musicEvents.setPaused(false);
@@ -1098,12 +1249,54 @@ const inventoryMoveAxis = new THREE.Vector3();
 
 
 let isFlying = testMode.enabled;
+let testFlightSpeed = 1;
+let testSkyPhase = null;
+function getTestSkyTime() {
+    if(!testMode.enabled||testSkyPhase===null||forestMonitorSnapshot||musicEvents.isEventActive('forest'))return null;
+    const t=SKY_CYCLE_TIMING;
+    return {dawn:t.dawnStart+t.dawn/2,day:t.day/2,dusk:t.duskStart+t.dusk/2,night:t.nightStart}[testSkyPhase]??null;
+}
+function canToggleTestFlight() {
+    return testMode.enabled&&gameStarted&&mapLoaded&&!isDead&&!seatedChair&&!observatoryScope?.seated
+        &&!isRidingBoat&&!musicEvents.isEventActive('forest')&&heartLevitationHeight<=0&&!forestMonitorSnapshot
+        &&!metalRoom?.active&&!metalRoom?.busy&&!observatoryLadder?.active&&!metalRoomLadder?.active
+        &&!heartPull.active&&!grahamDap.active&&!spawnGreeting.active;
+}
+function toggleTestFlight() {
+    if(!canToggleTestFlight())return;
+    isFlying=!isFlying;velocityY=0;velocity.set(0,0,0);bobTimer=0;canJump=false;
+    jumpHeld=false;isCrouching=crouchRequested=false;
+}
+function selectTestSky(phase) {
+    if(!testMode.enabled||!isInventoryOpen||isDead||forestMonitorSnapshot||musicEvents.isEventActive('forest'))return;
+    if(phase!==null&&!['dawn','day','dusk','night'].includes(phase))return;
+    testSkyPhase=phase;
+}
+function setTestFlightSpeed(value) {
+    if(!canToggleTestFlight()||!Number.isFinite(value))return;
+    testFlightSpeed=Math.max(.25,Math.min(4,value));
+}
+const testInventoryControls=createTestControls({parent:document.getElementById('inventory-menu'),
+    getState:()=>({enabled:testMode.enabled,flying:isFlying,phase:testSkyPhase,flightSpeed:testFlightSpeed,crtEnabled:crtFilter.enabled,
+        flightDisabled:!canToggleTestFlight(),skyDisabled:!!forestMonitorSnapshot||musicEvents.isEventActive('forest')}),
+    onFlight:()=>{if(isInventoryOpen)toggleTestFlight();},onSky:selectTestSky,
+    onCrt:()=>{if(testMode.enabled&&isInventoryOpen)crtFilter.toggle();},
+    onFlightSpeed:value=>{if(isInventoryOpen)setTestFlightSpeed(value);}});
+function adjustTestFlightSpeedWithWheel(event) {
+    if(!isFlying||!canToggleTestFlight()||!(controls.isLocked||inventoryRunning)||isDialogOpen
+        ||event.ctrlKey||!Number.isFinite(event.deltaY)||event.deltaY===0)return;
+    event.preventDefault();
+    setTestFlightSpeed(testFlightSpeed-Math.sign(event.deltaY)*.25);
+    testInventoryControls.update();
+}
+document.addEventListener('wheel',adjustTestFlightSpeedWithWheel,{passive:false});
 
 function toggleTestMode() {
     if(metalRoom?.active||metalRoom?.busy)return;
-    if (seatedChair || observatoryScope?.seated || isRidingBoat || musicEvents.isEventActive('forest') || heartLevitationHeight > 0) return;
+    if (seatedChair || observatoryScope?.seated || isRidingBoat) return;
     testMode.toggle();
-    isFlying = testMode.enabled;
+    isFlying = testMode.enabled&&!musicEvents.isEventActive('forest')&&heartLevitationHeight<=0;
+    if(!testMode.enabled)testSkyPhase=null;
 
     let m = document.getElementById('system-msg');
     if (!m) {
@@ -1208,6 +1401,7 @@ function showObservatoryChoice(kind) {
 }
 
 function interact() {
+    if(forestMonitorSnapshot)return true;
     if (drowningRescue.active) {
         if (drowningRescue.waitingForContinue) {
             if (menus.completeDialogText()) return true;
@@ -1485,6 +1679,8 @@ function interact() {
                 targetInteractable = null;
                 hud.hideInteraction();
                 menus.setHelmetState(true, true);
+                hud.setHelmetViewVisible(true);
+                hud.setHelmetEquipped(true);
                 musicEvents.prepare('underwater').catch(() => {});
                 hud.showReceivedItem('un casco de escafandra');
             } else if (targetInteractable.userData.type === 'BOAT') {
@@ -1573,7 +1769,12 @@ const gameActions = {
     cancelDialogue: cancelActiveDialog,
     toggleTestMode,
     toggleDayNight,
-    stopMusic() { if (gameStarted && !isDead && controls.isLocked) musicEvents.stopMusic(); },
+    stopMusic() {
+        if (gameStarted && !isDead && controls.isLocked) {
+            if(forestMonitorSnapshot)musicEvents.forestPreview.pause();
+            else musicEvents.stopMusic();
+        }
+    },
     start() { if (mapLoaded && !gameStarted) resumeGame(); },
     interact,
     holdInteract(pressed) {
@@ -1660,7 +1861,6 @@ const gameActions = {
     scopeZoom(direction,pressed){observatoryScope?.setZoomInput(direction,pressed);},
     isObservatoryScopeActive(){return !!observatoryScope?.active;},
     holdJump(pressed) {
-        pressed = pressed && !isHelmetUnderwater();
         jumpHeld = pressed;
         if (pressed) bedSettleIndex = -1;
         if (!pressed) {
@@ -1671,7 +1871,7 @@ const gameActions = {
         }
     },
     jump() {
-        if (isHelmetUnderwater() || seatedChair || observatoryScope?.seated || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return;
+        if (seatedChair || observatoryScope?.seated || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return;
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
             const player = controls.getObject();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -1693,7 +1893,7 @@ const gameActions = {
             }
             if (!standingOnBed) bedTakeoffSoundPlayed = false;
             touchJumpRepeatWait = 0;
-            surfaceJumpActive = helmetEquipped && !standingOnBed;
+            surfaceJumpActive = helmetEquipped && !standingOnBed && !isHelmetUnderwater();
             velocityY = standingOnBed ? BED_BOUNCE_BASE_IMPULSE
                 : surfaceJumpActive ? HELMET_SURFACE_JUMP_FORCE : JUMP_FORCE;
             canJump = false;
@@ -1806,6 +2006,8 @@ const testActions = new Set(['toggleDayNight', 'stopMusic', 'cycleLensView', 'te
 for (const name of ['toggleTestMode', ...testActions, 'move', 'holdJump', 'jump', 'crouch', 'run', 'map', 'torch', 'inventory']) {
     const action = gameActions[name];
     gameActions[name] = (...args) => {
+        if(forestMonitorSnapshot&&!['inventory','stopMusic','toggleTestMode'].includes(name)
+            &&!(forestMonitorSnapshot.allowMovement&&['move','run'].includes(name)))return;
         if (testActions.has(name) && !testMode.enabled) return;
         if(observatoryLadder?.active&&['toggleTestMode','teleportToForestHeart','teleportToTelescope','teleportToWizardHouse','holdJump','jump','crouch','run'].includes(name))return;
         if(metalRoomLadder?.active&&['jump','crouch'].includes(name))return;
@@ -2006,13 +2208,16 @@ telescopeView = createTelescopeView(THREE,camera,controls,{
 const heldOverlay = createHeldOverlay(THREE,renderer,camera,{ambientLight,directionalLight:dirLight,torchLight});
 heldOverlay.group.add(heldItemSprite,heldMate.object,telescopeView.object);
 function canUseTelescope() {
-    return hasAstroscope && heldItem === 'astroscope' && gameStarted && mapLoaded && controls.isLocked
+    return !forestMonitorSnapshot && hasAstroscope && heldItem === 'astroscope' && gameStarted && mapLoaded && controls.isLocked
         && !isDead && !isInventoryOpen && !isDialogOpen && !spawnGreeting.active
         && !heartPull.active && !grahamDap.active && !woodcutting.active && !caveTransitionPending && !observatoryScope?.seated;
 }
-const canDrinkMate = () => heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
+const canDrinkMate = () => !forestMonitorSnapshot && heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
     && !woodcutting.active && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
 document.addEventListener('mousedown', event => {
+    if(event.button===1&&controls.isLocked&&!isInventoryOpen&&!isDialogOpen&&canToggleTestFlight()) {
+        event.preventDefault();toggleTestFlight();return;
+    }
     if(event.button===2&&!isTouchMode&&targetInteractable?.userData.type==='OBSERVATORY_TELESCOPE'&&controls.isLocked&&!isDead) {
         event.preventDefault();
         if(astroscopeInstalled)return;
@@ -2125,6 +2330,9 @@ const nieveTex = texLoader.load('./imagenes/Texturas/nieve.png?v=' + Date.now())
 // Reducir el parpadeo de la roca a distancia conservando píxeles definidos de cerca.
 rocaTex.minFilter = THREE.LinearMipmapLinearFilter;
 rocaTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+// La nieve conserva su pixelado cercano y filtra el grano al alejarse de la montaña.
+nieveTex.minFilter = THREE.LinearMipmapLinearFilter;
+nieveTex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
 // Evitar destellos de arena vista desde arriba/lejos sin difuminar sus píxeles de cerca.
 [arenaTex, arenaMojadaTex].forEach(t => {
     t.minFilter = THREE.LinearMipmapLinearFilter;
@@ -2165,6 +2373,7 @@ const createTransitionSky = (file,order) => {
 };
 const dawnSkyMesh=createTransitionSky('Amanecer.png',-3);
 const duskSkyMesh=createTransitionSky('Atardecer.png',-2);
+applyForestSkyHue(duskSkyMesh.material,heartVision.uniforms);
 duskSkyMesh.material.opacity=skyCycle.weights.dusk;
 nightSkyMesh.renderOrder=-4;
 
@@ -2273,6 +2482,7 @@ Promise.all([
     const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,...torchFrames]);
     if (heartVision.uniforms.skyPsychTexture.value.image) startupTextures.add(heartVision.uniforms.skyPsychTexture.value);
     scene.traverse(object => {
+        if(mountainProximity?.owns(object))return;
         const materials = object.material ? Array.isArray(object.material) ? object.material : [object.material] : [];
         for (const material of materials) for (const value of Object.values(material)) {
             if (value?.isTexture) startupTextures.add(value);
@@ -2285,8 +2495,6 @@ Promise.all([
         if (pause) await pause;
     }
     performancePanel?.mark('Texturas subidas');
-    // Empezar el fundido durante la preparación final, antes de dar el mundo por listo.
-    getIslandPreview()?.startFade();
     // La primera inmersión no debe estrenar framebuffer ni shaders del mundo.
     const prepareStartupPrograms = (world, view, target) =>
         prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target);
@@ -2332,8 +2540,8 @@ Promise.all([
         controls.isLocked = true;
         controls.dispatchEvent({ type: 'lock' });
     } else {
-        gameStarted = true;
-        menus.showPause();
+        // Mostrar la escena inicial con el puntero libre; capturarlo solo al jugar.
+        renderer.domElement.addEventListener('click', startReadyGame);
     }
 }).catch((error) => {
     if (document.pointerLockElement) document.exitPointerLock();
@@ -2439,7 +2647,6 @@ async function buildWorld(prepared, checkpoint) {
 
 
     const grassFloorMat = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0 });
-    const dirtFloorMat = new THREE.MeshPhongMaterial({ map: tierraTex, shininess: 0 });
     const arenaFloorMat = new THREE.MeshPhongMaterial({ map: arenaTex, shininess: 0 });
     // El mar conserva su cota real: adelantar su profundidad lo hacía invadir
     // tierra baja e islotes al mirar la costa de lejos o en ángulo rasante.
@@ -3271,7 +3478,7 @@ async function buildWorld(prepared, checkpoint) {
     const terrainChannels = { OTHER: 3, DIRT: 1, SAND: 2, WET_SAND: 8, WATER: 2, BOAT: 2, WATER_ROCK: 5, MOUNTAIN: 4, PEAK: 5, SNOW_PEAK: 6, SNOW_SLOPE: 6 };
     const wetSandShoreMap = createWetSandShoreMap(terrainFloorMap, mapWidth, mapHeight);
     const slabGroundCells = new Uint8Array(mapWidth * mapHeight);
-    const naturalShrineGround = new Uint8Array(mapWidth * mapHeight);
+    naturalShrineGround = new Uint8Array(mapWidth * mapHeight);
     for (const definition of entities) {
         { const pause = checkpoint(); if (pause) await pause; }
         if (definition.ground === 'SLAB') slabGroundCells[definition.position.z * mapWidth + definition.position.x] = 1;
@@ -3403,10 +3610,26 @@ async function buildWorld(prepared, checkpoint) {
     terrainHeightSamples = { positions, verticesW: vertsW, segmentsW, segmentsH, subdivisions: SUBDIVISIONS };
 
     // --- MATERIAL SPlAT COMPARTIDO POR TODO EL TERRENO ---
+    const summitRoute = mountainPathProfile.summitRoute ?? [];
+    const summitDirtRoutes = mountainPathProfile.summitDirtRoutes ?? [];
+    const summitGroundPoints = [...summitRoute,...summitDirtRoutes.flat()];
+    const summitPathBounds = new THREE.Vector4(
+        Math.min(...summitGroundPoints.map(p => p.x)) * UNIT_SIZE - 4,
+        Math.min(...summitGroundPoints.map(p => p.z)) * UNIT_SIZE - 4,
+        Math.max(...summitGroundPoints.map(p => p.x)) * UNIT_SIZE + 4,
+        Math.max(...summitGroundPoints.map(p => p.z)) * UNIT_SIZE + 4);
+    const summitPathTex = createSummitPathTexture(THREE, summitRoute, UNIT_SIZE, summitPathBounds);
+    const summitGroundTex = createSummitPathGround(THREE, summitRoute, UNIT_SIZE, summitPathBounds,renderer.capabilities.isWebGL2,summitDirtRoutes);
+    renderer.initTexture(summitPathTex);
+    renderer.initTexture(summitGroundTex);
     const splatMaterial = new THREE.MeshPhongMaterial({ map: pastoTex, shininess: 0, transparent: true, depthWrite: true }); // Fundido continuo contra el cielo, sin trama de recorte.
     splatMaterial.onBeforeCompile = function (shader) {
         shader.uniforms.tGrass = { value: pastoTex };
         shader.uniforms.tDirt = { value: tierraTex };
+        shader.uniforms.tSummitPath = { value: summitPathTex };
+        shader.uniforms.tSummitGround = { value: summitGroundTex };
+        shader.uniforms.summitPathBounds = { value: summitPathBounds };
+        shader.uniforms.summitPathLevel = { value: mountainPathProfile.summitHeight - 18 };
         shader.uniforms.tSand = { value: arenaTex };
         shader.uniforms.tWetSand = { value: arenaMojadaTex };
         shader.uniforms.terrainWaterHeight = { value: WATER_SURFACE_HEIGHT };
@@ -3423,6 +3646,8 @@ async function buildWorld(prepared, checkpoint) {
             attribute float wetSandWeight;
             varying float vWetSand;
             varying float vTerrainHeight;
+            varying vec3 vTerrainPosition;
+            varying vec3 vTerrainNormal;
             attribute vec4 mountainWeights;
             varying vec4 vSplat;
             varying vec4 vMountain;
@@ -3434,16 +3659,22 @@ async function buildWorld(prepared, checkpoint) {
              vWetSand = wetSandWeight;
              vMountain = mountainWeights;`
         ).replace('#include <begin_vertex>',
-            '#include <begin_vertex>\nvTerrainHeight = (modelMatrix * vec4(transformed, 1.0)).y;');
+            '#include <begin_vertex>\nvTerrainPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvTerrainHeight = vTerrainPosition.y;\nvTerrainNormal = normalize(mat3(modelMatrix) * objectNormal);');
 
         shader.fragmentShader = `
             uniform sampler2D tGrass;
             uniform sampler2D tDirt;
+            uniform sampler2D tSummitPath;
+            uniform sampler2D tSummitGround;
+            uniform vec4 summitPathBounds;
+            uniform float summitPathLevel;
             uniform sampler2D tSand;
             uniform sampler2D tWetSand;
             varying float vWetSand;
             uniform float terrainWaterHeight;
             varying float vTerrainHeight;
+            varying vec3 vTerrainPosition;
+            varying vec3 vTerrainNormal;
             uniform sampler2D tSeabed;
             uniform sampler2D tMountain;
             uniform sampler2D tRock;
@@ -3489,9 +3720,12 @@ async function buildWorld(prepared, checkpoint) {
     alignShorelineInstances(THREE,naturalVegetation,terrainElevations.shorelineMask,mapWidth,UNIT_SIZE,
         (x,z)=>elevationMap[Math.round(z/UNIT_SIZE)][Math.round(x/UNIT_SIZE)],
         getTerrainHeight);
+    const surfaceVegetationStrength={value:1};
+    const forestTipGlows=createForestTipGlows(THREE,naturalVegetation.slice(0,6),vegetationWindTime,heartVision,surfaceVegetationStrength);
     vegetationSectors=await createInstanceSectorsAsync(THREE,naturalVegetation,64,0.75,checkpoint);
     scene.add(vegetationSectors.group);
-    surfaceVegetationFade=createVegetationVisibility(vegetationSectors.group,{value:1});
+    surfaceVegetationFade=createVegetationVisibility(vegetationSectors.group,surfaceVegetationStrength);
+    vegetationSectors.group.add(forestTipGlows);
     const slabCells = [];
     for (let z = 0; z < mapHeight; z++) for (let x = 0; x < mapWidth; x++) {
         if ((x & 31) === 0) { const pause = checkpoint(); if (pause) await pause; }
@@ -3530,16 +3764,10 @@ async function buildWorld(prepared, checkpoint) {
         .filter(height=>height!==undefined).sort((a,b)=>a-b);
     const altarCenterTop = altarNeighborTops[Math.floor(altarNeighborTops.length/2)] ?? altarTop;
     altarWaterHeight = altarCenterTop;
-    // La celda central conserva el agua visible, pero sostiene al jugador a su nivel.
+    // La tapa de cristal conserva el apoyo y el nivel de agua lógico del altar.
     slabTops.set(seaHeartAltar.center.z*mapWidth+seaHeartAltar.center.x,altarCenterTop);
-    const altarWaterGeometry = new THREE.PlaneGeometry(UNIT_SIZE,UNIT_SIZE);
-    const altarWaterUv = altarWaterGeometry.attributes.uv;
-    for(let i=0;i<altarWaterUv.count;i++) altarWaterUv.setXY(i,
-        (seaHeartAltar.center.x+altarWaterUv.getX(i))/mapWidth,
-        (mapHeight-seaHeartAltar.center.z-1+altarWaterUv.getY(i))/mapHeight);
-    const altarWater = new THREE.Mesh(altarWaterGeometry,aguaFloorMat);
+    const altarWater = createAltarCrystal(THREE,UNIT_SIZE);
     altarWater.name = 'sea-heart-altar-water';
-    altarWater.rotation.x = -Math.PI/2;
     altarWater.position.set(seaHeartAltar.center.x*UNIT_SIZE,altarWaterHeight,seaHeartAltar.center.z*UNIT_SIZE);
     scene.add(altarWater);
     raisedWaterCell.value.set(altarWater.position.x,altarWater.position.z,UNIT_SIZE/2,altarWaterHeight);
@@ -3966,6 +4194,16 @@ async function buildWorld(prepared, checkpoint) {
         if (light.target && light.target.parent) scene.attach(light.target);
         scene.attach(light);
     }
+    const wizardLooseRoots=[...solidInteractables.filter(object=>object.userData.id==='mountain-wizard-chest'),
+        ...torchSprites.filter(sprite=>sprite.material.fog===false&&wizardUpperFloor.contains(sprite.position.x,sprite.position.z))];
+    mountainProximity=createMountainInteriorProximity({radius:mountainPathProfile.summitHeight*.5,zones:[
+        {id:'wizard',center:{x:wizardUpperFloor.origin.x,y:wizardUpperFloor.baseY+3,z:wizardUpperFloor.origin.z},
+            roots:[wizardUpperFloor.interior,mountainWorkshop.desk,wizardTelevisions.group,...wizardLooseRoots],
+            lights:forestInteriorLights.filter(light=>!summitObservatory.interiorLights.includes(light))},
+        {id:'observatory',center:{x:summitObservatory.origin.x,y:summitObservatory.baseY+4,z:summitObservatory.origin.z},
+            roots:[summitObservatory.interior],lights:summitObservatory.interiorLights,distant:summitObservatory.distantScope}
+    ]});
+    mountainProximity.update(camera.position);
     fogCulling = createFogCulling(THREE, scene, [skyMesh, sunFlare.object, camera], FOG_RESIDUAL);
     prepareInactiveLights(THREE, scene);
     { const pause = checkpoint(); if (pause) await pause; }
@@ -4177,11 +4415,16 @@ function footstepSurfaceAt(x, z, onWoodSupport = false) {
     const water = ['WATER', 'WATER_ROCK', 'BOAT'].includes(floor) && !slabTops.has(gz * mapWidth + gx);
     if (!floor || water || (caveMap?.active && caveMap.isWater(x, z))) return null;
     const slab = slabTops.has(gz * mapWidth + gx);
-    const wood = onWoodSupport || (!slab && (woodFloorMap[gz]?.[gx]
+    const feetY = controls.getObject().position.y - (isCrouching ? PLAYER_HEIGHT * .6 : PLAYER_HEIGHT);
+    const observatorySupport = summitObservatory?.supportHeight(x, z, feetY) ?? -Infinity;
+    const observatoryWood = observatorySupport > (summitObservatory?.baseY ?? Infinity) + .05
+        && Math.abs(feetY - observatorySupport) < .35;
+    const wood = onWoodSupport || observatoryWood || (!slab && (woodFloorMap[gz]?.[gx]
         || ['INDOOR_FLOOR', 'WOOD', 'DOOR_UNLOCKED', 'DOOR_LOCKED'].includes(floor)));
     const hard = wood || slab;
     const sand = !hard && ['SAND', 'WET_SAND', 'SNOW_PEAK', 'SNOW_SLOPE'].includes(floor);
-    const dirt = !hard && ['DIRT', 'MOUNTAIN', 'PEAK'].includes(floor);
+    const dirt = !hard && (naturalShrineGround?.[gz * mapWidth + gx]
+        || ['DIRT', 'MOUNTAIN', 'PEAK'].includes(floor));
     return { surface: wood ? 'wood' : sand ? 'sand' : dirt ? 'dirt' : hard ? 'indoor' : 'grass',
         outdoor: !hard && (OUTDOOR_STEP_FLOORS.has(floor) || sand || dirt) };
 }
@@ -4407,6 +4650,8 @@ function animate(timestamp = performance.now()) {
     updateMetalRoomTravel((controls.isLocked||inventoryRunning)&&!isDead?Math.min(cameraDelta,.1):0);
 
     const controlObj = controls.getObject();
+    forestEventMonitor.update();
+    if(isInventoryOpen)testInventoryControls.update();
     touchControls?.syncDialogue(drowningRescue.waitingForContinue || (controls.isLocked && !isDead && (isDialogOpen || spawnGreeting.active)));
     if (isDialogOpen) constrainDialogLook(cameraDelta);
     let vegetationDelta = 0;
@@ -4423,7 +4668,7 @@ function animate(timestamp = performance.now()) {
     if ((controls.isLocked || inventoryRunning) && mapLoaded && !caveTransitionPending && !isDead) {
         previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
-        const rawDelta = cameraDelta;
+        const rawDelta = forestMonitorSnapshot?0:cameraDelta;
         hud.updateHelmetCrack(rawDelta);
         updateHelmetBreak(rawDelta);
         const delta = Math.min(rawDelta, 0.1);
@@ -4474,6 +4719,16 @@ function animate(timestamp = performance.now()) {
             musicEvents.updateForestHeartBeacon(heartBeaconPosition);
         } else musicEvents.updateForestHeartBeacon(null);
         const forestActive = musicEvents.isEventActive('forest');
+        // Descartar una selección anterior de Konami para que no reaparezca
+        // al terminar Bosque, saltándose la noche retenida por la misión.
+        if(forestActive)testSkyPhase=null;
+        if(forestActive&&isFlying) {
+            isFlying=false;velocity.set(0,0,0);velocityY=0;jumpHeld=false;
+        }
+        if(forestActive&&helmetEquipped) {
+            helmetEquipped=false;
+            menus.setHelmetState(hasDivingHelmet,false,helmetBroken,helmetCracked);
+        }
         const forestPlaybackTime = musicEvents.getEventPlaybackTime('forest');
         updateForestCueIndicator(forestPlaybackTime, forestActive);
         if (forestActive && (isCrouching || crouchRequested)) {
@@ -4485,17 +4740,14 @@ function animate(timestamp = performance.now()) {
             isRunning = false;
             touchControls?.cancelRun();
         }
-        if (isHelmetUnderwater()) {
-            jumpHeld = false; touchJumpRepeatWait = 0;
-            surfaceJumpActive = false;
-            if (velocityY > 0) velocityY = 0;
-        }
         const running = isRunning && !carriedByRiver && (!forestActive || isFlying);
-        heartVision.update(delta, forestActive, musicEvents.getForestEnergy(),
+        const forestDelta=forestMonitorSnapshot&&musicEvents.forestPreview.playing?Math.min(cameraDelta,.1):delta;
+        heartVision.update(forestDelta, forestActive, musicEvents.getForestEnergy(),
             forestPlaybackTime ?? 0);
+        if(forestMonitorSnapshot)applyForestMonitorTime(forestPlaybackTime??0);
 
-        heartHalos?.update(delta, controlObj.position, heartVision.uniforms);
-        if (!forestActive) {
+        heartHalos?.update(forestDelta, controlObj.position, heartVision.uniforms);
+        if (!forestActive && mountainProximity?.isActive('wizard')) {
             wizardUpperFloor?.update(delta,controlObj.position,isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT);
             wizardTelevisions?.update(delta,controlObj.position.distanceToSquared(wizardTelevisions.group.position)<900);
         }
@@ -4529,7 +4781,7 @@ function animate(timestamp = performance.now()) {
         dawnSkyMesh.rotation.y = duskSkyMesh.rotation.y = nightSkyMesh.rotation.y;
 
         // Lógica de mirada a la luna (Easter Egg)
-        if (typeof moonSprite !== 'undefined') {
+        if (!forestMonitorSnapshot && typeof moonSprite !== 'undefined') {
             const camDir = frameCameraDirection;
             camera.getWorldDirection(camDir);
             
@@ -4728,20 +4980,27 @@ function animate(timestamp = performance.now()) {
         }
 
         // La misión controla las pausas iniciales; luego el reloj funciona normalmente.
-        dayNightTimer = questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage,
-            musicEvents.hasEventStarted('forest'),forestPlaybackTime);
+        const eventSkyTime = forestMonitorSnapshot?monitorSkyTime(forestPlaybackTime??0)
+            :questSkyCycle.update(skyCycle.transitioning ? 0 : delta, heartQuest.stage,
+                musicEvents.hasEventStarted('forest'),forestPlaybackTime,forestActive);
+        const testSkyTime=getTestSkyTime();
+        dayNightTimer=testSkyTime??eventSkyTime;
         if (!skyCycle.transitioning) targetDayState = dayNightTimer < SKY_CYCLE_TIMING.nightStart;
-        dayTransition=skyCycle.update(delta,true,dayNightTimer);
+        // La misión es dueña del cielo hasta liberar el puente: sin transición manual residual.
+        dayTransition=testSkyTime!==null||forestMonitorSnapshot||!questSkyCycle.isFree
+            ?skyCycle.seek(dayNightTimer):skyCycle.update(delta,true,dayNightTimer);
         const moonOpacity=1-0.6*dayTransition;
         moonMat.opacity=moonOpacity;
         moonGlowMat.opacity=moonGlowOpacity*moonOpacity;
         moonAzulMat.opacity=moonAzulOpacity*moonOpacity;
         const weights=skyCycle.weights;
-        if (questSkyCycle.morningEnabled && weights.dawn>0) musicEvents.trigger('morning');
+        const naturalDawn=testSkyTime!==null
+            ?eventSkyTime>SKY_CYCLE_TIMING.dawnStart&&eventSkyTime<SKY_CYCLE_TIMING.total:weights.dawn>0;
+        if (questSkyCycle.morningEnabled && naturalDawn) musicEvents.trigger('morning');
         const sunAngle=Math.PI*skyCycle.sunProgress;
         sunSprite.position.set(0,controlObj.position.y-200+Math.sin(sunAngle)*580,-Math.cos(sunAngle)*580);
         sunMat.opacity=weights.day+weights.dawn+weights.dusk;
-        sunSprite.visible=sunMat.opacity>0.001 && !questSkyCycle.waitingForSunrise;
+        sunSprite.visible=sunMat.opacity>0.001 && (testSkyTime!==null || !!forestMonitorSnapshot || !questSkyCycle.waitingForSunrise);
         // Alfa acumulada: el resultado contiene exactamente la mezcla de los cuatro estados.
         nightMaterials.forEach(m=>{m.opacity=1;});
         let accumulated=weights.night;
@@ -4756,10 +5015,9 @@ function animate(timestamp = performance.now()) {
         updateFogColor();
 
         ambientLight.color.lerpColors(nightAmbientColor, dayAmbientColor, dayTransition);
-        ambientLight.intensity = 0.2 + (0.6 * dayTransition); // De 0.2 a 0.8
 
         dirLight.color.lerpColors(nightDirColor, dayDirColor, dayTransition);
-        dirLight.intensity = 0.3 + (0.7 * dayTransition); // De 0.3 a 1.0
+        updateSunlightIntensity();
 
         // Raycaster para Interacciones
         const scopeTarget=summitObservatory?.telescopeInteraction;
@@ -4955,13 +5213,19 @@ function animate(timestamp = performance.now()) {
         const ladderMoved=roomLadderMoved||ladderAllowed&&!metalRoom?.active&&observatoryLadder?.update(delta,moveState,!isFlying&&!isRidingBoat&&!isCrouching&&!isInventoryOpen);
         if(ladderMoved){velocity.set(0,0,0);velocityY=0;canJump=false;isRunning=false;jumpHeld=false;crouchRequested=false;bobTimer=0;previousPlayerPosition.copy(controlObj.position);}
         if (!ladderMoved && !seatedChair && !cuttingWood && !spawnGreeting.active && !pullingHeart && !grahamDap.active && !isDialogOpen && !observatoryScope?.seated && !metalRoom?.busy) {
+            // La vista de autoría permite desplazarse desde Reproducir o al buscar
+            // una marca; la altura sigue el tiempo de la canción.
+            const delta=forestMonitorSnapshot?.allowMovement?Math.min(cameraDelta,.1):Math.min(rawDelta,.1);
             // Desde que queda ensartado hasta que caen las astillas no puede desplazarse.
             // La física vertical sigue activa para que se suelte y caiga normalmente.
             const trappedInBedCeiling = bedCeilingTimer > 0 || bedHoleOpeningTime >= 0;
             if (trappedInBedCeiling) velocity.x = velocity.z = 0;
             updatePlayerPosture();
-            velocity.x -= velocity.x * FRICTION * delta;
-            velocity.z -= velocity.z * FRICTION * delta;
+            if (!isFlying) {
+                velocity.x -= velocity.x * FRICTION * delta;
+                velocity.z -= velocity.z * FRICTION * delta;
+                velocity.y = 0;
+            }
 
             direction.z = Number(moveState.forward) - Number(moveState.backward);
             direction.x = Number(moveState.right) - Number(moveState.left);
@@ -4982,14 +5246,26 @@ function animate(timestamp = performance.now()) {
             const currentGZ = Math.floor((startZ + UNIT_SIZE/2) / UNIT_SIZE);
             const inWater = isPlayerWaterCell(startX, startZ);
 
-            const waterSpeedMod = isRidingBoat ? 1.5 : (inWater && heartLevitationHeight <= 0.15
+            const waterSpeedMod = isFlying && !isPlayerUnderwater() ? 1 : isRidingBoat ? 1.5 : (inWater && heartLevitationHeight <= 0.15
                 ? helmetEquipped || isPlayerUnderwater() ? DIVING_WATER_SPEED_MOD : 0.4 : 1.0);
-            const movementMultiplier = isFlying
-                ? (running ? FLIGHT_SPRINT_MULTIPLIER : FLIGHT_MULTIPLIER)
-                : (running ? SPRINT_MULTIPLIER : 1);
-
-            if (!trappedInBedCeiling && (moveState.forward || moveState.backward)) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
-            if (!trappedInBedCeiling && (moveState.left || moveState.right)) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+            // Una misma velocidad efectiva para todos los ejes del vuelo.
+            // 1× = 12 u/s; Shift duplica también el ascenso y el descenso.
+            const flightSpeed = 12 * testFlightSpeed ** 1.5 * (running ? 2 : 1);
+            const movementMultiplier = running ? SPRINT_MULTIPLIER : 1;
+            if (isFlying) {
+                // Respuesta breve e independiente de FPS: ~95% del cambio en 0.18 s.
+                const flightBlend = 1 - Math.exp(-delta / 0.06);
+                velocity.z += (-direction.z * flightSpeed - velocity.z) * flightBlend;
+                velocity.x += (-direction.x * flightSpeed - velocity.x) * flightBlend;
+                const verticalInput = Number(moveState.up) - Number(moveState.down);
+                velocity.y += (verticalInput * flightSpeed - velocity.y) * flightBlend;
+                if (!direction.z && Math.abs(velocity.z) < flightSpeed * 0.001) velocity.z = 0;
+                if (!direction.x && Math.abs(velocity.x) < flightSpeed * 0.001) velocity.x = 0;
+                if (!verticalInput && Math.abs(velocity.y) < flightSpeed * 0.001) velocity.y = 0;
+            } else {
+                if (!trappedInBedCeiling && (moveState.forward || moveState.backward)) velocity.z -= direction.z * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+                if (!trappedInBedCeiling && (moveState.left || moveState.right)) velocity.x -= direction.x * MOVEMENT_SPEED * movementMultiplier * waterSpeedMod * delta;
+            }
 
             if (inventoryRunning) {
                 // PointerLockControls no desplaza con cursor libre; conservar sus ejes horizontales.
@@ -5022,8 +5298,7 @@ function animate(timestamp = performance.now()) {
             if (isFlying) {
                 controlObj.position.x += dx;
                 controlObj.position.z += dz;
-                if (moveState.up) controlObj.position.y += MOVEMENT_SPEED * FLIGHT_VERTICAL_MULTIPLIER * delta;
-                if (moveState.down) controlObj.position.y -= MOVEMENT_SPEED * FLIGHT_VERTICAL_MULTIPLIER * delta;
+                controlObj.position.y += velocity.y * delta;
             
                 velocityY = 0;
                 surfaceJumpActive = false;
@@ -5063,13 +5338,10 @@ function animate(timestamp = performance.now()) {
                 hud.updateStamina(stamina, STAMINA_MAX);
             }
 
-            camera.getWorldDirection(frameCameraDirection);
-            heartLevitationHeight = heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
-                musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'), {
-                    forward: moveState.forward && !moveState.backward && !isFlying && !isRidingBoat,
-                    lookY: frameCameraDirection.y,
-                    distance: Math.hypot(controlObj.position.x - startX, controlObj.position.z - startZ)
-                });
+            heartLevitationHeight = forestMonitorSnapshot
+                ?heartLevitation.seek(musicEvents.forestPreview.duration,musicEvents.forestPreview.time)
+                :heartLevitation.update(delta, musicEvents.getEventDuration('forest'),
+                musicEvents.getEventTimeRemaining('forest'), musicEvents.isEventActive('forest'));
             heartVision.uniforms.heartTreeMotion.value = Math.max(0, Math.min(1, heartLevitationHeight / HEART_LEVITATION_MAX_RISE))
                 * heartVision.uniforms.heartWarpStrength.value;
             // Reintentar incorporarse al despejar la cabeza durante este mismo desplazamiento.
@@ -5107,7 +5379,10 @@ function animate(timestamp = performance.now()) {
                 controlObj.position.y = targetEyesHeight;
             }
 
-            if (!isRidingBoat && heartLevitationHeight > 0) {
+            if(forestMonitorSnapshot) {
+                controlObj.position.y=targetEyesHeight+heartLevitationHeight;
+                velocityY=0;canJump=false;
+            } else if (!isRidingBoat && heartLevitationHeight > 0) {
                 const groundEyesHeight = targetEyesHeight;
                 targetEyesHeight += heartLevitationHeight;
                 controlObj.position.y = Math.max(groundEyesHeight, controlObj.position.y + (targetEyesHeight - controlObj.position.y) * (1 - Math.exp(-delta * 5)));
@@ -5458,6 +5733,7 @@ function animate(timestamp = performance.now()) {
     }
 
     for (const sprite of torchSprites) {
+        if(mountainProximity?.owns(sprite)&&!sprite.visible)continue;
         faceTorchFlameToCamera(sprite);
         if (sprite.material.userData.flameStrength) sprite.material.userData.flameStrength.value = 1 - dayTransition;
     }
@@ -5467,6 +5743,7 @@ function animate(timestamp = performance.now()) {
         grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
     updateFogColor();
+    updateSunlightIntensity();
     const cameraSubmerged = isPlayerUnderwater();
     // Cubrir también los huecos más allá del mapa desde el primer instante sumergido.
     underwaterBackdrop.visible = cameraSubmerged || underwaterBlend > 0.001;
@@ -5494,7 +5771,7 @@ function animate(timestamp = performance.now()) {
     duskSkyMesh.visible=!stellarView&&duskSkyMesh.material.opacity!==0;
     moonMat.opacity=stellarView?1:1-.6*dayTransition;
     sunMat.opacity=stellarView?1:skyCycle.weights.day+skyCycle.weights.dawn+skyCycle.weights.dusk;
-    sunSprite.visible=sunMat.opacity>.001&&!questSkyCycle.waitingForSunrise;
+    sunSprite.visible=sunMat.opacity>.001&&(getTestSkyTime()!==null||!!forestMonitorSnapshot||!questSkyCycle.waitingForSunrise);
     sunSprite.position.y=controlObj.position.y-200+Math.sin(Math.PI*skyCycle.sunProgress)*580;
     // Mayor alcance óptico tanto para el Omniscopio como para el Astroscopio.
     // El fundido del terreno y el descarte de sectores usan la misma distancia.
@@ -5513,23 +5790,7 @@ function animate(timestamp = performance.now()) {
         riverDrowningFade || (!isDialogOpen && !observatoryScope?.active && isHelmetSubmergedInRiver()));
     riverCameraMotion.apply();
     const fogPlane = fogCulling?.update(camera);
-    if (forestInteriorsHidden) {
-        for (const light of forestInteriorLights) {
-            if (!forestDimmedLights.has(light)) forestDimmedLights.set(light, light.intensity);
-            light.intensity = 0;
-        }
-        for (const root of [summitObservatory?.interior, wizardUpperFloor?.interior,
-            wizardTelevisions?.group, mountainWorkshop?.desk]) {
-            if (!root) continue;
-            if (!forestHiddenRoots.has(root)) forestHiddenRoots.set(root, root.visible);
-            root.visible = false;
-        }
-    } else if (forestHiddenRoots.size) {
-        for (const [root, visible] of forestHiddenRoots) root.visible = visible;
-        forestHiddenRoots.clear();
-        for (const [light, intensity] of forestDimmedLights) light.intensity = intensity;
-        forestDimmedLights.clear();
-    }
+    mountainProximity?.update(controlObj.position,forestInteriorsHidden);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
     const underwaterPlantsReady = !!underwaterVegetation;
     const vegetationTarget = showUnderwaterPlants && underwaterPlantsReady ? 1 : 0;
@@ -5569,7 +5830,8 @@ function animate(timestamp = performance.now()) {
     forestTrailStrength.value = canShowForestFx ? heartVision.getTrailStrength() : 0;
 
 
-    hud.setHelmetViewVisible(hasDivingHelmet && helmetEquipped && gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
+    hud.setHelmetEquipped(hasDivingHelmet&&helmetEquipped);
+    hud.setHelmetViewVisible(gameStarted && (controls.isLocked || inventoryRunning) && !isDead);
     underwaterStrength.value = underwaterBlend;
     pinkSunglassesTint.value = pinkSunglassesEquipped && gameStarted && !isDead ? 1 : 0;
     if (controls.isLocked && !isDead) heartPull.applyCameraShake();

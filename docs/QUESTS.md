@@ -102,3 +102,6 @@ Para cada pedido registrar identidad/nombre, canción y recurso, estado (propues
 - Base compartida y ocho ramas publicadas; verificar acceso colaborador de AxByZ y preparar su copia de trabajo. Revisión/integración a cargo de Clawshoot.
 - Definir uso posterior del Corazón del Mar y comportamiento deseado al morir.
 - Conservar el relevo de pruebas del mar: ruta integral con velocidad final 1.25/2.5 u/s y aire 10/30 s, salida tras rotura del casco, legibilidad nocturna y rendimiento en móvil real.
+
+## Cierre AXBYZ — 2026-10-29
+Bosque conserva audio/marcas y progreso de misión; sps reverb3.mp3 es fuente vigente. Ascenso39–43.320, levitación fijada por tiempo, pulso color22.248–23.748 y copas46BPM. Atardecer→noche43.320–64.029 se completa una vez, reteniendo noche; entrega/puente mantienen habilitación de amanecer. ReproductorKonami no modifica progreso y permite movimiento/retorno. Relevo ../CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md prevalece sobre cronologías históricas.

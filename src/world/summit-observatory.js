@@ -1,8 +1,10 @@
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {COLLISION_RADIUS,HOUSE_UPPER_FLOOR_THICKNESS,PLAYER_HEIGHT,UNIT_SIZE} from '../config.js';
-import {summitStonePlatform} from '../content/summit-layout.js';
+import {summitStonePlatform,observatoryMiddleStoreyRise} from '../content/summit-layout.js';
 import {createTelescope} from './telescope.js';
 import {createObservatoryTransmission} from './observatory-transmission.js';
+import {addObservatoryExterior} from './observatory-exterior.js';
+import {addObservatoryWallLamps} from './observatory-wall-lamps.js';
 
 // Observatorio de doce caras con laboratorio rectangular y cúpula amplia.
 export function createSummitObservatory(THREE,baseY,{wall,wood}) {
@@ -11,7 +13,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         z:(platform.minZ+(platform.cellsPerSide-1)/2)*UNIT_SIZE};
     const group=new THREE.Group();group.name='summit-observatory';group.position.set(origin.x,baseY,origin.z);
     const interior=new THREE.Group();interior.name='observatory-interior';group.add(interior);
-    const radius=4.4,sides=12,level=3,observingLift=1.2,domeY=5+observingLift,domeRadius=4.65;
+    const radius=4.4,sides=12,level=3,observingLift=4.2+observatoryMiddleStoreyRise,domeY=5+observingLift,domeRadius=4.65;
     const batches=new Map(),interiorBatches=new Map();
     const domeBatches=new Map(),supportBatches=new Map();
     let activeBatches=batches;
@@ -52,9 +54,13 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         const parts=activeBatches.get(m)??[];parts.push(g.index?g.toNonIndexed():g);if(g.index)g.dispose();activeBatches.set(m,parts);
     }
     function box(w,h,d,x,y,z,m=stone) {const g=new THREE.BoxGeometry(w,h,d);g.translate(x,y,z);add(g,m);}
-    function segment(a,b,h,thickness,y,m=stone,offset=0) {
+    function segment(a,b,h,thickness,y,m=stone,offset=0,coveredExterior=false) {
         const dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz);
-        const g=new THREE.BoxGeometry(thickness,h,length);g.rotateY(Math.atan2(dx,dz));
+        const g=new THREE.BoxGeometry(thickness,h,length);
+        // El revestimiento ya dibuja esta cara. Conservar interior, jambas y cantos;
+        // la antigua cara +X coincidía con molduras y cruzaba la fachada ataludada.
+        if(coveredExterior){g.setIndex(Array.from(g.index.array).slice(6));g.clearGroups();}
+        g.rotateY(Math.atan2(dx,dz));
         g.translate((a[0]+b[0])/2+dz/length*offset,y,(a[1]+b[1])/2-dx/length*offset);add(g,m);
     }
     function floor(points,top,thickness) {
@@ -91,29 +97,31 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         p.lineTo(width/2,shoulder);p.lineTo(width/2,bottom);p.closePath();return p;
     }
     // Atlas de vitrales en píxeles enteros: oro apagado, violeta y azul.
-    const canvas=document.createElement('canvas');canvas.width=16;canvas.height=48;
-    const ctx=canvas.getContext('2d');ctx.fillStyle='#283343';ctx.fillRect(0,0,16,48);
-    for(let y=2;y<46;y++)for(let x=2;x<14;x++) {
-        const band=(Math.floor(y/6)+Math.floor(x/4))%4;
+    const canvas=document.createElement('canvas');canvas.width=16;canvas.height=64;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#283343';ctx.fillRect(0,0,16,64);
+    for(let y=2;y<62;y++)for(let x=2;x<14;x++) {
+        const band=(Math.floor(y/8)+Math.floor(x/4))%4;
         ctx.fillStyle=['#557984','#6d618b','#a39365','#38445d'][band];ctx.fillRect(x,y,1,1);
     }
-    ctx.fillStyle='#bfad77';ctx.fillRect(7,2,2,44);ctx.fillRect(2,13,12,1);ctx.fillRect(2,32,12,1);
+    ctx.fillStyle='#bfad77';ctx.fillRect(7,2,2,60);ctx.fillRect(2,17,12,1);ctx.fillRect(2,43,12,1);
     const windowMap=new THREE.CanvasTexture(canvas);windowMap.colorSpace=THREE.SRGBColorSpace;
-    windowMap.magFilter=windowMap.minFilter=THREE.NearestFilter;windowMap.generateMipmaps=false;
+    // Píxeles nítidos de cerca, promedio estable al alejarse (también en WebGL1).
+    windowMap.magFilter=THREE.NearestFilter;windowMap.minFilter=THREE.LinearMipmapLinearFilter;windowMap.generateMipmaps=true;
     const stained=new THREE.MeshPhongMaterial({map:windowMap,emissiveMap:windowMap,emissive:0xffffff,
         emissiveIntensity:.45,side:THREE.DoubleSide});
     // La base octogonal recorta las cuatro esquinas; la entrada sigue centrada.
-    const baseHalf=5.3,cornerCut=1.15,straightHalf=baseHalf-cornerCut;
+    const baseHalf=5.75,cornerCut=1.15,straightHalf=baseHalf-cornerCut;
     const baseOutline=[[-baseHalf,-straightHalf],[-straightHalf,-baseHalf],[straightHalf,-baseHalf],[baseHalf,-straightHalf],
         [baseHalf,straightHalf],[straightHalf,baseHalf],[-straightHalf,baseHalf],[-baseHalf,straightHalf]];
     for(let i=0;i<baseOutline.length;i++) {
         const a=baseOutline[i],b=baseOutline[(i+1)%baseOutline.length];
         if(Math.abs(a[1]-baseHalf)<.001&&Math.abs(b[1]-baseHalf)<.001) {
-            segment(a,[.73,baseHalf],level,.16,level/2);
-            segment([-.73,baseHalf],b,level,.16,level/2);
-            segment([.73,baseHalf],[-.73,baseHalf],.65,.16,level-.325);
-        } else segment(a,b,level,.16,level/2);
-        segment(a,b,.18,.08,level-.09,trim,.04);
+            segment(a,[.73,baseHalf],level,.16,level/2,stone,0,true);
+            segment([-.73,baseHalf],b,level,.16,level/2,stone,0,true);
+            segment([.73,baseHalf],[-.73,baseHalf],.65,.16,level-.325,stone,0,true);
+        } else segment(a,b,level,.16,level/2,stone,0,true);
+        // El canto de la losa cierra la cornisa: no añadir la moldura antigua,
+        // cuya cara exterior coincidía exactamente con ese canto en los ocho lados.
     }
     const half=radius*Math.tan(Math.PI/sides);
     const upperApothem=radius-.15,upperVertexRadius=upperApothem/Math.cos(Math.PI/sides);
@@ -135,30 +143,33 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     for(let i=0;i<sides;i++) {
         const angle=Math.PI/2+i*2*Math.PI/sides,s=new THREE.Shape();
         s.moveTo(-half,level);s.lineTo(half,level);s.lineTo(half,domeY);s.lineTo(-half,domeY);s.closePath();
-        const opening=arch(.48,level+.16,domeY-.36,domeY-.12);
+        // Centrar el vitral entre la cubierta superior y el arranque de la cúpula.
+        const windowHeight=2.92,windowBottom=(5.47+observatoryMiddleStoreyRise+domeY-windowHeight)/2,windowWidth=.82;
+        const windowTop=windowBottom+windowHeight;
+        const opening=arch(windowWidth,windowBottom,windowTop-.24,windowTop);
         s.holes.push(opening);
-        // El vitral rebasa el hueco por todos sus lados y queda alojado dentro
-        // del espesor del muro, sin una rendija abierta hacia el cielo.
-        const pane=new THREE.Shape(arch(.54,level+.12,domeY-.32,domeY-.08).getPoints());
+        // Dos caras alojadas bajo el marco: no hundir el vitral en el muro,
+        // donde la precisión de profundidad puede taparlo a distancia.
+        const pane=new THREE.Shape(arch(windowWidth+.06,windowBottom-.04,windowTop-.20,windowTop+.04).getPoints());
         const g=new THREE.ShapeGeometry(pane),p=g.attributes.position,uv=g.attributes.uv;
-        for(let v=0;v<p.count;v++)uv.setXY(v,(p.getX(v)+.24)/.48,(p.getY(v)-level-.16)/(domeY-level-.28));
-        g.rotateY(Math.PI/2-angle);g.translate(Math.cos(angle)*radius,0,Math.sin(angle)*radius);add(g,stained);
+        for(let v=0;v<p.count;v++)uv.setXY(v,(p.getX(v)+windowWidth/2)/windowWidth,(p.getY(v)-windowBottom)/windowHeight);
+        g.rotateY(Math.PI/2-angle);
+        for(const offset of [-.095,.095]) {
+            const face=g.clone();face.translate(Math.cos(angle)*(radius+offset),0,Math.sin(angle)*(radius+offset));add(face,stained);
+        }
+        g.dispose();
         add(planeShape(s,.13,angle,radius),stone);
         // Marco fino siguiendo la misma silueta del hueco para que no queden
         // esquinas desalineadas entre el vitral y la cara facetada del muro.
-        const frameShape=new THREE.Shape(arch(.58,level+.10,domeY-.30,domeY-.06).getPoints());
-        const frameOpening=arch(.44,level+.18,domeY-.38,domeY-.14).getPoints();
+        const frameShape=new THREE.Shape(arch(windowWidth+.10,windowBottom-.06,windowTop-.18,windowTop+.06).getPoints());
+        const frameOpening=arch(windowWidth-.04,windowBottom+.02,windowTop-.26,windowTop-.02).getPoints();
         if(THREE.ShapeUtils.isClockWise(frameOpening))frameOpening.reverse();
         frameShape.holes.push(new THREE.Path(frameOpening));
         // Marco continuo por ambas caras y por las jambas del hueco.
-        const frame=new THREE.ExtrudeGeometry(frameShape,{depth:.17,bevelEnabled:false,curveSegments:1});
-        frame.translate(0,0,-.085);frame.rotateY(Math.PI/2-angle);
+        const frame=new THREE.ExtrudeGeometry(frameShape,{depth:.28,bevelEnabled:false,curveSegments:1});
+        frame.translate(0,0,-.14);frame.rotateY(Math.PI/2-angle);
         frame.translate(Math.cos(angle)*radius,0,Math.sin(angle)*radius);add(frame,trim);
-        const a=angle+Math.PI/sides,r=radius/Math.cos(Math.PI/sides);
-        const column=new THREE.CylinderGeometry(.065,.09,domeY-level,6);
-        column.translate(Math.cos(a)*r,(level+domeY)/2,Math.sin(a)*r);add(column,trim);
     }
-    ring(radius+.08,3.12,.2);ring(radius+.08,domeY-.1,.18,brass);
     // Asiento continuo: recibe tanto los vértices como las caras del vidrio
     // en cualquier orientación de la cúpula, y solapa el coronamiento de piedra.
     const domeSeatShape=new THREE.Shape();domeSeatShape.absarc(0,0,domeRadius+.12,0,Math.PI*2,false);
@@ -249,8 +260,8 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     activeBatches=batches;
     // Eje de azimut y muñones de elevación fijos en el centro de la cúpula.
     // La silla sigue el arco del ocular; el mástil ya no se traslada al inclinar.
-    const chairOrbitRadius=.95,telescopeRearLength=.85,telescopeCollisionRadius=.26;
-    const telescopeElevation=.62,telescopeCenterY=6.9+observingLift;
+    const chairOrbitRadius=.95,chairSeatLift=.25,telescopeRearLength=.85,telescopeCollisionRadius=.26;
+    const telescopeElevation=.62,telescopeCenterY=domeY+.30;
     const scopePitchLimits={min:-.22,max:Math.PI/3};
     const scopeEye={x:0,y:0,z:chairOrbitRadius};
     const scopeMount=new THREE.Group();scopeMount.name='observatory-telescope-mount';
@@ -258,17 +269,27 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     const scopeSupport=new THREE.Group();scopeSupport.name='omniscopio-moving-support';
     scopeSupport.position.y=-telescopeCenterY;scopeMount.add(scopeSupport);
     activeBatches=supportBatches;
-    box(.46,.3,.46,0,level+.15,0,iron);
-    rod([0,level+.13,0],[0,telescopeCenterY-.35,0],.11,brass);
-    for(const x of [-.18,.18])rod([x,level+.20,.12],[x,telescopeCenterY-.6,.12],.035,iron);
-    for(const x of [-.28,.28])rod([x,level+.18,0],[0,level+1.2,0],.045,iron);
+    const mastRadius=.21,mastRailX=.29;
+    // Mantener la peana dentro del hueco del piñón del carro (.266 de radio libre).
+    box(.50,.3,.50,0,level+.15,0,iron);
+    rod([0,level+.13,0],[0,telescopeCenterY-.35,0],mastRadius,brass);
+    for(const y of [level+.36,telescopeCenterY-.43]) {
+        const collar=new THREE.CylinderGeometry(.245,.245,.14,10);collar.translate(0,y,0);add(collar,iron);
+    }
+    // Largueros simétricos en el plano del mástil: de la peana a la horquilla.
+    box(.72,.12,.20,0,level+.22,0,iron);
+    for(const x of [-mastRailX,mastRailX])rod([x,level+.22,0],[x,telescopeCenterY-.35,0],.045,iron);
+    for(const x of [-.31,.31])rod([x,level+.22,0],[Math.sign(x)*mastRailX,level+1.2,0],.05,iron);
+    // Travesaño a la altura del anclaje lateral del pistón.
+    box(mastRailX*2+.09,.13,.16,0,telescopeCenterY-2.05,0,iron);
     // Horquilla anclada al cabezal del mástil y a los dos cojinetes del tubo.
     rod([-.40,telescopeCenterY-.35,0],[.40,telescopeCenterY-.35,0],.075,iron);
     for(const x of [-.38,.38]) {
         rod([x,telescopeCenterY-.40,0],[x,telescopeCenterY,0],.065,iron);
         box(.12,.22,.24,x,telescopeCenterY,0,iron);
-        rod([Math.sign(x)*.19,telescopeCenterY,0],[Math.sign(x)*.44,telescopeCenterY,0],.065,brass);
-        rod([0,telescopeCenterY-.75,0],[x,telescopeCenterY-.35,0],.045,iron);
+        // La tapa del eje sobresale del cojinete (cara exterior ±.44).
+        rod([Math.sign(x)*.19,telescopeCenterY,0],[Math.sign(x)*.47,telescopeCenterY,0],.065,brass);
+        rod([Math.sign(x)*mastRailX,telescopeCenterY-.75,0],[x,telescopeCenterY-.35,0],.05,iron);
     }
     activeBatches=interiorBatches;
     // Cremallera circular: dientes en la cara interior del riel, junto al piñón.
@@ -359,13 +380,13 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     for(const x of [-.29,.29])chairPart(.055,.07,.48,x,.2,0,brass);
     // Dos reposapiés bajos, unidos al asiento y orientados hacia el ocular.
     for(const x of [-.20,.20]) {
-        chairPart(.035,.50,.035,x,-.31,.25,iron);
-        chairPart(.035,.045,.30,x,-.55,.38,iron);
+        chairPart(.045,.56,.045,x,-.315,.25,iron);
+        chairPart(.045,.045,.35,x,-.60,.415,iron);
         chairPart(.18,.045,.29,x,-.56,.44,iron);
         for(const z of [.35,.43,.51])chairPart(.15,.008,.018,x,-.533,z,brass);
     }
     const chassis=new THREE.Group();chassis.name='omniscopio-chair-connected-chassis';scopeMount.add(chassis);
-    const chassisMembers=Array.from({length:8},()=>{
+    const chassisMembers=Array.from({length:16},()=>{
         const mesh=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,1,6),iron);chassis.add(mesh);return mesh;
     });
     const chairLanding=new THREE.Group();chairLanding.name='omniscopio-chair-ladder-landing';scopeMount.add(chairLanding);
@@ -410,24 +431,31 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     }
     const ladderRungs=[];
     const rungGeometry=new THREE.CylinderGeometry(.027,.027,.4,6);rungGeometry.rotateX(Math.PI/2);
-    for(let i=0;i<14;i++) {
+    for(let i=0;i<24;i++) {
         const rung=new THREE.Mesh(rungGeometry,iron);chairLadder.add(rung);ladderRungs.push(rung);
     }
     const ladderFoot=new THREE.Vector3(),ladderTop=new THREE.Vector3(),ladderDirection=new THREE.Vector3();
     const ladderUp=new THREE.Vector3(0,1,0);
     const scopeElevation=new THREE.Group();scopeElevation.rotation.x=-telescopeElevation;scopeMount.add(scopeElevation);
-    function mountTube(r,length,z,material,rearRadius=r,open=false) {
+    const distantScope=new THREE.Group();distantScope.name='observatory-distant-scope';
+    distantScope.visible=false;group.add(distantScope);
+    function mountTube(r,length,z,material,rearRadius=r,open=false,distant=false) {
         const geometry=new THREE.CylinderGeometry(r,rearRadius,length,10,1,open);geometry.rotateX(Math.PI/2);geometry.translate(0,0,z);
-        scopeElevation.add(new THREE.Mesh(geometry,material));
+        const mesh=new THREE.Mesh(geometry,material);scopeElevation.add(mesh);
+        if(distant)distantScope.add(mesh.clone());
     }
     // Tubo más largo hacia el objetivo para alcanzar la ranura desde el centro.
-    const tubeFront=4.35;
-    mountTube(.20,.70,.25,iron);
-    mountTube(.32,2.55,1.875,iron,.20);
+    const tubeFront=5.55;
+    mountTube(.20,.90,.30,iron);
+    mountTube(.36,3.15,2.325,iron,.25);
     mountTube(.20,.42,-.31,iron,.105,true);
-    mountTube(.48,1.35,tubeFront-.675,iron);
-    mountTube(.57,.16,tubeFront-.07,brass);
-    mountTube(.50,.10,tubeFront-1.32,brass);
+    mountTube(.48,1.80,tubeFront-.90,iron,.48,false,true);
+    mountTube(.57,.16,tubeFront-.07,brass,.57,false,true);
+    mountTube(.50,.10,tubeFront-1.77,brass,.50,false,true);
+    // Continuación exacta del tubo hasta el anillo del pistón en la vista lejana.
+    const distantStub=new THREE.CylinderGeometry(.36,.25+(.36-.25)*(2.15-.75)/3.15,1.75,10,1,true);
+    distantStub.rotateX(Math.PI/2);distantStub.translate(0,0,3.025);
+    distantScope.add(new THREE.Mesh(distantStub,iron));
     // Casquillo hueco coaxial: el objetivo del Astroscopio entra por el ocular.
     const socketGeometry=new THREE.LatheGeometry([
         new THREE.Vector2(.075,-telescopeRearLength),new THREE.Vector2(.105,-telescopeRearLength),
@@ -437,7 +465,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     socketGeometry.rotateX(Math.PI/2);
     const socket=new THREE.Mesh(socketGeometry,brass);socket.name='omniscopio-eyepiece-socket';scopeElevation.add(socket);
     mountTube(.23,.10,.35,brass);
-    mountTube(.34,.14,2.25,brass);
+    mountTube(.36,.14,2.25,brass,.36,false,true);
     // Pistón de apoyo: camisa de longitud fija y vástago que entra en ella.
     const piston=new THREE.Group();piston.name='omniscopio-elevation-piston';scopeMount.add(piston);
     const pistonSteel=new THREE.MeshPhongMaterial({color:0xa6b1b5,shininess:65,flatShading:true});
@@ -445,18 +473,26 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,10),material);
         mesh.name=name;piston.add(mesh);return mesh;
     }
-    const pistonBody=pistonCylinder(.11,2.12,iron,'omniscopio-piston-barrel');
+    // Dejar libre la articulación inferior: la camisa empieza después del eje,
+    // de modo que el soporte rectangular no atraviese su collar de latón.
+    const pistonBodyStart=.16,pistonBodyEnd=2.12;
+    const pistonBody=pistonCylinder(.11,pistonBodyEnd-pistonBodyStart,iron,'omniscopio-piston-barrel');
+    const pistonNeck=pistonCylinder(.055,pistonBodyStart,iron,'omniscopio-piston-hinge-neck');
     const pistonRod=pistonCylinder(.052,1,pistonSteel,'omniscopio-piston-sliding-rod');
-    const pistonBands=[0,.12,2.04].map(distance=>({distance,mesh:pistonCylinder(.128,.10,brass,'omniscopio-piston-collar')}));
+    const pistonBands=[.22,2.04].map(distance=>({distance,mesh:pistonCylinder(.128,.10,brass,'omniscopio-piston-collar')}));
     const pistonPins=[0,1].map(()=>{const pin=pistonCylinder(.08,.26,brass,'omniscopio-piston-hinge');pin.rotation.z=Math.PI/2;return pin;});
-    const lowerBracket=new THREE.Mesh(new THREE.BoxGeometry(.39,.16,.19),iron);
-    lowerBracket.position.set(.17,-2.05,.12);piston.add(lowerBracket);
-    const upperBracket=new THREE.Mesh(new THREE.BoxGeometry(.18,.25,.18),iron);
-    upperBracket.position.set(.27,-.25,2.25);scopeElevation.add(upperBracket);
-    const pistonBase=new THREE.Vector3(.30,-2.05,.12),pistonTip=new THREE.Vector3(),pistonAxis=new THREE.Vector3();
+    const pistonSideX=.46;
+    const lowerBracket=new THREE.Mesh(new THREE.BoxGeometry(.22,.13,.16),iron);
+    lowerBracket.name='omniscopio-piston-lower-bracket';
+    // Ménsula corta desde el larguero X=.29; el eje queda libre a su costado.
+    lowerBracket.position.set(.37,-2.05,0);piston.add(lowerBracket);
+    const upperBracket=new THREE.Mesh(new THREE.BoxGeometry(.32,.25,.18),iron);
+    upperBracket.position.set(.32,-.25,2.25);scopeElevation.add(upperBracket);
+    const pistonBase=new THREE.Vector3(pistonSideX,-2.05,0),pistonTip=new THREE.Vector3(),pistonAxis=new THREE.Vector3();
     const pistonUp=new THREE.Vector3(0,1,0),pistonRotation=new THREE.Quaternion();
     // Coronas de elevación laterales y muñones coincidentes con el pivote real.
-    for(const x of [-.30,.30]) {
+    // Sobresalir unos 2 cm de los cojinetes de hierro (cara exterior ±.44).
+    for(const x of [-.43,.43]) {
         const bearing=new THREE.TorusGeometry(.26,.035,5,20);bearing.rotateY(Math.PI/2);
         bearing.translate(x,0,0);scopeElevation.add(new THREE.Mesh(bearing,brass));
         for(let i=0;i<24;i++) {
@@ -467,6 +503,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
     const objective=new THREE.Mesh(new THREE.CircleGeometry(.50,10),
         new THREE.MeshPhongMaterial({color:0x96d2df,emissive:0x305269,emissiveIntensity:.5,shininess:90,side:THREE.DoubleSide}));
     objective.position.z=tubeFront+.02;scopeElevation.add(objective);
+    distantScope.add(objective.clone());
     const astroscopeDock=new THREE.Group();astroscopeDock.name='astroscope-dock';
     astroscopeDock.position.set(0,0,-.813);astroscopeDock.visible=false;scopeElevation.add(astroscopeDock);
     const dockedAstroscope=createTelescope(THREE);dockedAstroscope.scale.setScalar(.8);
@@ -485,12 +522,13 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         scopeElevation.position.set(0,0,0);
         scopeSupport.position.z=0;
         scopeChair.rotation.x=-pitch*.30;
-        scopeChair.position.set(0,eyeY-1.01,eyeZ);
-        pistonTip.set(.30,-.35,2.25).applyEuler(scopeElevation.rotation);
+        scopeChair.position.set(0,eyeY-1.01+chairSeatLift,eyeZ);
+        pistonTip.set(pistonSideX,-.35,2.25).applyEuler(scopeElevation.rotation);
         pistonAxis.subVectors(pistonTip,pistonBase);
         const pistonLength=pistonAxis.length();pistonAxis.normalize();
         pistonRotation.setFromUnitVectors(pistonUp,pistonAxis);
-        pistonBody.position.copy(pistonBase).addScaledVector(pistonAxis,1.06);pistonBody.quaternion.copy(pistonRotation);
+        pistonBody.position.copy(pistonBase).addScaledVector(pistonAxis,(pistonBodyStart+pistonBodyEnd)/2);pistonBody.quaternion.copy(pistonRotation);
+        pistonNeck.position.copy(pistonBase).addScaledVector(pistonAxis,pistonBodyStart/2);pistonNeck.quaternion.copy(pistonRotation);
         const rodStart=1.94;
         pistonRod.scale.y=pistonLength-rodStart;
         pistonRod.position.copy(pistonBase).addScaledVector(pistonAxis,(pistonLength+rodStart)/2);pistonRod.quaternion.copy(pistonRotation);
@@ -504,10 +542,35 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
             chassisB.set(x,-.07,z).applyEuler(scopeChair.rotation).add(scopeChair.position);
             chassisRod(member++,chassisA,chassisB);
         }
-        // Tirantes bajo el asiento y los pies: despejar el espacio frente al torso.
+        // Los tirantes terminan sobre el montante real de la silla a esa altura,
+        // en vez de quedar suspendidos delante de él.
         for(const x of [-.23,.23])for(const height of [-.40,-1.05]) {
-            chassisA.set(0,scopeChair.position.y+height,scopeSupport.position.z);
-            chassisB.set(x,-.70,.35).applyEuler(scopeChair.rotation).add(scopeChair.position);
+            chassisA.set(Math.sign(x)*mastRadius,scopeChair.position.y+height,scopeSupport.position.z);
+            chassisB.set(x,-.07,.2).applyEuler(scopeChair.rotation).add(scopeChair.position);
+            const footY=scopeChair.position.y-.70;
+            const fraction=(footY-(level+.36-telescopeCenterY))/(chassisB.y-(level+.36-telescopeCenterY));
+            chassisB.z=(-chairOrbitRadius+.2)+(chassisB.z+chairOrbitRadius-.2)*fraction;
+            chassisB.y=footY;
+            chassisRod(member++,chassisA,chassisB);
+        }
+        // Cada apoyapiés recibe además un puente desde ese mismo montante.
+        for(const x of [-.23,.23]) {
+            chassisA.set(x,-.07,.2).applyEuler(scopeChair.rotation).add(scopeChair.position);
+            chassisB.set(Math.sign(x)*.20,-.60,.32).applyEuler(scopeChair.rotation).add(scopeChair.position);
+            const fraction=(chassisB.y-(level+.36-telescopeCenterY))/(chassisA.y-(level+.36-telescopeCenterY));
+            chassisA.z=(-chairOrbitRadius+.2)+(chassisA.z+chairOrbitRadius-.2)*fraction;
+            chassisA.y=chassisB.y;
+            chassisRod(member++,chassisA,chassisB);
+        }
+        // Dos niveles de travesaños y una diagonal por lado enlazan los
+        // montantes de la silla con el mástil, sin invadir la escalerilla.
+        const chassisBaseY=level+.36-telescopeCenterY;
+        for(const x of [-.23,.23])for(const [mastFraction,chairFraction] of [[.35,.35],[.68,.68],[.35,.68]]) {
+            chassisB.set(x,-.07,.2).applyEuler(scopeChair.rotation).add(scopeChair.position);
+            const chairTopY=chassisB.y;
+            chassisB.y=chassisBaseY+(chairTopY-chassisBaseY)*chairFraction;
+            chassisB.z=(-chairOrbitRadius+.2)+(chassisB.z+chairOrbitRadius-.2)*chairFraction;
+            chassisA.set(Math.sign(x)*mastRailX,chassisBaseY+(chairTopY-chassisBaseY)*mastFraction,0);
             chassisRod(member++,chassisA,chassisB);
         }
         const railCarriageZ=supportRailRadius+.075;
@@ -542,16 +605,30 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         transmission.update(scopeMount.rotation.y);
         telescopeInteraction.position.set(0,0,-.72).applyEuler(scopeElevation.rotation).applyEuler(scopeMount.rotation);
         telescopeInteraction.position.y+=telescopeCenterY;
+        distantScope.position.copy(scopeMount.position);
+        distantScope.quaternion.copy(scopeMount.quaternion).multiply(scopeElevation.quaternion);
     }
     updateScopePose();
+    activeBatches=interiorBatches;
+    const wallLamps=addObservatoryWallLamps(THREE,{add,glowRoot:interior,wood:timber,iron,brass,baseHalf,radius});
+    activeBatches=batches;
+    addObservatoryExterior(THREE,{add,stone,woodTexture:timberMap,baseOutline});
     for(const [collection,parent] of [[batches,group],[interiorBatches,interior],[stairBatches,stairGroup],[domeBatches,domeRotation],[supportBatches,scopeSupport]]) {
         for(const [material,parts]of collection) {
-            const mesh=new THREE.Mesh(mergeGeometries(parts,false),material);mesh.name=material===glass?'observatory-faceted-dome':'observatory-structure-batch';
+            const mesh=new THREE.Mesh(mergeGeometries(parts,false),material);mesh.name=material===glass?'observatory-faceted-dome':material===stained?'observatory-stained-windows':'observatory-structure-batch';
+            // El terreno también es transparente: dibujar el tinte después del paisaje,
+            // conservando depthTest para que no cubra la estructura ni el equipo interior.
+            if(material===glass)mesh.renderOrder=2;
             parent.add(mesh);parts.forEach(g=>g.dispose());
         }
     }
-    const light=new THREE.PointLight(0xffd6a0,1.4,6,2);light.position.set(0,2.4,.4);group.add(light);
-    const upperLight=new THREE.PointLight(0xabc8e8,.8,5,2);upperLight.position.set(0,domeY,0);group.add(upperLight);
+    const interiorLights=wallLamps.map(p=>{
+        const light=new THREE.PointLight(0xffba70,p.y<3?1.4:1.6,p.y<3?8:9,2);
+        // El vidrio está a 0.30 m del muro y su centro luminoso a Y local 0.44.
+        light.position.set(p.x+p.nx*.30,p.y+.44,p.z+p.nz*.30);
+        group.add(light);
+        return light;
+    });
     const local=(x,z)=>({x:x-origin.x,z:z-origin.z});
     const normals=Array.from({length:sides},(_,i)=>Math.PI/2+i*Math.PI*2/sides);
     const inside=(p,margin=0)=>normals.every(a=>p.x*Math.cos(a)+p.z*Math.sin(a)<radius-.065-margin);
@@ -600,7 +677,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
                 ||Math.hypot(landingProbe.x-landingBounds.minX,landingProbe.z-nearestZ)<COLLISION_RADIUS+.023
                 ||Math.hypot(landingProbe.x-landingBounds.maxX,landingProbe.z-nearestZ)<COLLISION_RADIUS+.023)return true;
         }
-        if(f>7)return null;
+        if(f>domeY+.8)return null;
         const door=Math.abs(p.x)<.73-COLLISION_RADIUS&&p.z>1.5&&f<.5;
         if(!door&&!(f<level-.25?insideBase(p,COLLISION_RADIUS):inside(p,COLLISION_RADIUS)))return true;
         if(door)return false;
@@ -626,7 +703,7 @@ export function createSummitObservatory(THREE,baseY,{wall,wood}) {
         if(feetY<baseY+1.2&&upperFloor(p))return baseY+level-HOUSE_UPPER_FLOOR_THICKNESS-.06;
         return baseY+domeY+Math.sqrt(Math.max(0,domeRadius*domeRadius-p.x*p.x-p.z*p.z))-.2;
     }
-    return {group,interior,interiorLights:[light,upperLight],origin,baseY,levelY:baseY+level,supportHeight,blocksMovement,upperLimit,
+    return {group,interior,distantScope,wallLamps,interiorLights,origin,baseY,levelY:baseY+level,supportHeight,blocksMovement,upperLimit,
         scopeMount,scopeElevation,scopeEye,scopeChair,scopeSupport,chairLadder,chairLanding,domeRotation,chairOrbitRadius,
         astroscopeDock,telescopeInteraction,scopePitchLimits,updateScopePose};
 }

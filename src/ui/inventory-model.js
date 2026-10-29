@@ -23,12 +23,8 @@ export function createInventoryModel(host) {
     let selectionVersion=0,preparing=false;
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
     const label=document.createElement('p'); label.className='inventory-preview-label';
-    label.textContent='Señala un objeto'; host.append(label);
-    const rotationHint=document.createElement('p');rotationHint.id='inventory-rotation-hint';
-    rotationHint.className='inventory-rotation-hint';
-    rotationHint.textContent=document.body.classList.contains('touch-mode')
-        ? 'Arrastra para girar' : 'Mantén el clic izquierdo y arrastra para girar';
-    host.append(rotationHint);
+    label.id='inventory-preview-instructions';
+    label.textContent='Señala un objeto.\nPulsa para equiparlo.';host.append(label);
     const names={heart:'Corazón del Bosque','sea-heart':'Corazón del Mar',torch:'Antorcha',map:'Mapa',
         'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave',astroscope:'Astroscopio'};
     function stopDrag() {
@@ -38,7 +34,7 @@ export function createInventoryModel(host) {
         if(pointerId!==null&&renderer.domElement.hasPointerCapture(pointerId))renderer.domElement.releasePointerCapture(pointerId);
     }
     function enableManualRotation(canvas) {
-        canvas.setAttribute('aria-describedby',rotationHint.id);
+        canvas.setAttribute('aria-describedby',label.id);
         canvas.addEventListener('inventory-preview-drag',event=>{
             const {phase,dx,dy}=event.detail;
             if(phase==='end'){stopDrag();return;}
@@ -181,9 +177,7 @@ export function createInventoryModel(host) {
         preparing=true;
         stopDrag();
         selectedItem=item;
-        const itemName=item==='helmet' ? (helmetBroken ? 'Escafandra rota' : helmetCracked ? 'Escafandra agrietada' : names[item])
-            : item==='sea-heart' && !seaHeartComplete ? 'Fragmentos del Corazón del Mar' : names[item];
-        if(!prepare()) {preparing=false;label.textContent=itemName;return;}
+        if(!prepare()) {preparing=false;return;}
         clear();model=new THREE.Group();scene.add(model);
         if(item==='heart'||item==='sea-heart') {
             const file=item==='heart' ? 'corazon.png' : seaHeartComplete ? 'corazon-mar.png' : 'fragmento-mar.png';
@@ -234,7 +228,7 @@ export function createInventoryModel(host) {
         } else if(item==='key') {
             model.add(createInventoryKey(THREE));
         }
-        model.rotation.set(.1,item==='helmet' ? -.65 : .35,0);label.textContent=itemName;
+        model.rotation.set(.1,item==='helmet' ? -.65 : .35,0);
         // Compilar sin bloquear la primera aparición del modelo. Una selección
         // posterior cancela la preparación antes de consultar programas desechados.
         prepareProgramsInBatches(THREE,renderer,scene,camera,createLoadingYield(3),null,()=>version!==selectionVersion)

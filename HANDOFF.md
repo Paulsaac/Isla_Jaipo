@@ -1194,3 +1194,37 @@ Por orden explícita del usuario se cierra esta sesión para continuar el merge 
 etstat -ano no muestra listeners en los puertos 8000, 8001, 8002 ni 8003; no aparecen procesos 
 ode ni cloudflared. No hubo procesos de servidor/túnel de esta copia que detener. La rama codex/observatorio-huerto-montana-20261024 y el PR #10 siguen intactos; no se hizo merge. Se libera únicamente el bloqueo propio con 	ools/session.ps1 finish para que el siguiente chat pueda adquirirlo.
 
+
+## Servidores solicitados en este chat — 2026-10-28
+- A petición expresa del usuario se iniciaron los servidores de esta copia, sin cerrar la sesión de edición.
+- Local: http://127.0.0.1:8000/ — PID 24384, tools/serve.cjs.
+- LAN: http://192.168.4.89:8001/ — PID 13144, tools/serve.cjs --lan --port=8001. Móvil: http://192.168.4.89:8001/?touch=1.
+- Cloudflare: https://albany-exec-start-robust.trycloudflare.com/ — PID 24996, HTTP/2 hacia 127.0.0.1:8001. Sustituye el enlace overcome-dish-termination-lover, ya inactivo.
+- Respuestas HTTP 200 comprobadas en los tres enlaces (local, LAN mediante loopback y Cloudflare). Logs .coordination/server-8000-20261028.*, server-8001-20261028.* y cloudflare-20261028.*.
+- Conservar procesos activos hasta orden expresa de apagado. Sin cambios de firewall, staging, commit ni push.
+
+## Cierre AXBYZ / Codex — 2026-10-28 — Bosque, presentación y controles
+
+Sesión del 26–28 cerrada por pedido explícito de AXBYZ para continuar en otro chat centrado en pulir el evento psicodélico del Corazón del Bosque. Relevo prioritario completo: [CONTINUAR_AXBYZ_2026-10-28_BOSQUE.md](CONTINUAR_AXBYZ_2026-10-28_BOSQUE.md). Frase de entrada: «Hola, soy AXBYZ, retomemos lo de hoy para trabajar en el evento del bosque.» Leer ese archivo antes de retomar valores históricos de esta bitácora.
+
+Rama codex/axbyz-bosque-20261026, HEAD6c41123. Árbol con numerosos cambios acumulados modificados y módulos nuevos sin seguimiento, incluidos recursos ajenos: conservar todo. Este cierre no ejecuta staging/commit/push ni sincronización Git. Responsabilidad de publicación manual de Clawshoot. No se cierran entradas de otros roles.
+
+Estado vigente propio: bosque.mp3 ahora spscn reverb.mp3,199.584s, SHA2560644BAFEFBF0F2398C2B05488B283234D00F206229C9E853E6E9216F7D3AFF0E; marcas originales0..189.127s conservadas. Monitor temporal arrastrable, Ir al corazón como teletransporte normal sin sacar de partida, Volver a posición, movimiento durante preview conservando altura de marca, Konami utilizable pero vuelo forzado apagado durante evento. Anochecer compartido60.029–64.029s mantiene noche sin salto de amanecer. Luces91BPM con irregularidad por distancia, ascenso36–44s, detalles en relevo. Escafandra animada detrás del inventario, pasos naturales tierra/pasto y correcciones visuales acumuladas documentadas en notas locales.
+
+Vuelo final: velocidad común horizontal/vertical12*slider^1.5 u/s, Shift duplica todos los ejes; rango.25–4x. Inventario sin etiquetas inferiores, instrucciones centrales dos líneas, cursor ajustado al sistema1:1, sliders y rotación3D preservados. Laterales gris oscuro76%, hexágonos café oscuro76%/glow persistente; panel Pruebas con recuadro del reproductor y atenuado disabled conservado.
+
+Observatorio: estructura/mástil robustos con largueros conectados X±.29/Z0, apoyapiés y bastidor16miembros conectados, pistón lateral X.46 anclado al larguero (NO centrado), tapa amarilla sobresale hasta±.47. Lámparas brazo centrado Y.04 y vidrio28%, tejados planos oscuros y geometrías interiores/fachadas corregidas. Casa mago: escalera recta desplazada, caracol superior invertido y techo madera continuo. Caminos porosos y curvas ajustadas; altar cristal celeste, fuego azul pixelado anclado; originales preservados. Archivos/valores/evidencias en relevo y .coordination/*notes*.md.
+
+Verificado: Node syntax/diff en cambios; Chrome real monitor/retorno/Konami;18 mediciones vuelo con diferencias entre ejes<.3%; arrastre sliders y rotación3D; fixtures visuales de observatorio/lámparas/pistón y transferencia glow. No implica validación auditiva humana, móvil físico, FPS del dispositivo afectado ni recorrido completo de quests. No ejecutar arneses antiguos sin leer: algunos asumen cursor1.6,14miembros o pistón central obsoletos.
+
+Servidores conservados: localhost8000 PID24384, LAN8001 PID13144, túnel PID24996, https://albany-exec-start-robust.trycloudflare.com/ (HTTP200 público y local al cerrar). No apagarlos sin orden. Bloqueo propio cd694b75-aa85-4980-a97a-0953045c5dfd se libera mediante finish; siguiente chat adquiere su propio token.
+
+## Cierre AXBYZ / Codex — 2026-10-29 — Bosque, inventario, observatorio e intro
+
+Relevo prioritario: [CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md](CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md), que sustituye valores históricos del28. AXBYZ autoriza explícitamente PR, respaldo de todos los avances y cierre de edición; no merge. Rama de entrega codex/bosque-pulido-20261029 sobre6c41123; main remoto4eb86bb. Se incluyen avances propios27–29 y se preservan sin publicar cambios ajenos/independientes en río/agua, máscara interior y leña; game.js/terrain-textures.js se entregan parcialmente, sin reescribir la copia de trabajo.
+
+Audio sps reverb3.mp3 exacto en bosque.mp3, SHA256 A8995ED537FFAE6A5062E2059EE9D87A5393992734C142F6DC836200B95C02BB. Ascenso39→43.320, pulso22.248→23.748, copas46BPM con2502zonas10m y diámetro.85; cielo continuo43.320→64.029, salida hue suave, horizonte.65s desfasado y dim solar20%. Monitor soloKonami/compacto, movimiento desdeReproducir y traslado solo fuera de zona inferior. Vuelo amortiguado.06s y botón central; inventario sin salto al entrar, glow persistente solo con objeto; observatorio con lámparas ámbar/núcleo cálido y geometría ajustada. Detalles finales, archivos, pruebas y pendientes en relevo.
+
+Pruebas: Chrome juego completo/controladores/fixtures, transición de cielo continua240muestras, curvas/poses, inventario/Konami y distribución2502/7488 sin errores; Firefox159 intro completa, Chrome156 también. Firefox aún tiene preparación lenta/pausa53.8s; no se promete mejora de FPS. Pendientes: móvil físico, audición humana y recorrido completo de misiones. Ver .coordination/intro-firefox-fix-notes-20261029.md y restantes notas20261029; no ejecutar arneses antiguos sin revisar supuestos.
+
+Respaldo previsto .coordination/backups/Isla_Jaipo_2026-10-29_AXBYZ_cierre.zip con SHA256 hermano: copia completa/Git/ignorados/no seguidos, excluye solo respaldos anteriores y bloqueo. Servidores y túnel preservados. Token propio48a60ec9-b08d-4f2c-ad48-408f81b7c776 se libera al terminar respaldo. PR y comprobación final se registran a continuación.

@@ -112,7 +112,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
 
         y += (macroNoise + microNoise + shoreGranularity) * noiseAmount;
     }
-    const road=sampleMountainPath(mountainPathProfile,colF,rowF);
+    const road=sampleMountainPath(mountainPathProfile,colF,rowF,y);
     if(road?.offset!=null)y+=road.offset;
     else if(road) {
         const core=road.coreRadius ?? mountainPathProfile.coreRadius ?? 0.6;
@@ -136,7 +136,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     }
     // Relleno local de la cimentación y su contorno: las losas del observatorio
     // deben descansar sobre una explanada, también en el borde posterior de la cima.
-    const observatory=summitStonePlatform,apron=2.5,transition=2;
+    const observatory=summitStonePlatform,apron=.75,transition=6;
     const minX=observatory.minX-.5-apron,minZ=observatory.minZ-.5-apron;
     const maxX=observatory.minX+observatory.cellsPerSide-.5+apron;
     const maxZ=observatory.minZ+observatory.cellsPerSide-.5+apron;
@@ -145,7 +145,7 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
         const distance=Math.hypot(Math.max(minX-colF,0,colF-maxX),Math.max(minZ-rowF,0,rowF-maxZ));
         if(distance<transition) {
             const t=distance/transition,blend=t*t*(3-2*t);
-            y=mountainPathProfile.summitHeight*(1-blend)+y*blend;
+            y=(mountainPathProfile.summitHeight+(observatory.heightOffset??0))*(1-blend)+y*blend;
         }
     }
     // Mantener tierra continua bajo la madera y suavizar el encuentro exterior.

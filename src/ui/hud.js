@@ -35,6 +35,7 @@ export function createHud() {
     const airTrack = document.getElementById('diving-air-track');
     let displayedAir = null;
     let helmetViewVisible = false;
+    let helmetViewEquipped = false, helmetViewAnimation = null;
     let itemAnimation = null, itemVersion = 0;
 
     function showNextItem() {
@@ -98,7 +99,26 @@ export function createHud() {
     function setHelmetViewVisible(visible) {
         if (visible === helmetViewVisible) return;
         helmetViewVisible = visible;
-        helmetView.style.display = visible ? 'block' : 'none';
+        helmetView.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    function setHelmetEquipped(equipped) {
+        if(equipped===helmetViewEquipped)return;
+        helmetViewEquipped=equipped;
+        helmetView.style.display='block';
+        const from=getComputedStyle(helmetView).transform;
+        helmetViewAnimation?.cancel();
+        const to=equipped?'translateY(0)':'translateY(-106%)';
+        helmetView.style.transform=to;
+        const animation=helmetView.animate([{transform:from},{transform:to}],{
+            duration:reducedMotion.matches?0:equipped?480:420,
+            easing:'cubic-bezier(.22,.75,.28,1)'
+        });
+        helmetViewAnimation=animation;
+        animation.onfinish=()=>{
+            if(helmetViewAnimation!==animation)return;
+            helmetViewAnimation=null;
+            if(!helmetViewEquipped)helmetView.style.display='none';
+        };
     }
     function setHelmetCrackStage(stage, duration = 1.4) {
         if (helmetCrackStage === stage) return;
@@ -152,5 +172,5 @@ export function createHud() {
         coordinates.textContent = text;
     }
 
-    return { setRiverWarning, showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetViewVisible, setHelmetCrackStage, updateHelmetCrack, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
+    return { setRiverWarning, showLensMode, showInteraction, hideInteraction, setInteractionText, setInteractionColor, showStamina, hideStamina, updateStamina, showDeath, hideDeath, showReceivedItem, showNotification, setHelmetEquipped, setHelmetViewVisible, setHelmetCrackStage, updateHelmetCrack, showDivingAir, hideDivingAir, updateCoordinates, setUnderwaterTint };
 }

@@ -18,6 +18,9 @@ export function createSkyCycle(manualSeconds=3) {
         get weights(){return weights;},
         get transitioning(){return transition!==null;},
         get sunProgress(){return sunProgress;},
+        captureState(){return {weights:{...weights},transition:transition?structuredClone(transition):null,sunProgress};},
+        restoreState(state){weights={...state.weights};transition=state.transition;sunProgress=state.sunProgress;},
+        seek(timer){transition=null;return this.update(0,true,timer);},
         toggle(day){transition={from:{...weights},middle:unit(day?'dawn':'dusk'),to:unit(day?'day':'night'),elapsed:0,
             fromSun:day&&weights.night>0.99?0:sunProgress,toSun:day?timing.dawn/sunDuration:1};},
         update(delta,automatic,timer){

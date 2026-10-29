@@ -148,6 +148,7 @@
             background: linear-gradient(rgba(18, 16, 16, 0) 60%, rgba(0, 0, 0, 0.3) 60%),
                         linear-gradient(90deg, rgba(255, 0, 0, 0.1), rgba(0, 255, 0, 0.05), rgba(0, 0, 255, 0.1));
             z-index: 9998;
+            opacity: 0.95;
             background-size: 100% calc(5px / 0.729), 3px 100%;
             pointer-events: none;
         }
@@ -164,7 +165,7 @@
             display: block;
             position: fixed;
             top: 0; left: 0; bottom: 0; right: 0;
-            background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.6) 100%);
+            background: radial-gradient(circle, rgba(0,0,0,0) 60%, rgba(0,0,0,0.57) 100%);
             z-index: 9999;
             pointer-events: none;
             will-change: opacity; /* Optimización GPU */
@@ -365,9 +366,16 @@
         .inventory-item:focus-visible { outline: 2px solid #fff; }
         #inventory-item-description { max-width: 320px; min-height: 32px; margin: 8px auto 0; font-family: 'Press Start 2P', cursive; font-size: 10px; line-height: 1.7; text-align: center; color: #fff; flex-shrink: 0; }
         #diving-helmet-view {
-            display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none;
+            display: none; visibility: hidden; position: fixed; inset: 0; z-index: 4; pointer-events: none;
+            transform: translateY(-106%);
             background: radial-gradient(ellipse 60% 120% at 50% 50%,
                 transparent 64%, #c39b5866 65%, #9f7542b3 67%, #322820e6 72%, #211909 86%);
+        }
+        #diving-helmet-view::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: clamp(22px, 4vh, 42px); z-index: 2;
+            border-top: 3px solid #c39b58;
+            background: linear-gradient(#9f7542, #322820 30%, #211909);
         }
         .helmet-visor-grid {
             --visor-grid-unit: min(2.6vw, 5vh);
@@ -914,8 +922,8 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "./src/vendor/three-r160/three.module.js",
+                "three/addons/": "./src/vendor/three-r160/"
             }
         }
     </script>

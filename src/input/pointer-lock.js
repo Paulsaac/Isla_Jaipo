@@ -1,7 +1,7 @@
 // Entrada sin aceleración del sistema, con respaldo para navegadores sin soporte.
-export async function requestGamePointerLock(element) {
+export async function requestGamePointerLock(element,{unadjustedMovement=true}={}) {
     try {
-        await element.requestPointerLock({unadjustedMovement:true});
+        await element.requestPointerLock({unadjustedMovement});
     } catch (error) {
         if (error.name !== 'NotSupportedError' && !(error instanceof TypeError)) throw error;
         await element.requestPointerLock();

@@ -60,7 +60,8 @@ export async function prepareProgramsInBatches(THREE, renderer, world, view, che
     // material puede haber creado varias variantes (instancias, caras y fundido).
     // Esperar todas evita bloquear getProgramInfoLog al dibujarlas por primera vez.
     const pending = new Set(renderer.info.programs);
-    const gl = renderer.getContext(), started = performance.now();
+    const gl = renderer.getContext();
+    let lastProgress = performance.now();
     while (pending.size) {
         for (const program of pending) {
             if (cancelled()) return;
@@ -68,10 +69,13 @@ export async function prepareProgramsInBatches(THREE, renderer, world, view, che
             program.getUniforms();
             program.getAttributes();
             pending.delete(program);
+            lastProgress = performance.now();
             const pause = checkpoint();
             if (pause) await pause;
         }
-        if (gl.isContextLost() || performance.now() - started > 60000) throw new Error('No se pudieron preparar los programas gráficos.');
+        // Sin compilación paralela, consultar un programa puede bloquear mientras
+        // se prepara. Contar solo la espera sin progreso, nunca rechazar al acabar.
+        if (gl.isContextLost() || (pending.size && performance.now() - lastProgress > 60000)) throw new Error('No se pudieron preparar los programas gráficos.');
         if (pending.size) await new Promise(resolve => setTimeout(resolve, 8));
     }
 }

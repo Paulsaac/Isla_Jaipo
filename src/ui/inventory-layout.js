@@ -4,15 +4,37 @@ export function arrangeInventory(menu) {
     const panel=menu.querySelector('.inventory-windows');panel.classList.add('inventory-orbit');
     const slots={heart:[24,13],'sea-heart':[50,23],torch:[7,65],map:[13,80],
         'pink-sunglasses':[28,87],astroscope:[93,47],helmet:[93,65],mate:[87,80],key:[72,87]};
+    let lastSlot=null;
+    function highlight(slot) {
+        if(lastSlot===slot)return;
+        lastSlot?.classList.remove('last-pointed-slot');lastSlot=slot;slot.classList.add('last-pointed-slot');
+    }
+    function clearEmptyHighlight(slot) {
+        const button=slot.querySelector('[data-item]');
+        if(lastSlot!==slot||(button&&getComputedStyle(button).display!=='none'))return;
+        slot.classList.remove('last-pointed-slot');lastSlot=null;
+    }
     for(const [item,[x,y]] of Object.entries(slots)) {
         const button=menu.querySelector(`[data-item="${item}"]`),slot=button.parentElement;
         panel.append(slot);slot.classList.add('orbit-slot');
         slot.dataset.inventoryItem=item;
         if(item==='heart'||item==='sea-heart')slot.classList.add('heart-hex');
+        slot.addEventListener('pointerenter',()=>highlight(slot));
+        slot.addEventListener('pointerleave',()=>clearEmptyHighlight(slot));
+        button.addEventListener('pointerenter',()=>highlight(slot));
+        button.addEventListener('pointerleave',()=>clearEmptyHighlight(slot));
+        button.addEventListener('focus',()=>highlight(slot));
         slot.style.setProperty('--slot-x',`${x}%`);slot.style.setProperty('--slot-y',`${y}%`);
     }
     const future=menu.querySelector('#future-heart-slot');panel.append(future);
     future.classList.add('orbit-slot','heart-hex');future.style.setProperty('--slot-x','76%');future.style.setProperty('--slot-y','13%');
+    future.addEventListener('pointerenter',()=>highlight(future));
+    future.addEventListener('pointerleave',()=>clearEmptyHighlight(future));
+    // Si se entrega o retira el objeto seleccionado, tampoco dejar un brillo vacío.
+    new MutationObserver(changes=>{
+        if(lastSlot&&changes.some(change=>change.target===lastSlot
+            ||change.target===lastSlot.querySelector('[data-item]')))clearEmptyHighlight(lastSlot);
+    }).observe(panel,{attributes:true,attributeFilter:['style'],subtree:true});
     panel.querySelectorAll('section.game-menu-box').forEach(section=>section.remove());
     const host=document.createElement('div');host.className='inventory-model-preview';panel.append(host);
     host.addEventListener('click',event=>event.stopPropagation());

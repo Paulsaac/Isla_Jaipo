@@ -6,6 +6,7 @@ import { createSeaAmbience } from './sea-ambience.js';
 import { createAltarFireAudio } from './altar-fire-audio.js';
 import { createInteractionAudio } from './interaction-audio.js';
 import { createObservatoryGearAudio } from './observatory-gear-audio.js';
+import { createForestPreviewAudio } from './forest-preview-audio.js';
 // Audio de la partida: música única, pisadas y ambiente.
 export function createMusicEvents() {
     let context = null;
@@ -55,6 +56,9 @@ export function createMusicEvents() {
         morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:1,reverbMix:0.5},
         underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
     };
+    const forestPreview=createForestPreviewAudio(()=>prepare('forest'),active=>{
+        if(context)(paused||active?context.suspend():context.resume()).catch(()=>{});
+    });
 
     function unlock() {
         if (!context) context = new (window.AudioContext || window.webkitAudioContext)();
@@ -79,7 +83,7 @@ export function createMusicEvents() {
         prepareWoodcutting();
         prepareDap();
         getIndoorFootstepOutput();
-        if (!paused && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
+        if (!paused && !forestPreview.active && context.state === 'suspended') context.resume().catch(error => console.warn('Audio pendiente de autorización del navegador:',error));
         waterAudio.unlock();
         forestAmbience.unlock();
         nightForestAmbience.unlock();
@@ -276,6 +280,7 @@ export function createMusicEvents() {
 
     function setPaused(value) {
         paused = value;
+        forestPreview.setWorldPaused(value);
         waterAudio?.setPaused(value);
         forestAmbience?.setPaused(value);
         nightForestAmbience?.setPaused(value);
@@ -283,7 +288,7 @@ export function createMusicEvents() {
         seaAmbience?.setPaused(value);
         if (!context) return;
         // Suspender el reloj de audio conserva la posición de música, ráfagas y efectos.
-        const operation = paused ? context.suspend() : context.resume();
+        const operation = paused || forestPreview.active ? context.suspend() : context.resume();
         operation.catch(error => console.warn('No se pudo cambiar la pausa del audio:',error));
     }
 
@@ -426,7 +431,7 @@ export function createMusicEvents() {
     }
 
     function update(delta) {
-        if (paused) return;
+        if (paused || forestPreview.active) return;
         for (const track of Object.values(tracks)) {
             if (!track.triggered) continue;
             if (track.remaining > 0) track.remaining -= delta;
@@ -548,7 +553,11 @@ export function createMusicEvents() {
     function playFootstep(running = false, accent = 1, outdoor = false, isLeft = true, surface = outdoor ? 'grass' : 'indoor', highPitch = false) {
         if (!context || paused || context.state !== 'running') return;
         const now = context.currentTime;
-        if (outdoor || ['sand','dirt','wood'].includes(surface)) {
+        // La superficie decide la grabación, incluso si la celda no está marcada
+        // como exterior. La piedra usa las tomas secas de tierra/grava.
+        const indoor = surface === 'indoor';
+        if (indoor) surface = 'dirt';
+        {
             const variants = surface === 'dirt' ? dirtFootsteps : surface === 'grass' ? [grassFootstep,grassFootstepB] : surface === 'sand' ? [sandFootstep,sandFootstepB] : null;
             const index = variants ? (surface === 'grass' ? Math.floor(Math.random() * 2) : footstepVariant[surface]) : 0;
             const buffer = variants ? variants[index] || variants[1-index] : surface === 'wood' ? woodFootstep : sandFootstep;
@@ -570,28 +579,12 @@ export function createMusicEvents() {
             const volume = surface === 'wood' ? outdoorVolume * 2 / 1.2 : outdoorVolume;
             gain.gain.value = volume * accent;
             source.connect(gain);
-            gain.connect(surface === 'wood' ? getIndoorFootstepOutput() : context.destination);
+            gain.connect(surface === 'wood' || indoor ? getIndoorFootstepOutput() : context.destination);
             source.onended = () => { source.disconnect(); gain.disconnect(); };
             source.start(now);
             if (variants && surface !== 'grass') footstepVariant[surface] = 1-index;
             return;
         }
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        const pitch = highPitch ? 1.02 * (1 + Math.random() * 0.02)
-            : (isLeft ? 0.98 : 1.02) * (0.98 + Math.random() * 0.04);
-        oscillator.type = 'sine';
-        oscillator.detune.value = (Math.random() * 2 - 1) * 45;
-        oscillator.frequency.setValueAtTime(126 * pitch, now);
-        oscillator.frequency.exponentialRampToValueAtTime(53.2 * pitch, now + 0.12);
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.linearRampToValueAtTime((running ? 0.1122 : 0.0816) * accent, now + 0.003);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.182);
-        oscillator.connect(gain);
-        gain.connect(getIndoorFootstepOutput());
-        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-        oscillator.start(now);
-        oscillator.stop(now + 0.195);
     }
 
     function playDialogueCharacter(character) {
@@ -682,6 +675,7 @@ export function createMusicEvents() {
         return !!track && !!(track.played || ((track.stopped || track.failed) && track.remaining <= 0.000001));
     }
     function getForestEnergy() {
+        if(forestPreview.active)return forestPreview.getEnergy();
         forestEnergy.bass = forestEnergy.treble = 0;
         if (!forestAnalyser || paused || !tracks.forest.source) return forestEnergy;
         forestAnalyser.getByteFrequencyData(forestSpectrum);
@@ -698,10 +692,12 @@ export function createMusicEvents() {
         return forestEnergy;
     }
     function isEventActive(name) {
+        if(name==='forest'&&forestPreview.active)return true;
         const track = tracks[name];
         return !!track?.triggered && !track.ended && !track.stopped && !track.failed;
     }
     function getEventTimeRemaining(name) {
+        if(name==='forest'&&forestPreview.active)return Math.max(0,forestPreview.duration-forestPreview.time);
         if (!isEventActive(name)) return 0;
         const track = tracks[name];
         if (!track.played) return Infinity;
@@ -709,13 +705,14 @@ export function createMusicEvents() {
     }
     // Tiempo del archivo original: excluye los 4s de espera y se congela al pausar AudioContext.
     function getEventPlaybackTime(name) {
+        if(name==='forest'&&forestPreview.active)return forestPreview.time;
         const track = tracks[name];
         if (!context || paused || context.state !== 'running' || !track?.played || !track.source || !isEventActive(name)) return null;
         return Math.max(0, Math.min(track.duration, context.currentTime - track.startedAt));
     }
-    function getEventDuration(name) { return tracks[name]?.duration ?? 0; }
+    function getEventDuration(name) { return name==='forest'&&forestPreview.active?forestPreview.duration:tracks[name]?.duration??0; }
     function playWakeSplash() { waterAudio?.playWakeSplash(); }
-    return {unlock,setPaused,playWakeSplash,playObservatoryLensChange,setObservatoryGearMoving,resetSeaHeartEvent,playHelmetCrack,playHelmetGlassPop,igniteStoveFire: () => stoveFireAudio?.ignite(),updateStoveFirePosition: state => stoveFireAudio?.updatePosition(state),igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {forestPreview,unlock,setPaused,playWakeSplash,playObservatoryLensChange,setObservatoryGearMoving,resetSeaHeartEvent,playHelmetCrack,playHelmetGlassPop,igniteStoveFire: () => stoveFireAudio?.ignite(),updateStoveFirePosition: state => stoveFireAudio?.updatePosition(state),igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();
