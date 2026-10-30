@@ -34,8 +34,21 @@ export function createWizardTelevisions(THREE,woodTexture,ceilingHeight=2.75) {
     function knob(radius,depth,x,y,z,color=0x333d3d) {
         add(new THREE.CylinderGeometry(radius,radius,depth,8),shell,color,g=>{g.rotateX(Math.PI/2);g.translate(x,y,z);});
     }
+    class FloorCableCurve extends THREE.CatmullRomCurve3 {
+        constructor(points,radius) {
+            super(points.map(point=>new THREE.Vector3(...point)));
+            this.minimumHeight=radius+.002;
+        }
+        getPoint(t,target) {
+            const point=super.getPoint(t,target);
+            // La spline puede bajar entre apoyos: apoyar el tubo completo,
+            // conservando 2 mm de separación respecto a la madera.
+            point.y=Math.max(this.minimumHeight,point.y);
+            return point;
+        }
+    }
     function cable(points,radius=.01,color=0x121a20) {
-        const curve=new THREE.CatmullRomCurve3(points.map(point=>new THREE.Vector3(...point)));
+        const curve=new FloorCableCurve(points,radius);
         add(new THREE.TubeGeometry(curve,Math.max(12,points.length*3),radius,4,false),wire,color);
     }
     const rearPorts=[];
@@ -92,13 +105,16 @@ export function createWizardTelevisions(THREE,woodTexture,ceilingHeight=2.75) {
         box(.12,.10,.02,-.045,.25+i*.25,-.078,0x171f25,dark);
         box(.018,.025,.015,-.065,.25+i*.25,-.060,i%3===0?0x8cb5b1:0x5f8980,glow);
     }
-    // Canaleta fijada al techo; las bajadas permanecen detrás de las carcasas.
-    box(2.45,.085,.22,-.03,ceilingHeight-.025,-.63,0x313b3c);
-    for(const x of [-1.10,1.04])box(.065,.12,.27,x,ceilingHeight-.025,-.63,0x171f25,dark);
+    // El conjunto gira -45° junto a la esquina: dejar margen para el grosor
+    // de canaleta/cables y la curvatura, no solo para sus puntos de control.
+    // Las bajadas siguen detrás de las carcasas y la canaleta toca el techo.
+    const trayZ=-.33;
+    box(2.30,.085,.22,-.03,ceilingHeight-.025,trayZ,0x313b3c);
+    for(const x of [-1.03,.99])box(.065,.12,.27,x,ceilingHeight-.025,trayZ,0x171f25,dark);
     for(let i=0;i<24;i++) {
-        const port=rearPorts[i%rearPorts.length],sx=-1.13+i*2.2/23;
-        const lane=-.66-(i%4)*.035;
-        cable([[sx,ceilingHeight-.05,-.63],[sx,ceilingHeight-.28,lane],
+        const port=rearPorts[i%rearPorts.length],sx=-1.02+i*2.09/23;
+        const lane=-.46-(i%4)*.035;
+        cable([[sx,ceilingHeight-.05,trayZ],[sx,ceilingHeight-.28,lane],
             [port[0]+(i%2?.07:-.07),Math.max(port[1]+.18,ceilingHeight-.68),lane],
             [port[0],port[1]+.10,lane],port],.007+random()*.006,i%5===0?0x2a343b:0x111a21);
     }
@@ -108,8 +124,8 @@ export function createWizardTelevisions(THREE,woodTexture,ceilingHeight=2.75) {
     for(let i=0;i<7;i++) {
         const cx=-.78+random()*1.65,cz=.62+random()*.42,r=.23+random()*.29;
         const port=rearPorts[(i*3)%rearPorts.length];
-        const points=[port,[port[0],port[1],-.64],[port[0],.15,-.67],
-            [port[0],.025,-.62],[cx+r,.025,.36]];
+        const points=[port,[port[0],port[1],-.50],[port[0],.15,-.53],
+            [port[0],.025,-.48],[cx+r,.025,.36]];
         for(let j=0;j<=18;j++) {
             const a=j*Math.PI*2/18;
             points.push([cx+Math.cos(a)*r,.012+i*.0015,cz+Math.sin(a)*r*.70]);

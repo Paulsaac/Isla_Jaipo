@@ -52,17 +52,25 @@ export function carveMountainTrail(floorMap, heights, mountainMask, profile, col
     // La salida se nivela antes de la entrada, sin prolongarse bajo el edificio.
     const summitStart=points.length-1,last=points.at(-1);
     const arrival={x:wizardHouseLayout.door.x-2,z:wizardHouseLayout.door.z};
-    const control={x:last.x+8,z:arrival.z};
+    const straightStart=wizardHouseLayout.approach,curveSteps=60;
+    const control={x:last.x+8,z:straightStart.z};
     for(let i=1;i<=180;i++) {
-        const t=i/180,s=1-t;
-        points.push({x:s*s*last.x+2*s*t*control.x+t*t*arrival.x,
-            z:s*s*last.z+2*s*t*control.z+t*t*arrival.z});
+        if(i<=curveSteps) {
+            const t=i/curveSteps,s=1-t;
+            points.push({x:s*s*last.x+2*s*t*control.x+t*t*straightStart.x,
+                z:s*s*last.z+2*s*t*control.z+t*t*straightStart.z});
+        } else {
+            const t=(i-curveSteps)/(180-curveSteps);
+            points.push({x:straightStart.x+(arrival.x-straightStart.x)*t,z:arrival.z});
+        }
     }
     // Redondear cambios de sentido para que la plataforma no tenga esquinas
     // donde dos tramos próximos compitan por la altura del mismo vértice.
     for(let pass=0;pass<24;pass++) {
         const previous=points.map(p=>({...p}));
         for(let i=1;i<points.length-1;i++) {
+            // La llegada y su pintura comparten una recta hasta la puerta.
+            if(i>=summitStart+curveSteps)continue;
             points[i].x=(previous[i-1].x+2*previous[i].x+previous[i+1].x)/4;
             points[i].z=(previous[i-1].z+2*previous[i].z+previous[i+1].z)/4;
         }

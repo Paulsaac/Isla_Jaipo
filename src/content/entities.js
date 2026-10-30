@@ -1,11 +1,12 @@
 import { wizardHouseLayout } from './summit-layout.js';
+import { KEY_DEFINITIONS } from './keys.js';
 
 // Entidades específicas por celda del mapa. Ver tools/world-map.html.
 // Cada entrada: { id, type: 'CHEST', position: { x, z }, item: 'forest-heart', rotationY opcional }.
 // Cofre del corazón trasladado en capa1 por el usuario a (94,279).
 export const entities = [
     // Rincón del fondo de la planta baja; deja libre la entrada a la escalera.
-    { id: 'mountain-wizard-chest', type: 'CHEST', position: wizardHouseLayout.chest, offset: { x: 4, z: 5 }, item: 'key', rotationY: Math.PI/2 },
+    { id: 'mountain-wizard-chest', type: 'CHEST', position: wizardHouseLayout.chest, offset: wizardHouseLayout.furnitureOffsets.chest, item: 'key', rotationY: Math.PI/2 },
     { id: 'lake-house-sunglasses', type: 'CHEST', position: { x: 361, z: 283 }, item: 'pink-sunglasses' },
     {
         id: 'forest-heart-chest',
@@ -28,7 +29,7 @@ export const entities = [
 ];
 
 // Celda de referencia y ajuste fino en unidades del mundo.
-export const grahamPosition = { x: 230, z: 440, offset: { x: 1.3, z: 1.0 } };
+export const grahamPosition = { x: 230, z: 440, offset: { x: 1.3, z: 1.15 } };
 
 export const spawnRoomExit = { x: 235, z: 442 };
 
@@ -39,16 +40,17 @@ export const riverDrowningLanding = { x: 403, z: 316 };
 export const grahamRoomDivider = { fromX: 231.5, toX: 229, z: 446, torchX: 230.5 };
 
 export const kitchenSacks = [
-    { id: 'graham-kitchen-sack-1', position: { x: 230, z: 447 }, offset: { x: 0.5, z: -1.3 }, rotationY: Math.PI, scale: 1, open: false },
-    { id: 'graham-kitchen-sack-2', position: { x: 231, z: 447 }, offset: { x: 0.1, z: -1.18 }, rotationY: Math.PI, scale: 1, open: true }
+    { id: 'graham-kitchen-sack-1', position: { x: 230, z: 447 }, offset: { x: 0.8, z: -1.05 }, rotationY: Math.PI, scale: 1, open: false },
+    { id: 'graham-kitchen-sack-2', position: { x: 231, z: 447 }, offset: { x: 0.3, z: 0.4 }, rotationY: Math.PI / 2, scale: 1, open: true }
 ];
+export const kitchenBroom={position:{x:229,z:447},offset:{x:1,z:-1.44},rotationY:.06};
 
 export const kitchenGardenPosition = { x: 237, z: 452 };
 
 // Pie occidental de la montaña, junto al punto marcado por AxByZ en el mapa.
 export const telescopePickup = { x: 55, z: 188, rotationY: -0.75 };
 // Pared norte interior de la casa de la cima; frente del escritorio hacia el sur.
-export const telescopeWorkshopPosition = { ...wizardHouseLayout.workshop, rotationY: Math.PI };
+export const telescopeWorkshopPosition = { ...wizardHouseLayout.workshop, offset:wizardHouseLayout.furnitureOffsets.workshop, rotationY: Math.PI };
 
 // Ajustes locales sobre la lectura del mapa; los PNG originales se conservan.
 // La puerta posterior ocupa un muro pintado; el cambio queda localizado aquí.
@@ -60,10 +62,8 @@ export const mapCellOverrides = [
 
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
 
-export const keyBindings = [{
-    id: 'bridge-key', name: 'Llave del puente',
-    doors: [{ x: 264, z: 276 }, { x: 265, z: 276 }]
-}];
+export const keyBindings = KEY_DEFINITIONS.map(key=>({id:key.id,name:key.name,
+    doors:key.id==='bridge-key'?[{x:264,z:276},{x:265,z:276}]:[]}));
 
 // Marcadores amarillos del naufragio; el suelo es playa, no un muelle.
 // Regreso del rescate marino, en arena libre detrás de los restos.
@@ -105,7 +105,7 @@ export const furniture = [
     // Esquina noroeste de la sala, entre librero y entrada: frente hacia el interior.
     { id: 'graham-living-room-wood-stove', type: 'WOOD_STOVE', position: { x: 228, z: 438 }, size: { x: 1, z: 1 }, offset: { x: 0.1, z: 0.15 }, rotationY: Math.PI / 4 },
     { id: 'graham-spice-shelf', type: 'SPICE_SHELF', position: { x: 227, z: 449 }, size: { x: 1, z: 1 }, offset: { z: 0.65 }, rotationY: Math.PI },
-    { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 449 }, size: { x: 1, z: 1 }, offset: { z: 0.28 }, rotationY: Math.PI },
+    { id: 'graham-antique-stove', type: 'ANTIQUE_STOVE', position: { x: 228, z: 449 }, size: { x: 1, z: 1 }, offset: { x: -0.09, z: 0.28 }, rotationY: Math.PI },
     { id: 'graham-stump', type: 'STUMP', position: { x: 239, z: 438 }, size: { x: 1, z: 1 }, offset: { y: -0.12 }, rotationY: 0 },
     { id: 'graham-workbench', type: 'WORKBENCH', position: { x: 237, z: 439 }, size: { x: 1, z: 2 }, rotationY: 0 },
     { id: 'graham-log-stack', type: 'LOG_STACK', position: { x: 238, z: 441 }, size: { x: 2, z: 1 }, rotationY: Math.PI / 2 },

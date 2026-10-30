@@ -1,0 +1,18 @@
+#inventory-menu .orbit-slot[data-inventory-item="key"]{display:none!important;}
+.inventory-keyring-button{position:absolute;right:max(48px,11vw);bottom:max(56px,12vh);width:clamp(72px,9.6vmin,120px);height:clamp(108px,15.2vmin,176px);padding:0;border:0;background:transparent;color:#e5e2d8;z-index:28;cursor:pointer;}
+.inventory-keyring-button[hidden],.keyring-inspector[hidden]{display:none;}
+.keyring-mini-stage{display:block;width:100%;height:calc(100% - 23px);pointer-events:none;filter:drop-shadow(0 3px 4px #000a);}
+.inventory-keyring-button:hover .keyring-mini-stage,.inventory-keyring-button.is-virtual-hover .keyring-mini-stage{filter:drop-shadow(0 0 5px #d5cbb16b);}
+.keyring-caption{font:clamp(7px,1.2vmin,10px)/1.6 'Press Start 2P',monospace;text-shadow:1px 2px #000;}
+.keyring-canvas{display:block;width:100%;height:100%;touch-action:none;}
+.keyring-inspector{position:absolute;inset:0;z-index:80;background:rgba(4,7,6,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#f1eee4;}
+#inventory-menu .keyring-inspector,#inventory-menu .keyring-inspector *{-webkit-text-stroke:0;}
+.keyring-inspector h2{font:clamp(12px,2vmin,20px)/1.6 'Press Start 2P',monospace;margin:0;}
+.keyring-full-stage{position:relative;width:min(560px,75vw);height:min(540px,65vh);}
+.keyring-name{height:2em;margin:0;min-width:70%;text-align:center;font:clamp(9px,1.8vmin,14px)/1.8 'Press Start 2P',monospace;}
+.keyring-close{position:absolute;right:clamp(8px,10%,56px);top:8px;z-index:2;width:44px;height:44px;border:1px solid #8a897e;background:#171d19;color:#eee9dc;font:26px/1 sans-serif;cursor:pointer;}
+.keyring-close:focus,.inventory-keyring-button:focus{outline:none;}
+.keyring-close:focus-visible{border-color:#dfca99;}
+.keyring-canvas:focus-visible{outline:2px solid #dfca99;outline-offset:4px;}
+.inventory-keyring-button:focus-visible .keyring-mini-stage{filter:drop-shadow(0 0 5px #d5cbb16b);}
+@media(max-width:600px){.inventory-keyring-button{right:11vw;bottom:max(76px,14vh);width:64px;height:104px;}.keyring-full-stage{width:90vw;height:57vh;}}

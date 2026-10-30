@@ -1,11 +1,19 @@
 import { RIVER_FLOW_PHASE_RATE, RIVER_FLOW_UV_TRAVEL } from './river-current.js';
 
+// Movimiento compartido por el agua y la superficie translúcida del altar.
+export const waterTextureMotionGLSL = `
+    float waveA = vWaterPosition.x * 0.65 + vWaterPosition.z * 0.3 + waterTime * 0.75;
+    float waveB = vWaterPosition.x * -0.25 + vWaterPosition.z * 0.8 - waterTime * 0.55;
+    vec2 waterUvOffset = vec2(sin(waveA), cos(waveB)) * 0.06 * mix(1.0,1.8,waterImmersion);
+`;
+
 // Ondas visuales en GPU; la corriente comparte velocidad con el empuje del jugador.
-export function applyWaterWaves(THREE, material, time, currentField, unitSize, immersion = {value:0}, raisedCell = {value:new THREE.Vector4()}, flowOrigin = new THREE.Vector2()) {
+export function applyWaterWaves(THREE, material, time, currentField, unitSize, immersion = {value:0}, raisedCell = {value:new THREE.Vector4()}, flowOrigin = new THREE.Vector2(), shoreline = null) {
     const flowTexture = new THREE.DataTexture(currentField.data, currentField.width, currentField.height, THREE.RGBAFormat);
     flowTexture.needsUpdate = true;
     flowTexture.magFilter = flowTexture.minFilter = THREE.NearestFilter;
     material.onBeforeCompile = shader => {
+        if(shoreline)Object.assign(shader.uniforms,shoreline.uniforms);
         shader.uniforms.waterTime = time;
         shader.uniforms.waterImmersion = immersion;
         shader.uniforms.raisedWaterCell = raisedCell;
@@ -21,9 +29,7 @@ export function applyWaterWaves(THREE, material, time, currentField, unitSize, i
             // Una sola superficie de agua dentro del altar, a su cota elevada.
             if(raisedWaterCell.z>0.0 && vWaterPosition.y<raisedWaterCell.w-0.01
                 && all(lessThan(abs(vWaterPosition.xz-raisedWaterCell.xy),vec2(raisedWaterCell.z)))) discard;
-            float waveA = vWaterPosition.x * 0.65 + vWaterPosition.z * 0.3 + waterTime * 0.75;
-            float waveB = vWaterPosition.x * -0.25 + vWaterPosition.z * 0.8 - waterTime * 0.55;
-            vec2 waterUvOffset = vec2(sin(waveA), cos(waveB)) * 0.06 * mix(1.0,1.8,waterImmersion);
+            ${waterTextureMotionGLSL}
             ${THREE.ShaderChunk.map_fragment.replaceAll('vMapUv', '(vMapUv + waterUvOffset)')}
             #ifdef USE_MAP
                 vec2 fieldUv = ((vWaterPosition.xz-riverOrigin) / riverUnitSize + 0.5) / riverMapSize;
@@ -50,12 +56,35 @@ export function applyWaterWaves(THREE, material, time, currentField, unitSize, i
             // La cara inferior es opaca incluso durante la transición de inmersión.
             float viewOpacity = cameraPosition.y < vWaterPosition.y ? 1.0 : surfaceOpacity;
             diffuseColor.a *= viewOpacity / opacity;
+            ${shoreline ? `
+                // Cobertura de un solo píxel: estabiliza el contacto sin una franja difuminada.
+                if(cameraPosition.y>=vWaterPosition.y && abs(vWaterPosition.y-shorelineSurface)<0.01) {
+                    vec2 shoreCell=vWaterPosition.xz/shorelineGrid.zw;
+                    if(all(greaterThanEqual(shoreCell,vec2(0.0))) && all(lessThanEqual(shoreCell,shorelineGrid.xy-1.0))) {
+                        vec2 cell=min(floor(shoreCell),shorelineGrid.xy-2.0);
+                        vec2 f=shoreCell-cell;
+                        vec2 uv=(cell+0.5)/shorelineGrid.xy, texel=1.0/shorelineGrid.xy;
+                        float a=texture2D(shorelineHeights,uv).r;
+                        float b=texture2D(shorelineHeights,uv+vec2(texel.x,0.0)).r;
+                        float c=texture2D(shorelineHeights,uv+vec2(0.0,texel.y)).r;
+                        float d=texture2D(shorelineHeights,uv+texel).r;
+                        float ground=f.x+f.y<=1.0 ? a+(b-a)*f.x+(c-a)*f.y
+                            : d+(c-d)*(1.0-f.x)+(b-d)*(1.0-f.y);
+                        // Separación vertical de 1 cm: no dejar fragmentos casi coplanares competir en profundidad.
+                        float clearance=vWaterPosition.y-ground-0.01;
+                        float pixelWidth=max(0.0001,fwidth(clearance));
+                        diffuseColor.a*=clamp(clearance/pixelWidth,0.0,1.0);
+                        if(diffuseColor.a<0.0001)discard;
+                    }
+                }
+            ` : ''}
         `);
+        if(shoreline)shader.fragmentShader='uniform sampler2D shorelineHeights;\nuniform vec4 shorelineGrid;\nuniform float shorelineSurface;\n'+shader.fragmentShader;
         shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_maps>', `
             #include <normal_fragment_maps>
             vec3 ripple = vec3(cos(waveA) * 0.035, 0.0, sin(waveB) * 0.03) * mix(1.0,1.6,waterImmersion);
             normal = normalize(normal + (viewMatrix * vec4(ripple, 0.0)).xyz);
         `);
     };
-    material.customProgramCacheKey = () => 'water-waves-river-v14';
+    material.customProgramCacheKey = () => 'water-waves-river-v17'+(shoreline?'-triangle-shore':'');
 }

@@ -11,7 +11,18 @@ export const isWizardHouseRoofCell=(x,z)=>{
 export function createWizardUpperFloor(THREE,baseY,textures) {
     const origin={...wizardHouseLayout.origin}, middleLevel=3.2, level=6.4, stepsPerTurn=32, steps=64, rise=level/steps;
     const middleFloorThickness=.45;
+    const {halfX:groundX,halfZ:groundZ,wallThickness}=wizardHouseLayout.ground;
+    const groundInner={x:groundX-wallThickness,z:groundZ-wallThickness};
     const stair={x:0,z:1.7,inner:.2,outer:2.05,hole:2.14};
+    // Marco único para peldaños, hueco, desembarco y consultas físicas.
+    // La entrada mira al frente de la sala, junto a la llegada del tramo recto.
+    const stairPlacement={x:.6,z:.9,rotation:-Math.PI/2};
+    const stairCos=Math.cos(stairPlacement.rotation),stairSin=Math.sin(stairPlacement.rotation);
+    const placeStair=p=>({x:stairPlacement.x+stairCos*(p.x-stair.x)-stairSin*(p.z-stair.z),
+        z:stairPlacement.z+stairSin*(p.x-stair.x)+stairCos*(p.z-stair.z)});
+    const stairLocal=p=>({x:stair.x+stairCos*(p.x-stairPlacement.x)+stairSin*(p.z-stairPlacement.z),
+        z:stair.z-stairSin*(p.x-stairPlacement.x)+stairCos*(p.z-stairPlacement.z)});
+    const stairRadius=p=>Math.hypot(p.x-stairPlacement.x,p.z-stairPlacement.z);
     const straight={start:-2,end:4.4,z:6.05,half:.8,steps:20,holeStart:-.1,holeHalf:.96};
     const partitionZ=-1.9,landingHalfWidth=.72;
     const middleBounds={x:7.8,z:7.8},towerBounds={apothem:4.8},towerCeiling=11;
@@ -25,7 +36,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     group.position.set(origin.x,baseY,origin.z);
     const interior=new THREE.Group();interior.name='wizard-house-interior';group.add(interior);
     const interiorLights=[];
-    let interiorPhase=false;
+    let interiorPhase=false,spiralPhase=false;
     function tiled(texture) {
         const copy=texture.clone();copy.wrapS=copy.wrapT=THREE.RepeatWrapping;
         copy.magFilter=copy.minFilter=THREE.NearestFilter;copy.needsUpdate=true;return copy;
@@ -60,6 +71,11 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         return geometry;
     }
     function mesh(geometry,material,name) {
+        if(spiralPhase) {
+            geometry.translate(-stair.x,0,-stair.z);geometry.rotateY(-stairPlacement.rotation);
+            geometry.translate(stairPlacement.x,0,stairPlacement.z);
+            tileUV(geometry);
+        }
         const object=new THREE.Mesh(geometry,material);object.name=name;(interiorPhase?interior:group).add(object);return object;
     }
     function box(w,h,d,x,y,z,material=wood,name='wizard-upper-beam') {
@@ -83,7 +99,11 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         const opening=new THREE.Path(),cutAngle=Math.asin(landingHalfWidth/stair.hole);
         const cutX=stair.x-Math.sqrt(stair.hole**2-landingHalfWidth**2);
         opening.moveTo(cutX,-stair.z-landingHalfWidth);
-        opening.lineTo(stair.x-1.25,-stair.z-landingHalfWidth);
+        // Después del último peldaño, el desembarco abarca toda su huella
+        // radial. Mantener libre el lado de llegada para no tapar la subida.
+        opening.lineTo(stair.x-stair.inner,-stair.z-landingHalfWidth);
+        opening.lineTo(stair.x-stair.inner,-stair.z);
+        opening.lineTo(stair.x-1.25,-stair.z);
         opening.lineTo(stair.x-1.25,-stair.z+landingHalfWidth);
         opening.lineTo(cutX,-stair.z+landingHalfWidth);
         opening.absarc(stair.x,-stair.z,stair.hole,Math.PI-cutAngle,-Math.PI+cutAngle,true);
@@ -95,7 +115,8 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
                 new THREE.Vector2(straight.end,-straight.z-straight.holeHalf),
                 new THREE.Vector2(straight.end,-straight.z+straight.holeHalf),
                 new THREE.Vector2(straight.holeStart,-straight.z+straight.holeHalf)]
-            :opening.getPoints(32);
+            :opening.getPoints(32).map(p=>{const placed=placeStair({x:p.x,z:-p.y});
+                return new THREE.Vector2(placed.x,-placed.z);});
         if(THREE.ShapeUtils.isClockWise(openingPoints))openingPoints.reverse();
         outline.holes.push(new THREE.Path(openingPoints));
         const floorThickness=height===middleLevel?middleFloorThickness:HOUSE_UPPER_FLOOR_THICKNESS;
@@ -117,10 +138,10 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
             floorGeometry.dispose();
         } else mesh(floorGeometry,wood,'wizard-tower-floor');
     }
-    // Muros inferiores de dos unidades: coinciden con la huella de las celdas originales.
+    // Grosor inferior hacia el interior, conservando las caras exteriores.
     // La fachada occidental conserva la puerta central y añade las dos ventanas del dibujo.
     const groundWall=new THREE.Shape();groundWall.moveTo(-9,0);groundWall.lineTo(-1,0);
-    groundWall.lineTo(-1,2.2);groundWall.lineTo(1,2.2);groundWall.lineTo(1,0);
+    groundWall.lineTo(-1,2.44);groundWall.lineTo(1,2.44);groundWall.lineTo(1,0);
     const groundWallTop=middleLevel-.02;
     groundWall.lineTo(9,0);groundWall.lineTo(9,groundWallTop);groundWall.lineTo(-9,groundWallTop);groundWall.closePath();
     const windowGlass=new THREE.MeshPhongMaterial({color:0xe6d5b3,transparent:true,opacity:.12,
@@ -156,34 +177,30 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         mesh(frameGeometry,windowFrame,'wizard-black-window-frame');
     }
     for(const center of [-5,5]) pointedWindow(groundWall,{center});
-    const groundGeometry=new THREE.ExtrudeGeometry(groundWall,{depth:2,bevelEnabled:false});
-    groundGeometry.translate(0,0,8);groundGeometry.rotateY(-Math.PI/2);tileUV(groundGeometry);
+    const groundGeometry=new THREE.ExtrudeGeometry(groundWall,{depth:wallThickness,bevelEnabled:false});
+    groundGeometry.translate(0,0,groundInner.x);groundGeometry.rotateY(-Math.PI/2);tileUV(groundGeometry);
     const entryFrameStone=new THREE.MeshPhongMaterial({map:tiled(textures.wall),shininess:0});
-    // El intradós oscuro sustituye a la cara de piedra clara. No superponer un
-    // plano a dos milímetros de la cara original: ambas líneas competirían en móvil.
-    const facadeParts=[{position:[],normal:[],uv:[]},{position:[],normal:[],uv:[]}];
-    const gp=groundGeometry.attributes.position,gn=groundGeometry.attributes.normal;
-    for(let i=0;i<gp.count;i+=3) {
-        const soffit=gn.getY(i)<-.9&&Math.abs(gp.getY(i)-2.2)<.0001;
-        const part=facadeParts[soffit?1:0];
-        for(const name of ['position','normal','uv']) {
-            const attribute=groundGeometry.attributes[name],size=attribute.itemSize;
-            for(let j=i*size;j<(i+3)*size;j++)part[name].push(attribute.array[j]);
-        }
-    }
-    for(const [index,part]of facadeParts.entries()) {
-        const geometry=new THREE.BufferGeometry();
-        for(const name of ['position','normal','uv'])geometry.setAttribute(name,new THREE.Float32BufferAttribute(part[name],name==='uv'?2:3));
-        mesh(geometry,index===1?entryFrameStone:stone,index===1?'wizard-entry-frame-soffit':'wizard-ground-front-wall');
-    }
-    groundGeometry.dispose();
-    // Remate del mismo material oscuro de las jambas originales. Va por fuera
-    // del muro, sin volver a dibujar un dintel coplanario con la fachada.
-    for(const x of [-10.03,-7.97])
-        box(.06,.24,2,x,2.32,0,entryFrameStone,'wizard-entry-frame-header');
+    mesh(groundGeometry,stone,'wizard-ground-front-wall');
+    // Dintel completo, de sección y material iguales a las jambas. El hueco
+    // de la fachada lo contiene sin pieles superpuestas ni saliente central.
+    box(wallThickness,.24,2,-groundX+wallThickness/2,2.32,0,entryFrameStone,'wizard-entry-frame-header');
+    for(const z of [-.88,.88])
+        box(wallThickness,2.2,.24,-groundX+wallThickness/2,1.1,z,entryFrameStone,'wizard-entry-jamb');
     // La tapa de piedra queda dentro del espesor del piso y no en su plano superior.
-    box(2,groundWallTop,18,9,groundWallTop/2,0,stone,'wizard-ground-back-wall');
-    for(const z of [-8,8])box(16,groundWallTop,2,0,groundWallTop/2,z,stone,'wizard-ground-side-wall');
+    box(wallThickness,groundWallTop,groundZ*2,groundX-wallThickness/2,groundWallTop/2,0,stone,'wizard-ground-back-wall');
+    for(const z of [-groundZ+wallThickness/2,groundZ-wallThickness/2])
+        box(groundInner.x*2,groundWallTop,wallThickness,0,groundWallTop/2,z,stone,'wizard-ground-side-wall');
+    // Cerrar el techo del espacio ganado, unido al intradós del piso intermedio.
+    const ceilingBorder=new THREE.Shape();
+    ceilingBorder.moveTo(-groundInner.x,-groundInner.z);ceilingBorder.lineTo(groundInner.x,-groundInner.z);
+    ceilingBorder.lineTo(groundInner.x,groundInner.z);ceilingBorder.lineTo(-groundInner.x,groundInner.z);ceilingBorder.closePath();
+    const ceilingHole=new THREE.Path(),ceilingHalf=middleBounds.x-.14;
+    ceilingHole.moveTo(-ceilingHalf,-ceilingHalf);ceilingHole.lineTo(-ceilingHalf,ceilingHalf);
+    ceilingHole.lineTo(ceilingHalf,ceilingHalf);ceilingHole.lineTo(ceilingHalf,-ceilingHalf);ceilingHole.closePath();
+    ceilingBorder.holes.push(ceilingHole);
+    const ceilingBorderGeometry=new THREE.ExtrudeGeometry(ceilingBorder,{depth:.12,bevelEnabled:false});
+    ceilingBorderGeometry.rotateX(-Math.PI/2);ceilingBorderGeometry.translate(0,middleLevel-middleFloorThickness,0);
+    tileUV(ceilingBorderGeometry);mesh(ceilingBorderGeometry,wood,'space-wizard-ground-ceiling-border');
     floorAt(middleLevel,middleBounds);
     // Una sola losa de madera, con el hueco de la caracol. El antiguo encuentro
     // entre el piso hexagonal y el cielo rectangular dejaba ver la piedra de
@@ -265,6 +282,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     rod([straight.holeStart,middleLevel+.95,straight.z-straight.holeHalf],
         [straight.holeStart,middleLevel+.95,straight.z+straight.holeHalf],.033,wood);
     // Solo la vuelta superior de caracol conecta el segundo piso con la torre.
+    spiralPhase=true;
     const delta=Math.PI*2/stepsPerTurn;
     rod([stair.x,middleLevel,stair.z],[stair.x,level+1.05,stair.z],.095,iron);
     for(let i=stepsPerTurn;i<steps;i++) {
@@ -283,7 +301,17 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
             rod([px,i*rise+.90,pz],[x,y+.90,z],.032,wood);
         }
     }
-    // Baranda de protección del hueco, dejando abierto el desembarco oriental.
+    // Remate del desembarco occidental: postes apoyados en la losa y
+    // pasamanos unido a la protección circular, dejando libre la salida.
+    const landingEdgeZ=stair.z+landingHalfWidth;
+    const landingCutX=stair.x-Math.sqrt(stair.hole**2-landingHalfWidth**2);
+    for(const x of [landingCutX,stair.x-stair.inner])
+        rod([x,level,landingEdgeZ],[x,level+.95,landingEdgeZ],.025);
+    rod([landingCutX,level+.95,landingEdgeZ],[stair.x-stair.inner,level+.95,landingEdgeZ],.033,wood);
+    rod([landingCutX,level+.95,landingEdgeZ],
+        [stair.x+stair.hole*Math.cos(stairStart+stairDirection*.42),level+.95,
+            stair.z+stair.hole*Math.sin(stairStart+stairDirection*.42)],.033,wood);
+    // Baranda de protección del hueco, dejando abierto el desembarco occidental.
     for(const height of [level])for(let i=0;i<28;i++) {
         const a=stairStart+stairDirection*(.42+i*(Math.PI*2-.84)/28),b=stairStart+stairDirection*(.42+(i+1)*(Math.PI*2-.84)/28);
         const x=stair.x+stair.hole*Math.cos(a),z=stair.z+stair.hole*Math.sin(a);
@@ -292,6 +320,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         rod([x,height+.95,z],[nx,height+.95,nz],.033,wood);
     }
     // Cubiertas anulares escalonadas: el centro queda libre para la torre.
+    spiralPhase=false;
     interiorPhase=false;
     function steppedRingRoof(outer,inner,bottom,top,bands,name) {
         const positions=[];
@@ -374,12 +403,15 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     }
     const local=(x,z)=>({x:x-origin.x,z:z-origin.z});
-    const contains=(x,z,margin=0)=>{const p=local(x,z);return Math.abs(p.x)<9-margin&&Math.abs(p.z)<8-margin;};
-    const angleAt=p=>((Math.atan2(p.z-stair.z,p.x-stair.x)-stairStart)*stairDirection+Math.PI*2)%(Math.PI*2);
+    const contains=(x,z,margin=0)=>{const p=local(x,z);return Math.abs(p.x)<groundX+COLLISION_RADIUS-margin&&Math.abs(p.z)<groundZ+COLLISION_RADIUS-margin;};
+    const angleAt=p=>{const q=stairLocal(p);
+        return ((Math.atan2(q.z-stair.z,q.x-stair.x)-stairStart)*stairDirection+Math.PI*2)%(Math.PI*2);};
     const inside=(p,bounds,margin=0)=>bounds.apothem
         ? towerNormals.every(n=>p.x*n.x+p.z*n.z<bounds.apothem-margin)
         : Math.abs(p.x)<bounds.x-margin&&Math.abs(p.z)<bounds.z-margin;
-    const landing=p=>p.x<=stair.x-1.25&&p.x>=stair.x-3.15&&Math.abs(p.z-stair.z)<=landingHalfWidth;
+    const landing=p=>{const q=stairLocal(p);
+        return q.x<=(q.z>=stair.z?stair.x-stair.inner:stair.x-1.25)
+            &&q.x>=stair.x-3.15&&Math.abs(q.z-stair.z)<=landingHalfWidth;};
     const inStraight=(p,margin=0)=>p.x>=straight.start-margin&&p.x<=straight.end+margin
         &&Math.abs(p.z-straight.z)<=straight.half+margin;
     const inStraightHole=p=>p.x>=straight.holeStart&&p.x<straight.end
@@ -400,7 +432,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     function supportHeight(x,z,feetY) {
         if(!contains(x,z))return -Infinity;
-        const p=local(x,z),r=Math.hypot(p.x-stair.x,p.z-stair.z);
+        const p=local(x,z),r=stairRadius(p);
         let height=-Infinity;
         for(const [heightHere,bounds] of [[middleLevel,middleBounds],[level,towerBounds]]) {
             const opening=heightHere===middleLevel?inStraightHole(p):r<stair.hole&&!landing(p);
@@ -420,9 +452,14 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     function blocksMovement(x,z,feetY,currentX=x,currentZ=z) {
         if(!contains(x,z)&&!contains(currentX,currentZ))return null;
-        const p=local(x,z),r=Math.hypot(p.x-stair.x,p.z-stair.z),angle=angleAt(p);
+        const p=local(x,z),q=stairLocal(p),r=stairRadius(p),angle=angleAt(p);
         const upstairs=feetY>=baseY+middleLevel-.25;
         const inTower=feetY>=baseY+level-.25;
+        if(!upstairs&&feetY<baseY+middleLevel) {
+            const reach=COLLISION_RADIUS,doorway=Math.abs(p.z)<.76-reach;
+            if(Math.abs(p.z)>groundInner.z-reach||p.x>groundInner.x-reach
+                ||p.x< -groundInner.x+reach&&!doorway)return true;
+        }
         if(upstairs) {
             if(!inside(p,inTower?towerBounds:middleBounds,COLLISION_RADIUS+.15))return true;
             if(inTower) {
@@ -431,6 +468,9 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
             }
         }
         const overlaps=(bottom,top)=>feetY<top&&feetY+PLAYER_HEIGHT>bottom;
+        if(q.x>=landingCutX-COLLISION_RADIUS&&q.x<=stair.x-stair.inner+COLLISION_RADIUS
+            &&Math.abs(q.z-landingEdgeZ)<COLLISION_RADIUS
+            &&overlaps(baseY+level,baseY+level+.98))return true;
         if(r<stair.inner+COLLISION_RADIUS&&overlaps(baseY+middleLevel,baseY+level+1.05))return true;
         if(inStraight(p,COLLISION_RADIUS)) {
             const y=straightHeight(p);
@@ -460,7 +500,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
     }
     function upperLimit(x,z,feetY) {
         if(!contains(x,z))return null;
-        const p=local(x,z),r=Math.hypot(p.x-stair.x,p.z-stair.z);
+        const p=local(x,z),r=stairRadius(p);
         if(feetY>=baseY+level-.25)
             return baseY+(Math.abs(p.z-partitionZ)<.3&&Math.abs(p.x)<.8 ? level+2 : towerCeiling-.2);
         if(inStraight(p)) {
@@ -469,7 +509,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         }
         if(inStraightHole(p))return baseY+level-.36;
         if(r<stair.hole&&feetY>=baseY+middleLevel-.25) {
-            let ceiling=baseY+towerCeiling-.2;
+            let ceiling=baseY+(landing(p)?level-HOUSE_UPPER_FLOOR_THICKNESS-.06:towerCeiling-.2);
             if(r>=stair.inner&&r<=stair.outer)for(const y of treadLevels(p)) {
                 if(y>feetY+.25)ceiling=Math.min(ceiling,y-.075-.06);
             }
@@ -477,7 +517,7 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         }
         if(feetY>=baseY+middleLevel-.25)return baseY+level-.36;
         // En la entrada inferior sigue mandando el dintel de la puerta original.
-        if(Math.abs(p.x)>8||Math.abs(p.z)>7)return null;
+        if(p.x< -groundInner.x+.35&&Math.abs(p.z)<1)return baseY+2.2-.06;
         return baseY+middleLevel-middleFloorThickness-.06;
     }
     let motion=null;
@@ -494,7 +534,9 @@ export function createWizardUpperFloor(THREE,baseY,textures) {
         pivot.rotation.y=angle;motion.time=time;group.updateMatrixWorld(true);if(time===.7)motion=null;
     }
     return {group,interior,interiorLights,door,pivot,supportHeight,blocksMovement,upperLimit,toggleDoor,update,contains,
+        closeDoor(){motion=null;door.userData.isOpen=false;pivot.rotation.y=0;group.updateMatrixWorld(true);},
         baseY,levelY:baseY+level,middleLevelY:baseY+middleLevel,
-        stair:{x:origin.x+stair.x,z:origin.z+stair.z,radius:1.3,steps:stepsPerTurn,rise,turns:1,startAngle:stairStart,direction:stairDirection,baseY:baseY+middleLevel},
+        stair:{x:origin.x+stairPlacement.x,z:origin.z+stairPlacement.z,radius:1.3,steps:stepsPerTurn,rise,turns:1,
+            startAngle:stairStart+stairPlacement.rotation,direction:stairDirection,baseY:baseY+middleLevel},
         straightStair:{...straight,start:origin.x+straight.start,end:origin.x+straight.end,z:origin.z+straight.z},origin};
 }

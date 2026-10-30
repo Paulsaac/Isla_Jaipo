@@ -14,6 +14,7 @@ export function createWorkbenchGeometry(THREE) {
     for (const x of [-0.4,0.4]) for (const z of [-1.15,1.15]) box(0.14,0.9,0.14,x,0.45,z);
     for (const z of [-1.15,1.15]) box(0.86,0.12,0.12,0,0.35,z);
     for (const x of [-0.4,0.4]) box(0.1,0.1,2.4,x,0.35,0);
+    const axeVertexStart = parts.reduce((sum, part) => sum + part.geometry.attributes.position.count, 0);
     // Mango de madera y cabeza de hierro, apoyados en diagonal sobre el tablero.
     const axe = new THREE.Matrix4().makeRotationY(-0.45);
     axe.setPosition(0.08,1.067,0.15);
@@ -47,6 +48,8 @@ export function createWorkbenchGeometry(THREE) {
     bevel.computeVertexNormals();
     add(bevel,2,g=>g.applyMatrix4(axe));
     const result = new THREE.BufferGeometry();
+    // Permite ocultar solo el hacha con drawRange, conservando el mesón y sus colisiones.
+    result.userData.axeVertexStart = axeVertexStart;
     for (const name of ['position','normal','uv']) {
         const values = new Float32Array(parts.reduce((sum,p)=>sum+p.geometry.attributes[name].array.length,0));
         let offset = 0;

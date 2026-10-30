@@ -5,6 +5,8 @@ import { createMateSet } from '../world/mate-set.js';
 import { createDivingHelmetGeometry, createDivingHelmetMaterials } from '../world/diving-helmet-geometry.js';
 import { createInventoryMap } from '../world/inventory-map.js';
 import { createInventoryKey } from '../world/inventory-key.js';
+import { createForestHeartSpriteGeometry } from '../world/forest-heart-sprite.js';
+import { createSkyHeartGlow, applySkyHeartEmbers } from '../world/sky-heart-glow.js';
 import { createTorchModel } from '../world/torch-model.js';
 import { prepareProgramsInBatches } from './render-ready.js';
 import { createLoadingYield } from './loading-yield.js';
@@ -16,6 +18,7 @@ export function createInventoryModel(host) {
     let torchFrames, torchPreview, flame, flameTime=0, torchLit=false;
     let helmetBroken=false, helmetCracked=false, selectedItem=null;
     let heartSprite=null, seaHeartComplete=false;
+    const skyHeartCooled={value:0};
     const heartTextures=new Map();
 
     let mapTexture;
@@ -25,8 +28,8 @@ export function createInventoryModel(host) {
     const label=document.createElement('p'); label.className='inventory-preview-label';
     label.id='inventory-preview-instructions';
     label.textContent='Señala un objeto.\nPulsa para equiparlo.';host.append(label);
-    const names={heart:'Corazón del Bosque','sea-heart':'Corazón del Mar',torch:'Antorcha',map:'Mapa',
-        'pink-sunglasses':'Lentes',helmet:'Escafandra',mate:'Mate',key:'Llave',astroscope:'Astroscopio'};
+    const names={heart:'Corazón del Bosque','sea-heart':'Corazón del Mar','sky-heart':'Corazón del Cielo',torch:'Antorcha',map:'Mapa',
+        'pink-sunglasses':'Lentes del mago del tiempo',helmet:'Escafandra',mate:'Mate',key:'Llave',astroscope:'Astroscopio'};
     function stopDrag() {
         if(!drag)return;
         const pointerId=drag.pointerId;drag=null;
@@ -76,14 +79,24 @@ export function createInventoryModel(host) {
         if(model) scene.remove(model);
         flame=null;flameTime=0;heartSprite=null;
     }
-    function fitHeartSprite() {
-        const image=heartSprite?.children[0]?.material.map.image;
-        if(image?.width && image.height)heartSprite.scale.set(2.5*image.width/image.height,2.5,1);
+    function buildHeartSprite() {
+        const image=heartSprite?.userData.texture.image;
+        if(!image?.width||!image.height||heartSprite.userData.builtImage===image)return;
+        // Frente/dorso pixelados unidos por paredes en cada borde opaco del sprite.
+        const geometry=createForestHeartSpriteGeometry(THREE,image,{height:2.5,depth:.24,alphaTest:.1});
+        geometry.translate(0,0,-.12);
+        const material=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false});
+        if(heartSprite.userData.skyHeart){
+            applySkyHeartEmbers(material,{value:.4},skyHeartCooled);
+            if(!skyHeartCooled.value){const glow=createSkyHeartGlow(THREE,.12);glow.position.z=-.14;glow.scale.setScalar(3.1);heartSprite.add(glow);}
+        }
+        heartSprite.add(new THREE.Mesh(geometry,material));
+        heartSprite.userData.builtImage=image;
     }
     function getHeartTexture(file) {
         if(!heartTextures.has(file)) {
             const texture=new THREE.TextureLoader().load(new URL(`../../imagenes/Sprites/${file}`,import.meta.url).href,()=>{
-                fitHeartSprite();requestDraw();
+                buildHeartSprite();requestDraw();
             });
             texture.colorSpace=THREE.SRGBColorSpace;
             texture.minFilter=texture.magFilter=THREE.NearestFilter;texture.generateMipmaps=false;
@@ -103,7 +116,7 @@ export function createInventoryModel(host) {
         if(seaHeartComplete===complete)return;
         seaHeartComplete=complete;
         if(selectedItem==='sea-heart') {
-            const rotation=model?.rotation.clone();select('sea-heart');
+            const rotation=model?.rotation.clone();select('sea-heart',{force:true});
             if(rotation && model)model.rotation.copy(rotation);
         }
     }
@@ -133,7 +146,7 @@ export function createInventoryModel(host) {
         helmetBroken=broken;helmetCracked=cracked;
         if(selectedItem==='helmet') {
             const rotation=model?.rotation.clone();
-            select('helmet');
+            select('helmet',{force:true});
             if(rotation && model)model.rotation.copy(rotation);
         }
     }
@@ -171,28 +184,23 @@ export function createInventoryModel(host) {
             return false;
         }
     }
-    function select(item) {
+    function select(item,{force=false}={}) {
         if(!names[item]) return;
+        if(!force&&selectedItem===item&&model)return;
         const version=++selectionVersion;
         preparing=true;
         stopDrag();
         selectedItem=item;
+        label.textContent=item==='sky-heart'||item==='pink-sunglasses'?names[item]:'Señala un objeto.\nPulsa para equiparlo.';
         if(!prepare()) {preparing=false;return;}
         clear();model=new THREE.Group();scene.add(model);
-        if(item==='heart'||item==='sea-heart') {
-            const file=item==='heart' ? 'corazon.png' : seaHeartComplete ? 'corazon-mar.png' : 'fragmento-mar.png';
+        if(item==='heart'||item==='sea-heart'||item==='sky-heart') {
+            const file=item==='sky-heart'?'corazon-cielo.png':item==='heart' ? 'corazon.png' : seaHeartComplete ? 'corazon-mar.png' : 'fragmento-mar.png';
             const map=getHeartTexture(file);
             heartSprite=new THREE.Group();
-            // Siete copias del mismo sprite: caras originales y capas interiores más oscuras.
-            for(let i=0;i<7;i++) {
-                const layer=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({
-                    map,color:i===0||i===6 ? 0xffffff : 0xa0a0a0,transparent:true,alphaTest:.1,
-                    depthWrite:true,side:THREE.DoubleSide,toneMapped:false
-                }));
-
-                layer.position.z=(i-3)*.04;heartSprite.add(layer);
-            }
-            model.add(heartSprite);fitHeartSprite();
+            heartSprite.userData.texture=map;
+            heartSprite.userData.skyHeart=item==='sky-heart';
+            model.add(heartSprite);buildHeartSprite();
         } else if(item==='torch') {
             torchPreview=createTorchModel(THREE,getTorchFrames());
             model.add(torchPreview.object);
@@ -235,5 +243,10 @@ export function createInventoryModel(host) {
             .then(()=>{if(version===selectionVersion){preparing=false;requestDraw();}})
             .catch(error=>{if(version===selectionVersion){preparing=false;console.warn('No se pudo preparar la vista del inventario:',error);}});
     }
-    return {prepare,select,setTorchLit,setHelmetDamage,setSeaHeartComplete,setVisible(value){visible=value;previous=0;if(!value){stopDrag();cancelAnimationFrame(frame);frame=null;}else requestDraw();}};
+    return {prepare,select,setTorchLit,setHelmetDamage,setSeaHeartComplete,setSkyHeartCooled(value){
+        const next=Number(Boolean(value));if(next===skyHeartCooled.value)return;skyHeartCooled.value=next;
+        if(selectedItem==='sky-heart'){
+            const rotation=model?.rotation.clone();select('sky-heart',{force:true});if(rotation&&model)model.rotation.copy(rotation);
+        }
+    },setVisible(value){visible=value;previous=0;if(!value){stopDrag();cancelAnimationFrame(frame);frame=null;}else requestDraw();}};
 }

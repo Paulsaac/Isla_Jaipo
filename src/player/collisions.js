@@ -2,6 +2,7 @@ import { UNIT_SIZE, COLLISION_RADIUS, BOAT_WIDTH } from '../config.js';
 import { getDoorOpening } from '../world/door-opening.js';
 import { bedSurfaces } from './bed-support.js';
 import { sampleMountainPath } from '../world/mountain-path.js';
+import { spaceWizardHouseLayout } from '../content/summit-layout.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
 export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null, mountainPathProfile = null, terrainHeight = null, canPassBelow = null) {
@@ -88,7 +89,8 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
             && !waterSupports?.has(gZ * mapWidth + gX)) return true;
 
         const cell = collisionMap[gZ][gX];
-        if (['DOOR_UNLOCKED','DOOR_LOCKED'].includes(floorMap[gZ][gX])) {
+        const spaceDoor=gX===spaceWizardHouseLayout.door.x&&gZ===spaceWizardHouseLayout.door.z;
+        if (!spaceDoor&&['DOOR_UNLOCKED','DOOR_LOCKED'].includes(floorMap[gZ][gX])) {
             const opening=getDoorOpening(floorMap,gX,gZ);
             const offset=opening.isHorizontal?pX-gX*UNIT_SIZE:pZ-gZ*UNIT_SIZE;
             if(offset < -UNIT_SIZE/2+opening.leftMargin || offset > UNIT_SIZE/2-opening.rightMargin) return true;

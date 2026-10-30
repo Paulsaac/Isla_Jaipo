@@ -1232,3 +1232,11 @@ Publicado PR https://github.com/Paulsaac/Isla_Jaipo/pull/13, commit de producto6
 
 ### Comprobación final del cierre
 PR13 abierto, sin fusionar y mergeable confirmado porGitHub. Respaldo completo verificado: .coordination/backups/Isla_Jaipo_2026-10-29_AXBYZ_cierre.zip,5323archivos,1,729,217,012bytes,CRC PASS, SHA256 2b2526f3dae520cd3878df49a95a970037fee2ff490497e732cff94b9fbca97f. Este registro documental final se acompaña en bundle incremental de respaldo junto alZIP para conservar también el commit de auditoría posterior. Localhost8000 yLAN8001 HTTP200 confirmados; no se apagó ningún servidor/túnel. Índice sin cambios; quedan10archivos modificados y recursos independientes no seguidos, todos preservados y respaldados. Se libera únicamente la sesión propia; pendientes de revisión/merge a cargo deClawshoot y pruebas físicas/auditivas indicadas en relevo.
+
+## Cierre de sesión — 2026-10-30 — ajustes de juego y presentación
+
+Por instrucción explícita de AXBYZ se prepara publicación en una nueva PR hacia `main` (PR #13 ya integrado). Esta entrega agrupa las peticiones posteriores: inventario/objetos equipados, escafandra y rescate, corazón celeste, observatorio, Graham y sus interiores, puertas/iluminación, efectos visuales y controles. La política final de ahogo devuelve al punto submarino del evento solo con escafandra puesta durante la búsqueda incompleta; los demás ahogos regresan a la casa de Graham. Aire normal: 5 s. Decisiones duraderas en `DECISIONS.md`.
+
+Verificación: `git diff --check`; sintaxis Node de los módulos modificados. Se ejecutaron fixtures locales del destino de ahogo (11 escenarios), respiración y luz de antorcha/corazón junto al vano, además de pruebas GPU de iluminación a ambos lados de puertas y revisión de captura en la jamba. No se hizo recorrido manual integral ni prueba en móvil físico.
+
+Servidores y túnel se conservan activos por instrucción expresa: local `http://127.0.0.1:8000/`, LAN `http://192.168.4.89:8001/` y Cloudflare `https://albany-exec-start-robust.trycloudflare.com/`; HTTP 200 verificado. Adjuntos privados, respaldos de sprites/audio y respaldo Blender se preservan y se excluyen del PR. La rama de trabajo es `codex/bosque-pulido-20261029`; no fusionar automáticamente. PR: pendiente de creación durante este cierre.

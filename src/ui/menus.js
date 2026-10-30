@@ -1,12 +1,15 @@
 import { arrangeInventory } from './inventory-layout.js';
 import { createBookReader } from './book-reader.js';
 import { createInventoryCursor } from '../input/inventory-cursor.js';
+import { createInventoryKeyring } from './inventory-keyring.js';
 // Presentación de menús. El estado y las reglas permanecen en game.js.
 export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const mainMenu = document.getElementById('main-menu');
     const pauseMenu = document.getElementById('pause-menu');
     const inventoryMenu = document.getElementById('inventory-menu');
     const inventoryPreview = arrangeInventory(inventoryMenu);
+    let inventoryShowing=false;
+    const keyring=createInventoryKeyring(inventoryMenu,{onInspect:expanded=>inventoryPreview.setVisible(inventoryShowing&&!expanded)});
     const inventoryCursor = createInventoryCursor(inventoryMenu);
     const dialogBox = document.getElementById('dialog-box');
     const dialogText = document.getElementById('dialog-text');
@@ -18,6 +21,7 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const torchIcon = document.getElementById('torch-icon');
     const mapIcon = document.getElementById('map-icon');
     const helmetItem = document.getElementById('diving-helmet-item');
+    let helmetRemovalBlocked=false;
     const seaHeartIcon = document.getElementById('sea-heart-icon');
     const seaHeartCount = document.getElementById('sea-heart-count');
     const description = document.getElementById('inventory-item-description');
@@ -29,20 +33,20 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
     const spokenCharacter = /[\p{L}\p{N}]/u;
 
     function setMenuVisible(menu, visible) {
-        if(menu===inventoryMenu) {inventoryPreview.setVisible(visible);inventoryCursor.setVisible(visible);}
+        if(menu===inventoryMenu) {inventoryShowing=visible;keyring.setVisible(visible);inventoryPreview.setVisible(visible);inventoryCursor.setVisible(visible);}
         const previous = transitions.get(menu);
         if (previous?.visible === visible) return;
         if (!previous && (menu.style.display === 'flex') === visible) return;
         const panel = menu.firstElementChild;
         const inventory = menu === inventoryMenu;
-        const targets = inventory ? [menu, ...panel.querySelectorAll('.orbit-slot')] : [panel];
+        const targets = inventory ? [menu, ...menu.querySelectorAll('.orbit-slot, .inventory-keyring-button')] : [panel];
         const frames = targets.map(target => {
             const property = inventory ? (target === menu ? 'opacity' : 'translate') : 'transform';
             const current = previous ? getComputedStyle(target)[property] : null;
             let hidden = 'translateY(100vh)', shown = 'translateY(0)';
             if (property === 'opacity') { hidden = '0'; shown = '1'; }
             if (property === 'translate') {
-                const left = ['torch', 'map', 'pink-sunglasses'].includes(target.dataset.inventoryItem);
+                const left = ['torch', 'map', 'helmet'].includes(target.dataset.inventoryItem);
                 // Incluir la posición final también en la trayectoria, sin salto
                 // al retirar la animación y recuperar el translate del CSS.
                 const drop = 'var(--inventory-content-drop, 0px)';
@@ -227,18 +231,22 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         keyCountDisplay.style.display = count > 0 ? 'block' : 'none';
         itemButtons.key.style.display = count > 0 ? 'block' : 'none';
     }
+    function setKeys(keys){setKeyCount(keys.length);keyring.setKeys(keys);}
     function setHeartVisible(visible) { heartIcon.style.display = visible ? 'block' : 'none'; itemButtons.heart.style.display = visible ? 'block' : 'none'; }
     function setTorchVisible(visible) { torchIcon.style.display = visible ? 'block' : 'none'; itemButtons.torch.style.display = visible ? 'block' : 'none'; }
     function setMateVisible(visible) { itemButtons.mate.style.display = visible ? 'block' : 'none'; }
+    function setSkyHeartVisible(visible) { itemButtons['sky-heart'].style.display = visible ? 'block' : 'none'; }
+    function setSkyHeartCooled(cooled){
+        itemButtons['sky-heart'].classList.toggle('is-cooled',cooled);inventoryPreview.setSkyHeartCooled(cooled);
+    }
     function setAstroscopeVisible(visible) {
         itemButtons.astroscope.style.display = visible ? 'block' : 'none';
-        itemButtons.astroscope.parentElement.style.display = visible ? 'flex' : 'none';
     }
     function setPinkSunglassesState(owned, equipped) {
         const button = itemButtons['pink-sunglasses'];
         button.style.display = owned ? 'block' : 'none';
         button.setAttribute('aria-pressed', String(equipped));
-        button.setAttribute('aria-label', equipped ? 'Quitar lentes de sol rosados' : 'Equipar lentes de sol rosados');
+        button.setAttribute('aria-label', equipped ? 'Quitar lentes del mago del tiempo' : 'Equipar lentes del mago del tiempo');
     }
     function setMapVisible(visible) { mapIcon.style.display = visible ? 'block' : 'none'; itemButtons.map.style.display = visible ? 'block' : 'none'; }
     function setItemActive(item, active) {
@@ -261,12 +269,22 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         helmetItem.dataset.cracked = String(cracked || broken);
         helmetItem.style.opacity = broken ? '0.85' : '1';
         inventoryPreview.setHelmetDamage(cracked,broken);
+        updateHelmetLabel();
+    }
+    function setHelmetRemovalBlocked(blocked) {
+        if(helmetRemovalBlocked===blocked)return;
+        helmetRemovalBlocked=blocked;updateHelmetLabel();
+    }
+    function updateHelmetLabel() {
+        const equipped=helmetItem.getAttribute('aria-pressed')==='true';
+        const broken=helmetItem.dataset.broken==='true',cracked=helmetItem.dataset.cracked==='true';
         const label = broken ? 'Escafandra rota — ya no puede equiparse.' : cracked
             ? (equipped ? 'Escafandra agrietada — equipada. Pulsa para quitarla.' : 'Escafandra agrietada — pulsa para equiparla.')
             : equipped ? 'Casco de escafandra — equipado. Pulsa para quitarlo.' : 'Casco de escafandra — pulsa para equiparlo.';
-        helmetItem.title = label;
-        helmetItem.setAttribute('aria-label', label);
+        const text=equipped&&helmetRemovalBlocked&&!broken?'Escafandra equipada. Sal del agua para quitártela.':label;
+        helmetItem.title = text;
+        helmetItem.setAttribute('aria-label', text);
     }
 
-    return { prepareInventory: inventoryPreview.prepare, isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setSeaHeartState, setItemActive, setItemDescription };
+    return { prepareInventory: inventoryPreview.prepare, isDialogVisible() { return dialogBox.style.display === 'block' || bookReader.visible; }, completeDialogText, hideForGameplay, showPause, showInventory, hideInventory, setDialogText, showDialog, showBook, hideDialog, setKeyCount, setKeys, setHeartVisible, setTorchVisible, setMapVisible, setMateVisible, setSkyHeartVisible, setSkyHeartCooled, setAstroscopeVisible, setPinkSunglassesState, setHelmetState, setHelmetRemovalBlocked, setSeaHeartState, setItemActive, setItemDescription };
 }

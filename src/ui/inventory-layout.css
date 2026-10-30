@@ -28,19 +28,25 @@
 }
 #inventory-menu .inventory-orbit .heart-hex::before {content:'';position:absolute;inset:0;pointer-events:none;
     clip-path:polygon(50% 0,94% 25%,94% 75%,50% 100%,6% 75%,6% 25%);background:#38271cc2;}
-#inventory-menu .inventory-orbit .heart-hex.last-pointed-slot {filter:drop-shadow(0 0 6px #ffffff65);}
+#inventory-menu .inventory-orbit .heart-hex.last-pointed-slot,
+#inventory-menu .inventory-orbit .heart-hex:has(.inventory-item[aria-pressed="true"]) {filter:drop-shadow(0 0 6px #ffffff65);}
 #inventory-menu .inventory-orbit .heart-hex:hover::before,
 #inventory-menu .inventory-orbit .heart-hex.is-virtual-hover::before,
-#inventory-menu .inventory-orbit .heart-hex:has(.inventory-item.is-virtual-hover)::before {background:#5a4435cc;}
-#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex).last-pointed-slot {
+#inventory-menu .inventory-orbit .heart-hex:has(.inventory-item.is-virtual-hover)::before,
+#inventory-menu .inventory-orbit .heart-hex:has(.inventory-item[aria-pressed="true"])::before {background:#5a4435cc;}
+#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex).last-pointed-slot,
+#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex):has(.inventory-item[aria-pressed="true"]) {
     box-shadow:0 0 12px 2px #ffffff65,inset 0 0 0 1px #ffffff8c;}
 #inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex):hover,
 #inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex).is-virtual-hover,
-#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex):has(.inventory-item.is-virtual-hover) {background-color:#797979b3;}
+#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex):has(.inventory-item.is-virtual-hover),
+#inventory-menu .inventory-orbit .orbit-slot:not(.heart-hex):has(.inventory-item[aria-pressed="true"]) {background-color:#797979b3;}
 #inventory-menu .inventory-orbit .inventory-item {border-radius:inherit;}
 #inventory-menu .inventory-orbit .inventory-item img,
 #inventory-menu .inventory-orbit .inventory-item svg {width:72%!important;height:72%!important;max-width:80%;max-height:80%;}
-#inventory-menu .inventory-orbit #torch-icon {transform:rotate(20deg);}
+#inventory-menu .inventory-orbit #torch-icon {transform:none;}
+#future-heart-slot .inventory-item img {filter:drop-shadow(0 0 4px #f018244d);}
+#future-heart-slot .inventory-item.is-cooled img {filter:grayscale(1) brightness(.5);}
 /* Las primeras nueve filas del sprite incluyen la llama; conservar el mango en su posición. */
 #torch-item[aria-pressed="false"] #torch-icon {clip-path:inset(45% 0 0);}
 .inventory-model-preview {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(170px,40vmin,380px);height:clamp(180px,42vmin,400px);cursor:default;}
@@ -70,10 +76,10 @@
 #inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:calc(var(--edge) + var(--slot-size)*1.05);}
 #inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:var(--side-bottom);}
 #inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + var(--side-step)*.18);bottom:calc(var(--side-bottom) - var(--side-step));}
-#inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
-#inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:var(--side-bottom);}
-#inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(var(--side-bottom) + var(--slot-size)*1.25);}
-#inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + var(--side-step)*.18);bottom:calc(var(--side-bottom) - var(--side-step));}
+#inventory-menu .orbit-slot[data-inventory-item="helmet"] {left:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
+#inventory-menu .orbit-slot[data-inventory-item="mate"] {right:var(--side-edge);bottom:var(--side-bottom);}
+#inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {right:calc(var(--side-edge) + var(--side-step)*.18);bottom:calc(var(--side-bottom) - var(--side-step));}
+#inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
 #inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + var(--side-step)*.95);bottom:calc(var(--side-bottom) - var(--side-step)*1.75);}
 #inventory-menu .inventory-orbit #inventory-heading {top:var(--edge);font-size:clamp(10px,2vmin,18px);}
 #inventory-menu .inventory-orbit #inventory-item-description {left:30%;width:40%;bottom:var(--edge);}

@@ -10,6 +10,7 @@ export function createHud() {
     const deathScreen = document.getElementById('death-screen');
     const itemNotification = document.getElementById('item-notification');
     const pendingItems = [];
+    let inventoryHintShown = false;
     const helmetView = document.getElementById('diving-helmet-view');
     const helmetCrackSegments = [...helmetView.querySelectorAll('[data-crack-start]')].map(group => ({
         paths: [...group.querySelectorAll('path')],
@@ -51,7 +52,7 @@ export function createHud() {
         const duration = enter + hold + exit;
         const rest = 'translate(-50%, -50%)';
         itemAnimation = itemNotification.animate([
-            {opacity:0,transform:reduced ? rest : 'translate(-50%, calc(25dvh + 100%))',offset:0,easing:'cubic-bezier(0.22,1,0.36,1)'},
+            {opacity:0,transform:reduced ? rest : 'translate(-50%, calc(30dvh + 100%))',offset:0,easing:'cubic-bezier(0.22,1,0.36,1)'},
             {opacity:1,transform:rest,offset:enter/duration},
             {opacity:1,transform:rest,offset:(enter+hold)/duration,easing:'cubic-bezier(0.4,0,1,1)'},
             {opacity:0,transform:reduced ? rest : 'translate(-50%, calc(-25dvh - 50%))',offset:1}
@@ -65,6 +66,12 @@ export function createHud() {
 
     function showReceivedItem(name) {
         showNotification(`Has recibido ${name}`);
+        if (!inventoryHintShown) {
+            inventoryHintShown = true;
+            showNotification(document.body.classList.contains('touch-mode')
+                ? 'Abre tu inventario para seleccionarlo'
+                : 'Presiona Q para abrir el inventario');
+        }
     }
 
     function showNotification(text, { immediate = false } = {}) {
@@ -107,7 +114,7 @@ export function createHud() {
         helmetView.style.display='block';
         const from=getComputedStyle(helmetView).transform;
         helmetViewAnimation?.cancel();
-        const to=equipped?'translateY(0)':'translateY(-106%)';
+        const to=equipped?'translateY(0)':'translateY(-160%)';
         helmetView.style.transform=to;
         const animation=helmetView.animate([{transform:from},{transform:to}],{
             duration:reducedMotion.matches?0:equipped?480:420,

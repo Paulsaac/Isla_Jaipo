@@ -1,10 +1,60 @@
+import {UNIT_SIZE} from '../config.js';
+
+// Campo de cámara sin límite lejano: incluso una puerta distante o entre
+// niebla queda protegida si está dentro de la dirección que mira el jugador.
+export function createDoorViewCheck(THREE,camera){
+    const frustum=new THREE.Frustum(),projection=new THREE.Matrix4(),sphere=new THREE.Sphere();
+    return {
+        update(){
+            camera.updateWorldMatrix(true,false);
+            projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
+            frustum.setFromProjectionMatrix(projection);
+            frustum.planes[4].constant=Infinity;
+        },
+        includes(door){
+            door.updateWorldMatrix(true,false);
+            if(!door.geometry.boundingSphere)door.geometry.computeBoundingSphere();
+            sphere.copy(door.geometry.boundingSphere).applyMatrix4(door.matrixWorld);sphere.radius+=.1;
+            return frustum.intersectsSphere(sphere);
+        }
+    };
+}
+
 // Estado visual y colisiones de puertas. El inventario autoriza el desbloqueo en game.js.
+export function closeDoorsForRespawn(doors,collisionMap) {
+    for(const door of doors){
+        const data=door.userData;
+        if(data.type!=='DOOR'&&data.type!=='GATE')continue;
+        data.isOpen=false;data.collisionEnabled=true;delete data.motion;
+        data.parentGroup.userData.isOpen=false;
+        data.parentGroup.rotation.y=0;data.parentGroup.updateMatrixWorld(true);
+        if(data.type==='DOOR')collisionMap[data.gz][data.gx]=data.locked?'DOOR_LOCKED':'DOOR_UNLOCKED';
+    }
+}
+
 export function unlockDoor(door) {
     const materials = Array.isArray(door.material) ? door.material : [door.material];
     for (const material of materials) {
         if(!material.userData.doorEdge)material.color.setHex(0xffffff);
     }
     door.userData.locked = false;
+}
+
+export function closeDistantDoors(doors,collisionMap,position,distance=70*UNIT_SIZE,isInView=()=>false){
+    for(const door of doors){
+        const data=door.userData,group=data.parentGroup;
+        if(!data.isOpen||!group||!['DOOR','GATE'].includes(data.type))continue;
+        group.updateWorldMatrix(true,false);
+        const e=group.matrixWorld.elements;
+        if((position.x-e[12])**2+(position.z-e[14])**2<=distance*distance)continue;
+        if(isInView(door))continue;
+        if(data.type==='DOOR')toggleDoorSingle(door,false,collisionMap);
+        else{
+            data.isOpen=false;data.collisionEnabled=true;
+            data.motion={from:group.rotation.y,to:0,elapsed:0};
+        }
+        data.motion.autoClose=true;
+    }
 }
 
 function toggleDoorSingle(door, forceState, collisionMap) {
@@ -27,8 +77,9 @@ function toggleDoorSingle(door, forceState, collisionMap) {
 }
 
 // Al abrir, la hoja atraviesa al jugador hasta el último 10% del giro; después recupera el empuje.
-export function updateDoorAnimations(doors, delta, movePlayer) {
-    const moving = doors.filter(door => door.userData.motion);
+export function updateDoorAnimations(doors, delta, movePlayer,isInView=()=>false) {
+    const moving = doors.filter(door => door.userData.motion
+        &&!(door.userData.motion.autoClose&&isInView(door)));
     if (!moving.length) return;
     const previous = moving.map(door => ({ door, angle: door.userData.parentGroup.rotation.y,
         elapsed: door.userData.motion.elapsed, collisionEnabled: door.userData.collisionEnabled }));

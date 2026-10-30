@@ -20,12 +20,12 @@ export function createWoodStoveFire(THREE, stove, torchFrames, scale, pipeTop = 
     const position=flame.getWorldPosition(new THREE.Vector3());
     const torch={x:position.x,y:position.y,z:position.z,isIndoor:true,alwaysLit:true,
         enabled:false,color:0xffa034,distance:6,intensityScale:.15,flickerRate:9,flickerDepth:1.1};
-    // Bocanadas suaves sobre el sombrerete real, también en tejados elevados.
+    // Bocanadas más legibles, conservando las 12 partículas y una sola textura de 64 px.
     const canvas=document.createElement('canvas');canvas.width=canvas.height=64;
     const ctx=canvas.getContext('2d');
     const gradient=ctx.createRadialGradient(32,32,0,32,32,32);
-    gradient.addColorStop(0,'rgba(255,255,255,0.65)');
-    gradient.addColorStop(.45,'rgba(255,255,255,0.35)');
+    gradient.addColorStop(0,'rgba(255,255,255,0.80)');
+    gradient.addColorStop(.45,'rgba(255,255,255,0.45)');
     gradient.addColorStop(1,'rgba(255,255,255,0)');
     ctx.fillStyle=gradient;ctx.fillRect(0,0,64,64);
     const smokeTexture=new THREE.CanvasTexture(canvas);
@@ -34,7 +34,7 @@ export function createWoodStoveFire(THREE, stove, torchFrames, scale, pipeTop = 
     smoke.visible=false;stove.add(smoke);
     const puffs=Array.from({length:12},(_,i)=>{
         const puff=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTexture,
-            color:0x96938d,transparent:true,opacity:0,depthWrite:false}));
+            color:0xaaa69f,transparent:true,opacity:0,depthWrite:false}));
         puff.visible=false;puff.userData.visibilityEnabled=false;
         smoke.add(puff);
         return {sprite:puff,delay:i*.45,phase:i*2.39996};
@@ -64,10 +64,10 @@ export function createWoodStoveFire(THREE, stove, torchFrames, scale, pipeTop = 
                 if(age<0){sprite.material.opacity=0;continue;}
                 const t=(age%lifetime)/lifetime;
                 sprite.position.set((t*.85+Math.sin(t*5+phase)*t*.18)*scale,
-                    t*3.2*scale,Math.cos(t*4+phase)*t*.23*scale);
-                sprite.scale.setScalar((.28+t*1.15)*scale);
+                    t*4.2*scale,Math.cos(t*4+phase)*t*.23*scale);
+                sprite.scale.setScalar((.40+t*1.60)*scale);
                 sprite.material.rotation=phase+t*.4;
-                sprite.material.opacity=.32*Math.min(1,t/.10)*(1-t)*(1-t);
+                sprite.material.opacity=.68*Math.min(1,t/.06)*Math.pow(1-t,1.4);
             }
         }
     };
