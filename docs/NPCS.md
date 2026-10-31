@@ -1,5 +1,18 @@
 # Gestión de NPC, conversaciones e interacciones
 
+## Identidades de los dos magos — acuerdo con AXBYZ, 2026-10-29
+
+- **Space Wizard** (`space-wizard`): mago del espacio, casa de la montaña.
+  Configuración `spaceWizardHouseLayout` en `src/content/summit-layout.js`.
+- **Time Wizard** (`time-wizard`): mago del tiempo, casa del sector del lago.
+  Configuración `timeWizardHouseLayout` en `src/content/lake-house-layout.js`.
+
+Usar estos nombres para distinguir personajes, casas y futuras conversaciones.
+Los nombres anteriores `wizardHouseLayout` y `lakeHouseLayout` son alias de las
+respectivas configuraciones; los módulos `wizard-*` actuales corresponden a
+Space Wizard y los módulos `lake-house-*` a la casa de Time Wizard. Esta
+nomenclatura no incorpora por sí sola nuevos NPC, diálogos ni misiones.
+
 ## Graham: correcciones vigentes — 2026-10-24
 Las secuencias de despertar, misión del Corazón del Bosque y recompensa usan los textos solicitados por Clawshoot en esta entrega. Mate: «Ten. Cuidado que está caliente.». Graham no ejecuta dap; datos y módulo reutilizable conservados. Llave inicialmente desactivada por GRAHAM_BRIDGE_KEY_AVAILABLE=false; J habilita el evento en memoria y avisa «Evento Llave del Puente Activada». Entregar el corazón no da automáticamente la llave: se habla nuevamente con Graham tras activar el evento, y se añade la llave al entregar «Aquí tienes». El cofre del mapa se habilita tras el agradecimiento del corazón. No hay persistencia. Estos valores sustituyen las descripciones anteriores de dap/mate/llave en esta guía; no cambian los triggers de cielo acordados.
 

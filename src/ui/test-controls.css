@@ -23,6 +23,10 @@
 .test-flight-speed input:disabled {opacity:.45;cursor:default;}
 .test-sky-options {display:grid;grid-template-columns:1fr 1fr;gap:4px;}
 .inventory-test-controls .test-sky-auto {min-height:28px;}
+.test-keyring-extension{position:absolute;left:calc(100% + 8px);top:0;width:200px;padding:10px;box-sizing:border-box;background:#101913ed;border:1px solid #9cae9270;border-radius:7px;display:grid;gap:6px;}
+.inventory-test-controls:not([open]) .test-keyring-extension{display:none;}
+@media(min-width:1001px){.inventory-test-controls{left:auto;right:calc(max(20px,3vw) + 208px);}}
+@media(max-width:1000px){.test-keyring-extension{position:static;width:auto;margin-top:10px;grid-template-columns:1fr 1fr;}.test-keyring-extension>span{grid-column:1/-1;}}
 @media(max-width:600px),(max-height:500px) {
     .inventory-test-controls {left:auto;width:204px;font-size:7px;top:max(16px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));}
     .inventory-test-controls:not([open]) {width:90px;}

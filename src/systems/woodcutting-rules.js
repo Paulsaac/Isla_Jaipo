@@ -6,7 +6,7 @@ export const WOOD_LOGS = [
     { id: 'north-south', label: 'Norte-sur', weight: 5 }
 ];
 export const AXE_SPEEDS = [0.85, 1.1, 1.4, 1.75, 2.15, 2.65]; // Ciclos completos por segundo.
-export const WOOD_EXIT_SECONDS = 3;
+export const WOOD_EXIT_SECONDS = 2.5;
 export const WOOD_PERFECT_POWER = .96;
 
 export function chooseWoodRound(random = Math.random, previousSpeed = -1) {

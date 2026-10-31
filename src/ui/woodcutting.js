@@ -1,4 +1,4 @@
-import { WOOD_PERFECT_POWER, WOOD_EXIT_SECONDS } from '../systems/woodcutting-rules.js';
+import { WOOD_PERFECT_POWER } from '../systems/woodcutting-rules.js';
 
 export function createWoodcuttingHud(touch = false) {
     const root = document.createElement('div');
@@ -34,7 +34,7 @@ export function createWoodcuttingHud(touch = false) {
     ringFill.setAttribute('stroke-dashoffset', String(ringLength));
     exitRing.append(ringTrack, ringFill);
     const exitLabel = document.createElement('span');
-    exitLabel.textContent = touch ? `Mantén aquí ${WOOD_EXIT_SECONDS} s para salir` : `Mantén E durante ${WOOD_EXIT_SECONDS} s para salir`;
+    exitLabel.textContent = touch ? 'Mantén aquí para salir' : 'Manten E para salir';
     exit.append(exitRing, exitLabel);
     const force = document.createElement('div');
     force.style.cssText = `position:absolute;right:5%;top:38%;height:clamp(160px,32vh,300px);width:32px;border:2px solid #eee;border-radius:5px;background:linear-gradient(to top,#df4134 0%,#f2d34d 50%,#e8db52 87%,#b3dd61 93%,#62e178 ${WOOD_PERFECT_POWER * 100}%,#62e178 100%);box-shadow:0 2px 12px #000b`;

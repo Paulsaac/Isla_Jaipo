@@ -1,5 +1,12 @@
 import { SEA_FLOOR_HEIGHT } from '../config.js';
 
+// Desembocaduras indicadas por AxByZ; coordenadas de mapa y fondo en metros.
+const riverMouths = [
+    {x:311,z:296,radiusX:18,radiusZ:14,bottom:-5.5}, // Entrada occidental del lago.
+    {x:30,z:197,radiusX:18,radiusZ:14,bottom:-5.5}, // Salida occidental al mar.
+    {x:467,z:334,radiusX:14,radiusZ:18,bottom:-5.5} // Salida sudoriental al mar.
+];
+
 // Distancia aproximada euclídea en dos pasadas, calculada solo al construir el mapa.
 function distanceField(seeds,width,height) {
     const d=new Float32Array(width*height);
@@ -41,6 +48,20 @@ export function createSeaFloorHeights(floorMap,waterDeckMap,width,height) {
         const i=z*width+x;
         const coastal=-0.5+(SEA_FLOOR_HEIGHT+0.5)*smooth((coastDistance[i]-1)/12);
         const mouth=-2.5+(SEA_FLOOR_HEIGHT+2.5)*smooth((riverDistance[i]-1)/10);
-        return Math.max(coastal,mouth);
+        const base=Math.max(coastal,mouth);
+        const type=waterDeckMap[z][x] || floorMap[z][x];
+        if(!['WATER','WATER_ROCK','BOAT'].includes(type))return base;
+        let depth=base;
+        for(const riverMouth of riverMouths) {
+            const dx=(x-riverMouth.x)/riverMouth.radiusX,dz=(z-riverMouth.z)/riverMouth.radiusZ;
+            if(Math.abs(dx)>=1||Math.abs(dz)>=1)continue;
+            const radius=Math.hypot(dx,dz);
+            if(radius>=1)continue;
+            const influence=1-smooth((radius-.2)/.8);
+            const bank=smooth((coastDistance[i]-.5)/2.5);
+            const channel=-.5+(riverMouth.bottom+.5)*bank;
+            depth+=(Math.min(depth,channel)-depth)*influence;
+        }
+        return depth;
     }));
 }

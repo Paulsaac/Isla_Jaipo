@@ -25,15 +25,17 @@ export function createHeldMate(THREE, camera) {
     object.material.customProgramCacheKey = () => 'held-mate-stable-projection-v1';
     object.name = 'held-mate'; object.position.set(0,0,0);
     object.renderOrder = 1000; object.visible = false; camera.add(object);
-    let held = false, minimum = 0, blend = 0;
+    let held = false, minimum = 0, blend = 0,gesture=0;
     const smooth = value => value * value * (3 - 2 * value);
     function cancel() { held = false; minimum = 0; blend = 0; }
     return {
         object,
-        press() { held = true; minimum = 1; },
+        press() { if(!held)gesture++;held = true; minimum = 1; },
         release() { held = false; },
         cancel,
         get drinking() { return held || minimum > 0; },
+        get holding() { return held; },
+        get gesture() { return gesture; },
         update(delta, visible) {
             object.visible = visible;
             if (!visible) cancel();
@@ -51,7 +53,9 @@ export function createHeldMate(THREE, camera) {
                 THREE.MathUtils.lerp(restingX,-.05*scale,t),
                 THREE.MathUtils.lerp(-radius*.90,-.394*scale-.03,t),
                 THREE.MathUtils.lerp(-.55,-.27,t));
-            object.rotation.set(THREE.MathUtils.lerp(.22,.18,t),-Math.PI/2*t,-.10*(1-t));
+            // Giro de reposo hacia la izquierda; el gesto conserva su pose final en la boca.
+            object.rotation.set(THREE.MathUtils.lerp(.22,.18,t),
+                THREE.MathUtils.lerp(THREE.MathUtils.degToRad(-10),-Math.PI/2,t),-.10*(1-t));
         }
     };
 }

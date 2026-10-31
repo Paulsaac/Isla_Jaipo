@@ -17,7 +17,10 @@ export function createObservatoryLadder(THREE,camera,controls,observatory,eyeHei
             .transformDirection(observatory.chairLadder.matrixWorld);
         approach.normalize();
         // Subir frente a los peldaños, con espacio para el cuerpo y la cámara.
-        foot.addScaledVector(approach,-.50);top.addScaledVector(approach,-.50);
+        foot.addScaledVector(approach,-.50);
+        // Llegar ya sobre el borde seguro del descanso, sin un tramo
+        // horizontal sujeto a la escalera después de terminar el ascenso.
+        top.addScaledVector(approach,.12);
         const bounds=observatory.chairLanding.userData.bounds;
         top.y+=bounds.top;
         landing.set((bounds.minX+bounds.maxX)/2,bounds.top,(bounds.minZ+bounds.maxZ)/2);
@@ -32,7 +35,7 @@ export function createObservatoryLadder(THREE,camera,controls,observatory,eyeHei
         return Math.abs(probe.y-b.top)<.18&&probe.x>=b.minX&&probe.x<=b.maxX
             &&probe.z>=b.minZ&&probe.z<=b.maxZ;
     }
-    function update(delta,input,canAttach=true) {
+    function update(delta,input,canAttach=true,running=false) {
         endpoints();
         const axis=Number(input.forward)-Number(input.backward);
         if(!active) {
@@ -67,12 +70,12 @@ export function createObservatoryLadder(THREE,camera,controls,observatory,eyeHei
         // Al soltarla se recupera el esquema normal: W/↑ subir, S/↓ bajar.
         if(inputSign<0&&!input.forward)inputSign=1;
         const climb=axis*inputSign;
-        distance=THREE.MathUtils.clamp(distance+climb*1.05*Math.min(delta,.1),0,climbLength+landingLength);
+        const speed=1.05*(running?1.5:1);
+        distance=THREE.MathUtils.clamp(distance+climb*speed*Math.min(delta,.1),0,climbLength+landingLength);
         if(distance<=climbLength)root.position.lerpVectors(foot,top,distance/climbLength);
         else root.position.lerpVectors(top,landing,(distance-climbLength)/landingLength);
         root.position.y+=eyeHeight;
-        if(climb>0&&distance>climbLength&&onLanding()
-            &&probe.z<=observatory.chairLanding.userData.bounds.maxZ-.02) {
+        if(climb>0&&distance>=climbLength&&onLanding()) {
             active=false;releasedAtTop=true;previousLandingZ=probe.z;
         }
         if(climb<0&&distance===0) {

@@ -321,3 +321,7 @@
 - Transición atardecer→noche ocupa43.320–64.029s con curva suave y salida de hue continua; cielo nocturno retenido, entrega/puente siguen siendo habilitadores de amanecer. La espera/suspensión del audio no avanza un reloj alternativo del cielo.
 - Reproductor Evento Bosque visible solo enKonami, compactado en cada activación; permite movimiento y conserva ubicación dentro de zona inferior, trasladando al corazón desde fuera. Herramienta sin progreso persistente.
 - Petición explícita de este cierre autoriza publicar PR y crear respaldo completo; no modifica regla general de cierre sin Git automático ni autoriza merge. Relevo final CONTINUAR_AXBYZ_2026-10-29_BOSQUE.md.
+
+## 2026-10-30 — Respiración y reaparición submarina
+- Sin escafandra, el tiempo máximo de aire es 5 segundos. El aire de la escafandra mantiene sus reglas propias.
+- Ahogarse devuelve al inicio del tramo del Corazón del Cielo solo si el jugador lleva puesta la escafandra y la búsqueda comenzó pero aún no terminó. Tras recoger el último fragmento, o fuera de ese estado (incluidos río y agua sin escafandra), se reaparece en la casa de Graham.

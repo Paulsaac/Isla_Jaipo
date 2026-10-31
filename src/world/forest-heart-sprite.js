@@ -1,13 +1,13 @@
 // Relieve fino del sprite original: conserva píxeles y recorta el contorno transparente.
-export function createForestHeartSpriteGeometry(THREE, image) {
+export function createForestHeartSpriteGeometry(THREE, image, {height=0.65,depth=0.035,alphaTest=0.5}={}) {
     const canvas=document.createElement('canvas');
     canvas.width=image.width; canvas.height=image.height;
     const context=canvas.getContext('2d',{willReadFrequently:true});
     context.drawImage(image,0,0);
     const {data}=context.getImageData(0,0,canvas.width,canvas.height);
     const positions=[],colors=[],color=new THREE.Color();
-    const opaque=(x,y)=>x>=0&&y>=0&&x<canvas.width&&y<canvas.height&&data[(y*canvas.width+x)*4+3]>=128;
-    const height=0.65, pixel=height/canvas.height, depth=0.035;
+    const opaque=(x,y)=>x>=0&&y>=0&&x<canvas.width&&y<canvas.height&&data[(y*canvas.width+x)*4+3]>=alphaTest*255;
+    const pixel=height/canvas.height;
     function quad(a,b,c,d,shade=1){
         for(const point of [a,b,c,a,c,d]) {positions.push(...point); colors.push(color.r*shade,color.g*shade,color.b*shade);}
     }
