@@ -46,10 +46,10 @@
 .touch-mode #inventory-menu .orbit-slot[data-inventory-item="sea-heart"] {top:calc(var(--edge) + var(--slot-size)*.9);}
 .touch-mode #inventory-menu .orbit-slot[data-inventory-item="torch"] {left:var(--side-edge);bottom:calc(20px + var(--item-step)*2);}
 .touch-mode #inventory-menu .orbit-slot[data-inventory-item="map"] {left:calc(var(--side-edge) + 10px);bottom:calc(20px + var(--item-step));}
-.touch-mode #inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {left:calc(var(--side-edge) + 20px);bottom:20px;}
-.touch-mode #inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:var(--side-edge);bottom:calc(20px + var(--item-step)*3);}
-.touch-mode #inventory-menu .orbit-slot[data-inventory-item="helmet"] {right:var(--side-edge);bottom:calc(20px + var(--item-step)*2);}
-.touch-mode #inventory-menu .orbit-slot[data-inventory-item="mate"] {right:calc(var(--side-edge) + 10px);bottom:calc(20px + var(--item-step));}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="helmet"] {left:calc(var(--side-edge) + 20px);bottom:20px;}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="mate"] {right:var(--side-edge);bottom:calc(20px + var(--item-step)*2);}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="pink-sunglasses"] {right:calc(var(--side-edge) + 10px);bottom:calc(20px + var(--item-step));}
+.touch-mode #inventory-menu .orbit-slot[data-inventory-item="astroscope"] {right:calc(var(--side-edge) + 20px);bottom:20px;}
 .touch-mode #inventory-menu .orbit-slot[data-inventory-item="key"] {right:calc(var(--side-edge) + 20px);bottom:20px;}
 .touch-mode #inventory-menu .inventory-model-preview {
     top:calc(var(--edge) + var(--slot-size)*2.4);left:50%;bottom:auto;transform:translateX(-50%);

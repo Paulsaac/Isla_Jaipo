@@ -5,6 +5,7 @@ import { isTouchMode } from './input/touch-mode.js';
 import { requestIslandStart, setIslandPreview } from './ui/island-start.js';
 import { createSavedIslandPreview } from './ui/saved-island-preview.js';
 import { menuMusic } from './ui/menu-music.js';
+import {beginLoadingPointerCapture} from './input/loading-pointer-capture.js';
 menuMusic.start();
 let loading = false;
 const startMenu = document.getElementById('main-menu');
@@ -18,6 +19,7 @@ if (isTouchMode) {
 function start(event) {
     if ((event.type === 'keydown' && event.code !== 'Enter') || event.repeat || loading) return;
     loading = true;
+    if(!isTouchMode)beginLoadingPointerCapture();
     musicEvents.unlock();
     document.removeEventListener('keydown', start);
     startMenu.removeEventListener('pointerdown', start);

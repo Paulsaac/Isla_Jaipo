@@ -359,42 +359,43 @@
         #diving-helmet-item svg { width: 100%; height: 100%; }
         #diving-helmet-item { padding: 6px; }
         .inventory-item img { margin: auto; }
-        .inventory-item[aria-pressed="true"]::after {
-            content: '✓'; position: absolute; right: 3px; top: 0;
-            color: #fff; font: bold 18px sans-serif; text-shadow: 1px 1px #000;
-        }
         .inventory-item:focus-visible { outline: 2px solid #fff; }
         #inventory-item-description { max-width: 320px; min-height: 32px; margin: 8px auto 0; font-family: 'Press Start 2P', cursive; font-size: 10px; line-height: 1.7; text-align: center; color: #fff; flex-shrink: 0; }
         #diving-helmet-view {
             display: none; visibility: hidden; position: fixed; inset: 0; z-index: 4; pointer-events: none;
-            transform: translateY(-106%);
-            background: radial-gradient(ellipse 60% 120% at 50% 50%,
-                transparent 64%, #c39b5866 65%, #9f7542b3 67%, #322820e6 72%, #211909 86%);
+            transform: translateY(-160%);
         }
         #diving-helmet-view::after {
-            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-            height: clamp(22px, 4vh, 42px); z-index: 2;
-            border-top: 3px solid #c39b58;
-            background: linear-gradient(#9f7542, #322820 30%, #211909);
+            content: ''; position: absolute; inset: 0; z-index: 1;
+            background: radial-gradient(ellipse 60% 120% at 50% 50%,
+                #c39b5800 61%, #c39b5826 63%, #c39b5866 65%, #9f7542b3 67%, #322820 70%, #211909 86%);
+        }
+        .helmet-lower-shell {
+            position: absolute; top: calc(100% - 1px); left: 0; width: 100%; height: 55vh; z-index: 1;
+            clip-path: inset(0 0 10vh);
+            background:
+                linear-gradient(to bottom, transparent 39vh, #705735 39vh, #453421 40vh, #211b13 45vh),
+                radial-gradient(ellipse 60vw 120vh at 50% -50vh,
+                    #c39b5800 61%, #c39b5826 63%, #c39b5866 65%, #9f7542b3 67%, #322820 70%, #211909 86%);
         }
         .helmet-visor-grid {
             --visor-grid-unit: min(2.6vw, 5vh);
-            position: absolute; inset: 0; opacity: .3;
-            clip-path: ellipse(39% 78% at 50% 50%);
+            position: absolute; inset: 0; opacity: .8;
+            clip-path: ellipse(44% 88% at 50% 50%);
         }
         .helmet-visor-grid span {
             position: absolute; border-radius: 1px;
-            box-shadow: 1px 2px 2px #21190980;
+            box-shadow: 1px 2px 3px #2119091a;
         }
         .helmet-visor-grid .visor-bar-vertical {
-            top: 0; height: 100%; width: clamp(15px, 3.6vmin, 34.5px);
+            top: 0; height: 145%; width: clamp(15px, 3.6vmin, 34.5px);
             transform: translateX(-50%);
-            background: linear-gradient(90deg, #62482b, #e1bd74 35%, #9f7542 62%, #322820);
+            background: linear-gradient(90deg, #2c241a00, #2c241a33 15%, #2c241a 32%, #78623e 43%, #51402b 57%, #171512 68%, #17151233 85%, #17151200);
         }
         .helmet-visor-grid .visor-bar-horizontal {
             left: 0; width: 100%; height: clamp(15px, 3.6vmin, 34.5px);
             transform: translateY(-50%);
-            background: linear-gradient(#62482b, #e1bd74 35%, #9f7542 62%, #322820);
+            background: linear-gradient(#2c241a00, #2c241a33 15%, #2c241a 32%, #78623e 43%, #51402b 57%, #171512 68%, #17151233 85%, #17151200);
         }
         .helmet-visor-damage {
             display: none; position: absolute; inset: 0;
@@ -558,7 +559,7 @@
         }
         #item-notification {
             position: fixed;
-            top: 75dvh;
+            top: 70dvh;
             left: 50%;
             transform: translate(-50%, -50%);
             opacity: 0;
@@ -574,7 +575,7 @@
             line-height: 1.5;
             text-align: center;
             text-shadow: 2px 2px 0 #000;
-            z-index: 110;
+            z-index: 250;
             display: none;
             pointer-events: none;
         }
@@ -700,6 +701,7 @@
     <button type="button" id="touch-dialog-continue" aria-label="Tocar para continuar" hidden></button>
     <!-- Pantallas de UI -->
     <div id="diving-helmet-view" aria-hidden="true">
+        <div class="helmet-lower-shell"></div>
         <div class="helmet-visor-damage">
             <svg class="helmet-visor-crack" viewBox="0 0 100 120" aria-hidden="true">
                 <g fill="none" stroke-linecap="butt" stroke-linejoin="miter" transform="translate(92 3) scale(1.15) translate(-92 -3)">
@@ -834,7 +836,11 @@
                         <span id="sea-heart-count" style="position:absolute;bottom:4px;right:4px;font-size:12px;color:#fff;text-shadow:1px 1px #000;"></span>
                     </button>
                 </div>
-                <div class="inv-slot" id="future-heart-slot" role="img" aria-label="Espacio reservado para un futuro corazón"></div>
+                <div class="inv-slot" id="future-heart-slot">
+                    <button class="inventory-item" data-item="sky-heart" type="button" aria-label="Ver Corazón del Cielo" style="display:none;">
+                        <img src="./imagenes/Sprites/corazon-cielo.png" alt="Corazón del Cielo" style="width:64px;height:64px;image-rendering:pixelated;">
+                    </button>
+                </div>
                 </div>
             </section>
             <section class="game-menu-box" aria-label="Objetos de uso">
@@ -897,7 +903,7 @@
                         <span id="key-count" style="display:none;">0</span>
                     </button>
                 </div>
-                <div class="inv-slot" style="display:none;">
+                <div class="inv-slot">
                     <button id="astroscope-item" class="inventory-item" type="button" data-item="astroscope" aria-pressed="false" aria-label="Sacar o guardar Astroscopio" title="Astroscopio" style="display:none;">
                         <img src="./imagenes/Sprites/telescopio.png?v=17e077d450a7" alt="Astroscopio" style="width:64px;height:64px;image-rendering:pixelated;">
                     </button>

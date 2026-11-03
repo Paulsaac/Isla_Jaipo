@@ -1,7 +1,7 @@
 const curiosities=[
     'el verdadero olor a tomate no está en la fruta, sino en los tallos',
     'las hojas de la zanahoria saben a perejil',
-    'el efecto mental del mate dura varias horas despues de tomarlo'
+    'el efecto mental del mate dura harto tiempo después de tomarlo'
 ];
 
 export function createGardenNote(onClose) {

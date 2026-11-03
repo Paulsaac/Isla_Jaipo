@@ -1,4 +1,4 @@
-// Mismos pesos y texturas. WebGL2 evita muestras cuyo aporte es exactamente cero.
+// Arena húmeda ligeramente más clara, conservando textura y pesos de mezcla.
 // Gradientes explícitos conservan el filtrado/mipmap incluso en bordes entre materiales.
 export function getTerrainTextureBlend(webGL2) {
     const summitBlend = `
@@ -53,14 +53,15 @@ export function getTerrainTextureBlend(webGL2) {
     `;
     if (!webGL2) return `
         #ifdef USE_MAP
+            const vec4 wetSandLightening = vec4(1.35, 1.35, 1.35, 1.0);
             ${summitBlend}
             ${snowBlend}
             vec4 texelGrass = texture2D(tGrass, vMapUv);
             vec4 texelDirt = texture2D(tDirt, vMapUv);
             vec4 summitTexel=texture2D(tSummitPath,summitPathUv);
             float summitStoneMask=step(0.75,summitTexel.a)*step(0.99,summitPathWeight);
-            float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.12, terrainWaterHeight + 0.02, vTerrainHeight);
-            vec4 texelSand = mix(texture2D(tSand, vMapUv), texture2D(tWetSand, vMapUv), submergedSand);
+            float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.30, terrainWaterHeight + 0.20, vTerrainHeight);
+            vec4 texelSand = mix(texture2D(tSand, vMapUv), texture2D(tWetSand, vMapUv) * wetSandLightening, submergedSand);
             vec4 texelBase = texture2D(tSlab, vMapUv);
             vec4 blendedTexel = texelGrass * vSplat.x + texelDirt * vSplat.y * (1.0-summitRepaintWeight) + texelSand * vSplat.z + texelBase * vSplat.w
                 + texture2D(tMountain, vMapUv) * exposedMountain
@@ -69,7 +70,7 @@ export function getTerrainTextureBlend(webGL2) {
                     + texture2D(tSnow,vMapUv)*snowAxes.y
                     + texture2D(tSnow,snowPosition.xy)*snowAxes.z)*snowCoverage
                 + texture2D(tSeabed, vMapUv) * vMountain.w
-                + texture2D(tWetSand, vMapUv) * vWetSand;
+                + texture2D(tWetSand, vMapUv) * wetSandLightening * vWetSand;
             blendedTexel.rgb=mix(blendedTexel.rgb,texelDirt.rgb,summitGroundCoverage);
             blendedTexel.rgb=mix(blendedTexel.rgb,summitTexel.rgb,summitStoneMask);
             diffuseColor *= blendedTexel;
@@ -77,6 +78,7 @@ export function getTerrainTextureBlend(webGL2) {
     `;
     return `
         #ifdef USE_MAP
+            const vec4 wetSandLightening = vec4(1.35, 1.35, 1.35, 1.0);
             vec2 terrainDx = dFdx(vMapUv);
             vec2 terrainDy = dFdy(vMapUv);
             ${summitBlend}
@@ -94,8 +96,8 @@ export function getTerrainTextureBlend(webGL2) {
                 blendedTexel+=texelDirt*vSplat.y*(1.0-summitRepaintWeight);
             }
             if (vSplat.z > 0.0) {
-                float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.12, terrainWaterHeight + 0.02, vTerrainHeight);
-                vec4 texelSand = mix(textureGrad(tSand, vMapUv, terrainDx, terrainDy), textureGrad(tWetSand, vMapUv, terrainDx, terrainDy), submergedSand);
+                float submergedSand = 1.0 - smoothstep(terrainWaterHeight - 0.30, terrainWaterHeight + 0.20, vTerrainHeight);
+                vec4 texelSand = mix(textureGrad(tSand, vMapUv, terrainDx, terrainDy), textureGrad(tWetSand, vMapUv, terrainDx, terrainDy) * wetSandLightening, submergedSand);
                 blendedTexel += texelSand * vSplat.z;
             }
             if (vSplat.w > 0.0) blendedTexel += textureGrad(tSlab, vMapUv, terrainDx, terrainDy) * vSplat.w;
@@ -106,7 +108,7 @@ export function getTerrainTextureBlend(webGL2) {
                 + textureGrad(tSnow,vMapUv,terrainDx,terrainDy)*snowAxes.y
                 + textureGrad(tSnow,snowPosition.xy,snowDx.xy,snowDy.xy)*snowAxes.z)*snowCoverage;
             if (vMountain.w > 0.0) blendedTexel += textureGrad(tSeabed, vMapUv, terrainDx, terrainDy) * vMountain.w;
-            if (vWetSand > 0.0) blendedTexel += textureGrad(tWetSand, vMapUv, terrainDx, terrainDy) * vWetSand;
+            if (vWetSand > 0.0) blendedTexel += textureGrad(tWetSand, vMapUv, terrainDx, terrainDy) * wetSandLightening * vWetSand;
             blendedTexel.rgb=mix(blendedTexel.rgb,texelDirt.rgb,summitGroundCoverage);
             blendedTexel.rgb=mix(blendedTexel.rgb,summitTexel.rgb,summitStoneMask);
             diffuseColor *= blendedTexel;

@@ -14,6 +14,7 @@ export function createHeldOverlay(THREE, renderer, view, {ambientLight, directio
     scene.add(torch);
     const inverseViewRotation = new THREE.Quaternion();
     const lightDirection = new THREE.Vector3();
+    const lightTarget = new THREE.Vector3();
     return {
         group,
         prepare(preparePrograms) {
@@ -31,7 +32,9 @@ export function createHeldOverlay(THREE, renderer, view, {ambientLight, directio
                 directional.intensity = directionalLight.intensity;
                 view.updateWorldMatrix(true, false);
                 inverseViewRotation.copy(view.getWorldQuaternion(new THREE.Quaternion())).invert();
-                directionalLight.getWorldDirection(lightDirection).negate().applyQuaternion(inverseViewRotation);
+                directionalLight.getWorldPosition(lightDirection);
+                directionalLight.target.getWorldPosition(lightTarget);
+                lightDirection.sub(lightTarget).normalize().applyQuaternion(inverseViewRotation);
                 directional.position.copy(lightDirection).multiplyScalar(10);
             }
             if (torchLight) {

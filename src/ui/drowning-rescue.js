@@ -18,24 +18,27 @@ export function createDrowningRescue({ onBlack, onComplete }) {
     message.setAttribute('role', 'status');
     message.style.cssText = 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:6vw;opacity:0;';
     const text = document.createElement('p');
-    text.textContent = 'Te has ahogado. Intenta de nuevo.';
+    const phrases=['Te has ahogado.','Pero ese no era tu destino...'];
+    text.textContent = phrases[0];
     text.style.cssText = 'margin:0;max-width:1000px;text-align:center;color:#98e6f2;font-family:"Super Legend Boy",monospace;font-size:clamp(20px,2.5vw,36px);line-height:1.65;text-shadow:0 0 14px #79d9ef33;';
     message.append(text); shade.append(message);
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!reducedMotion) text.style.filter = 'url(#drowning-text-warp)';
     const fadeOut = 0.75, fadeIn = 0.85, textFadeIn = 0.6, textHold = 2.5, textFadeOut = 0.65;
+    const phraseDuration=textFadeIn+textHold+textFadeOut;
     let hold = 2.25, showMessage = false;
-    let elapsed = -1, blackReached = false, waitForContinue = false, waitingForContinue = false;
+    let elapsed = -1, blackReached = false, restored=false, waitForContinue = false, waitingForContinue = false;
     return {
         get active() { return elapsed >= 0; },
         get fadeOutRemaining() { return elapsed >= 0 && !blackReached ? Math.max(0,fadeOut-elapsed) : 0; },
         get waitingForContinue() { return waitingForContinue; },
         start({ waitForInput = false, showMessage: withMessage = !waitForInput } = {}) {
             if (elapsed >= 0) return false;
-            elapsed = 0; blackReached = false;
+            elapsed = 0; blackReached = false;restored=false;
             waitForContinue = waitForInput; waitingForContinue = false;
             showMessage = withMessage;
-            hold = showMessage ? textFadeIn + textHold + textFadeOut : 2.25;
+            hold = showMessage ? phrases.length*phraseDuration : 2.25;
+            text.textContent=phrases[0];
             message.style.display = showMessage ? 'flex' : 'none';
             message.style.opacity = '0';
             shade.setAttribute('aria-hidden', String(!showMessage));
@@ -56,8 +59,11 @@ export function createDrowningRescue({ onBlack, onComplete }) {
             shade.style.opacity = String(opacity);
             if (showMessage) {
                 const time = elapsed - fadeOut;
-                const alpha = Math.max(0, Math.min(1, time / textFadeIn,
-                    (hold - time) / textFadeOut));
+                const index=Math.max(0,Math.min(phrases.length-1,Math.floor(time/phraseDuration)));
+                const phraseTime=time-index*phraseDuration;
+                if(text.textContent!==phrases[index])text.textContent=phrases[index];
+                const alpha = Math.max(0, Math.min(1, phraseTime / textFadeIn,
+                    (phraseDuration - phraseTime) / textFadeOut));
                 message.style.opacity = String(alpha * alpha * (3 - 2 * alpha));
                 if (!reducedMotion && alpha > 0) {
                     turbulence.setAttribute('baseFrequency', `${0.012 + Math.sin(time * 0.9) * 0.002} ${0.065 + Math.sin(time * 0.7) * 0.008}`);
@@ -67,7 +73,11 @@ export function createDrowningRescue({ onBlack, onComplete }) {
             if (!blackReached && elapsed >= fadeOut) {
                 blackReached = true;
                 if (waitForContinue) { waitingForContinue = true; elapsed = fadeOut; shade.style.opacity = '1'; }
-                onBlack();
+            }
+            // Reaparecer después de ambas frases, todavía bajo el negro.
+            // El rescate del río conserva su diálogo y espera de interacción.
+            if(!restored&&elapsed>=fadeOut+(showMessage?hold:0)){
+                restored=true;onBlack();
             }
             if (elapsed >= fadeOut + hold + fadeIn) {
                 elapsed = -1; shade.hidden = true; shade.style.opacity = '0';

@@ -1,3 +1,5 @@
+import {COLLISION_RADIUS} from '../config.js';
+
 // Hormiga negra con ojos dibujados en un plano fijo: dos dibujos, sin luces nuevas.
 export function createAtticAnt(THREE) {
     const bodyParts = [];
@@ -54,12 +56,22 @@ export function createAtticAnt(THREE) {
         map:eyeTexture,transparent:true,alphaTest:0.05,side:THREE.DoubleSide,forceSinglePass:true
     }));
     eyes.position.set(0,0.35,0.452);
-    eyes.scale.setScalar(0.68);
+    eyes.scale.setScalar(0.68*0.95);
     eyes.name='attic-ant-fixed-eye-sprite';
     eyes.userData={type:'NPC',id:'attic-ant'};
     // Mesh plano hijo del cuerpo: conserva su orientación y nunca gira hacia la cámara.
     group.add(eyes);
     group.scale.setScalar(1.08);
+    // El contorno incluye abdomen, cabeza, patas y antenas, a la escala final.
+    const bounds=new THREE.Box3().setFromObject(group);
+    group.userData.blocksMovement=(x,z,feetY,playerHeight)=>{
+        if(feetY+playerHeight<=group.position.y+bounds.min.y || feetY>=group.position.y+bounds.max.y)return false;
+        const dx=x-group.position.x,dz=z-group.position.z,c=Math.cos(group.rotation.y),s=Math.sin(group.rotation.y);
+        const localX=dx*c-dz*s,localZ=dx*s+dz*c;
+        const gapX=Math.max(bounds.min.x-localX,0,localX-bounds.max.x);
+        const gapZ=Math.max(bounds.min.z-localZ,0,localZ-bounds.max.z);
+        return gapX*gapX+gapZ*gapZ<COLLISION_RADIUS*COLLISION_RADIUS;
+    };
     return group;
 }
 

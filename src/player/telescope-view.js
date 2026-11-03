@@ -90,7 +90,7 @@ export function createTelescopeView(THREE,camera,controls,{onStrainComplete=()=>
             shakeApplied=true;
         },
         restoreShake,
-        update(delta,allowed) {
+        update(delta,allowed,visible=allowed) {
             if (!allowed) cancel();
             shake=0;
             let returning=false, handRise=1;
@@ -141,7 +141,7 @@ export function createTelescopeView(THREE,camera,controls,{onStrainComplete=()=>
             const itemScale=Math.min(0.62,viewHeight*0.42/0.7);
             const restingX=Math.max(0,viewWidth*0.5-itemScale*0.36);
             const restingY=-viewHeight*0.23;
-            object.visible=allowed && (returning || (!requested && strainTime<0 && blend===0));
+            object.visible=visible && (returning || (!requested && strainTime<0 && blend===0));
             object.scale.setScalar(itemScale);
             object.position.set(restingX,restingY-(returning ? viewHeight*0.72*(1-handRise) : 0),-distance);
             // El objetivo apunta hacia -Z local: elevarlo y después inclinarlo en el plano de la pantalla.

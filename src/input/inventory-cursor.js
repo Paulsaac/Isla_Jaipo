@@ -54,6 +54,7 @@ export function createInventoryCursor(menu) {
         // Mover el cursor en cada entrada; consultar los slots solo una vez por fotograma.
         if(!pressed && hoverFrame===null)hoverFrame=requestAnimationFrame(()=>{
             hoverFrame=null;if(active&&!pressed)updateHover();
+            if(active&&!pressed&&hover?.matches('.keyring-canvas'))send(hover,'pointermove');
         });
     }
     function sync() {

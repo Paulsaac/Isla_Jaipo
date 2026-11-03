@@ -30,11 +30,21 @@ export function createShipwreckGeometry(THREE, type) {
         }
     } else if (type === 'COILED_ROPE') {
         const points = [];
-        for (let i = 0; i <= 180; i++) {
-            const t = i / 180, angle = t * Math.PI * 8, radius = 0.08 + t * 0.4;
-            points.push(new THREE.Vector3(Math.cos(angle)*radius,0.045,Math.sin(angle)*radius));
+        for (let i = 0; i <= 160; i++) {
+            const t=i/160,angle=t*Math.PI*4.3;
+            const radius=.15+t*.30+.025*Math.sin(angle*1.65)+.015*Math.cos(angle*2.3);
+            const x=Math.cos(angle)*radius*(.95+.08*Math.sin(angle*.34))+.035*Math.sin(angle*.43);
+            const z=Math.sin(angle)*radius*(.85+.09*Math.cos(angle*.44))+.03*Math.sin(angle*.7);
+            let y=.045;
+            // La cuerda se apoya sobre las vueltas anteriores al cruzarlas,
+            // en vez de formar una espiral plana o atravesarse a sí misma.
+            for(let j=0;j<points.length-14;j++){
+                const p=points[j],d2=(x-p.x)**2+(z-p.z)**2;
+                if(d2<.0144)y=Math.max(y,p.y+.075*Math.exp(-d2/.0049));
+            }
+            points.push(new THREE.Vector3(x,y,z));
         }
-        points.push(new THREE.Vector3(0.6,0.045,0.13),new THREE.Vector3(0.65,0.045,0.35),new THREE.Vector3(0.5,0.045,0.48));
+        points.push(new THREE.Vector3(.15,.045,.51),new THREE.Vector3(-.10,.045,.58),new THREE.Vector3(-.29,.045,.51));
         add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),240,0.035,6,false),4);
     } else if (type === 'BROKEN_MAST') {
         add(new THREE.CylinderGeometry(0.07,0.11,1.65,8),0,g=>{g.rotateZ(Math.PI/2);g.translate(0,0.13,0);});
