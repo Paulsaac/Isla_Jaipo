@@ -1,3 +1,5 @@
+import {testMode} from '../input/test-mode.js';
+
 // Herramienta de autoría: marcas del audio, sin guardar progreso de la partida.
 export function createForestCueRecorder({ music, isActive, target = document, storage = localStorage, send = fetch }) {
     // getRandomValues también está disponible al abrir por HTTP en la red local.
@@ -9,6 +11,7 @@ export function createForestCueRecorder({ music, isActive, target = document, st
     const take = { version: 1, track: 'forest', source: 'sonidos/musica/bosque.mpeg', id, createdAt: new Date().toISOString(), marks: [] };
     const panel = target.createElement('div');
     panel.id = 'forest-cue-recorder';
+    panel.hidden = !testMode.enabled;
     panel.style.cssText = 'position:fixed;top:12px;left:12px;z-index:120;max-width:min(460px,80vw);padding:8px 10px;background:#101923cc;color:#d9f6ff;font:12px monospace;border-radius:5px;pointer-events:none;';
     const chips = target.createElement('div');
     chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px;';
@@ -21,6 +24,7 @@ export function createForestCueRecorder({ music, isActive, target = document, st
         return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
     }
     function render() {
+        panel.hidden = !testMode.enabled;
         chips.replaceChildren();
         for (const mark of take.marks) {
             const chip = target.createElement('span');
@@ -53,11 +57,13 @@ export function createForestCueRecorder({ music, isActive, target = document, st
         save();
     }
     function update() {
+        panel.hidden = !testMode.enabled;
+        if(!testMode.enabled)return;
         const lastTime = music.getEventPlaybackTime('forest');
         if (lastTime !== null) ensureStart();
     }
     function mark(event) {
-        if (event.code !== 'KeyY' || event.repeat || event.ctrlKey || event.altKey || event.metaKey || !isActive()) return;
+        if (!testMode.enabled || event.code !== 'KeyY' || event.repeat || event.ctrlKey || event.altKey || event.metaKey || !isActive()) return;
         if (event.target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName)) return;
         const seconds = music.getEventPlaybackTime('forest');
         if (seconds === null) return;
@@ -67,6 +73,7 @@ export function createForestCueRecorder({ music, isActive, target = document, st
         save();
     }
     target.addEventListener('keydown', mark);
+    testMode.subscribe(update);
     render();
     return { update, getMarks: () => take.marks.map(mark => ({ ...mark })), flush: () => saveQueue };
 }

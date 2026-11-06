@@ -28,22 +28,25 @@ export async function waitForRenderedFrame(renderer) {
 
 // Three r160 admite compilar un subconjunto usando la escena real como destino.
 // Mantener luces, niebla y variantes originales, cediendo entre preparaciones.
-export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null, cancelled = () => false) {
+export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null, cancelled = () => false, onProgress = () => {}) {
     const objects = [];
     world.traverse(object => { if (object.material) objects.push(object); });
     const batch = new THREE.Group();
     // Las luces se toman solo del tercer argumento; no duplicar las del objeto.
     batch.traverseVisible = () => {};
-    for (const object of objects) {
+    // Agrupar evita volver a recorrer todas las luces por cada objeto.
+    for (let offset = 0; offset < objects.length; offset += 32) {
         if (cancelled()) return;
-        batch.traverse = callback => callback(object);
+        const current = objects.slice(offset, offset + 32);
+        batch.traverse = callback => current.forEach(callback);
         const previous = renderer.getRenderTarget();
         try {
             renderer.setRenderTarget(target);
             renderer.compile(batch, view, world);
             // El fundido cambia OPAQUE y, en materiales de dos caras, las pasadas.
             // Preparar ambos estados antes de que el jugador se sumerja o emerja.
-            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            const materials = [...new Set(current.flatMap(object =>
+                Array.isArray(object.material) ? object.material : [object.material]))];
             const fading = materials.filter(material => material.userData.preloadTransparency);
             const transparencies = fading.map(material => material.transparent);
             try {
@@ -60,9 +63,11 @@ export async function prepareProgramsInBatches(THREE, renderer, world, view, che
     // material puede haber creado varias variantes (instancias, caras y fundido).
     // Esperar todas evita bloquear getProgramInfoLog al dibujarlas por primera vez.
     const pending = new Set(renderer.info.programs);
+    const programCount = pending.size;
     const gl = renderer.getContext();
     let lastProgress = performance.now();
     while (pending.size) {
+        onProgress(.5 + .5 * (1 - pending.size / programCount));
         for (const program of pending) {
             if (cancelled()) return;
             if (!program.isReady()) continue;
@@ -78,4 +83,5 @@ export async function prepareProgramsInBatches(THREE, renderer, world, view, che
         if (gl.isContextLost() || (pending.size && performance.now() - lastProgress > 60000)) throw new Error('No se pudieron preparar los programas gráficos.');
         if (pending.size) await new Promise(resolve => setTimeout(resolve, 8));
     }
+    onProgress(1);
 }

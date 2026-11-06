@@ -1,4 +1,4 @@
-import { getSummitRoute, getSummitDirtRoutes, summitRidge, summitStonePlatform } from '../content/summit-layout.js';
+import { getSummitRoute, getSummitDirtRoutes, getSummitCrest, summitRidge, summitStonePlatform } from '../content/summit-layout.js';
 
 const clamp=value=>Math.max(0,Math.min(1,value));
 const smooth=value=>{const t=clamp(value);return t*t*(3-2*t);};
@@ -11,7 +11,7 @@ function project(x,z,a,b) {
 // Relieve de la cima y camino integrado: una sola superficie para dibujo y apoyo.
 export function shapeSummitRidge(floorMap,heights,mountainMask,profile,collisionMap) {
     if(!profile?.contourTrail)return profile;
-    const top=profile.summitHeight,route=getSummitRoute(),crest=summitRidge.crest;
+    const top=profile.summitHeight,route=getSummitRoute(),crest=getSummitCrest();
     // Retirar pintura antigua del ramal izquierdo y de la antigua entrada de piedras.
     // La nueva pintura continua se aplica abajo, sin tocar habitaciones ni plataforma.
     for(let z=100;z<=149;z++)for(let x=100;x<=165;x++) {
@@ -23,11 +23,49 @@ export function shapeSummitRidge(floorMap,heights,mountainMask,profile,collision
     }
     const crestDistances=[0];
     for(let i=1;i<crest.length;i++)crestDistances.push(crestDistances.at(-1)+Math.hypot(crest[i][0]-crest[i-1][0],crest[i][1]-crest[i-1][1]));
+    const observatoryX=summitStonePlatform.minX+summitStonePlatform.cellsPerSide/2;
+    const observatoryZ=summitStonePlatform.minZ+summitStonePlatform.cellsPerSide/2;
+    let referenceDistance=Infinity,referenceX=0,referenceZ=0,referenceAlong=0;
+    let descentDistance=Infinity,descentAlong=0;
+    for(let i=1;i<crest.length;i++) {
+        const p=project(observatoryX,observatoryZ,crest[i-1],crest[i]);
+        if(p.distance<referenceDistance) {
+            referenceDistance=p.distance;
+            referenceAlong=crestDistances[i-1]+(crestDistances[i]-crestDistances[i-1])*p.t;
+            referenceX=crest[i-1][0]+(crest[i][0]-crest[i-1][0])*p.t;
+            referenceZ=crest[i-1][1]+(crest[i][1]-crest[i-1][1])*p.t;
+        }
+    }
+    for(let i=1;i<crest.length;i++) {
+        const p=project(...summitRidge.descentStart,crest[i-1],crest[i]);
+        if(p.distance<descentDistance) {
+            descentDistance=p.distance;
+            descentAlong=crestDistances[i-1]+(crestDistances[i]-crestDistances[i-1])*p.t;
+        }
+    }
+    const clearanceRoutes=[...getSummitDirtRoutes(),profile.points.filter(p=>p.y>top-25).map(p=>[p.x,p.z])];
+    const gentleWave=along=>Math.sin(along*.075)*.55+Math.sin(along*.16+.8)*.18;
+    const ridgeTop=top+13+Math.sin(referenceX*.14+referenceZ*.09)*3.5+Math.sin(referenceX*.31-referenceZ*.17)*2;
     const distances=[0];
     for(let i=1;i<route.length;i++)distances.push(distances.at(-1)+Math.hypot(route[i][0]-route[i-1][0],route[i][1]-route[i-1][1]));
     const total=distances.at(-1),roadY=distance=>top+summitStonePlatform.heightOffset*smooth(distance/(total*.92));
     const terrainTypes=new Set(['MOUNTAIN','PEAK','SNOW_PEAK','SNOW_SLOPE','DIRT']);
-    for(let z=92;z<=149;z++)for(let x=94;x<=170;x++) {
+    // El volumen añadido conserva la pendiente natural de la montaña.
+    const naturalHeights=heights.map(row=>Float32Array.from(row));
+    const sampleNatural=(x,z)=>{
+        x=Math.max(0,Math.min(floorMap[0].length-1.001,x));
+        z=Math.max(0,Math.min(floorMap.length-1.001,z));
+        const ix=Math.floor(x),iz=Math.floor(z),tx=x-ix,tz=z-iz;
+        return (naturalHeights[iz][ix]*(1-tx)+naturalHeights[iz][ix+1]*tx)*(1-tz)
+            +(naturalHeights[iz+1][ix]*(1-tx)+naturalHeights[iz+1][ix+1]*tx)*tz;
+    };
+    const margin=Math.ceil(summitRidge.outerWidth+1);
+    const minX=Math.max(0,Math.floor(Math.min(...crest.map(p=>p[0]))-margin));
+    const maxX=Math.min(floorMap[0].length-1,Math.ceil(Math.max(...crest.map(p=>p[0]))+margin));
+    const minZ=Math.max(0,Math.floor(Math.min(...crest.map(p=>p[1]))-margin));
+    const maxZ=Math.min(floorMap.length-1,Math.ceil(Math.max(...crest.map(p=>p[1]))+margin));
+    for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++) {
+
         if(!mountainMask[z]?.[x]||!terrainTypes.has(floorMap[z][x]))continue;
         let ridgeDistance=Infinity,crestAlong=0,crestX=0,crestZ=0;
         for(let i=1;i<crest.length;i++) {
@@ -38,36 +76,31 @@ export function shapeSummitRidge(floorMap,heights,mountainMask,profile,collision
                 crestZ=crest[i-1][1]+(crest[i][1]-crest[i-1][1])*p.t;
             }
         }
-        const ends=smooth(Math.min(crestAlong,crestDistances.at(-1)-crestAlong)/10);
-        // Perfil redondeado, con tangente horizontal en la cresta y en el pie.
-        const across=clamp(ridgeDistance/summitRidge.width);
-        const ridgeWeight=(.5+.5*Math.cos(across*Math.PI))*ends;
+        const remaining=crestDistances.at(-1)-crestAlong;
+        const ends=smooth(crestAlong/10)*smooth(remaining/18);
+        const descent=smooth((crestAlong-descentAlong)/(crestDistances.at(-1)-descentAlong));
+        const crestHeight=ridgeTop+(top+summitRidge.endHeightOffset-ridgeTop)*descent
+            +(gentleWave(crestAlong)-gentleWave(referenceAlong))*(1-descent);
+        const radialX=crestX-summitRidge.center.x,radialZ=crestZ-summitRidge.center.z;
+        const radialLength=Math.hypot(radialX,radialZ)||1;
+        const outward=((x-crestX)*radialX+(z-crestZ)*radialZ)/radialLength;
+        const skirtWidth=summitRidge.width+(summitRidge.outerWidth-summitRidge.width)*smooth((outward+1.5)/3);
+        const across=clamp(ridgeDistance/skirtWidth);
+        let ridgeWeight=(.5+.5*Math.cos(across*Math.PI))*ends;
         let nearest=Infinity,along=0;
         for(let i=1;i<route.length;i++) {
             const p=project(x,z,route[i-1],route[i]);
             if(p.distance<nearest){nearest=p.distance;along=distances[i-1]+(distances[i]-distances[i-1])*p.t;}
         }
+        // Respetar también la llegada de la subida y los ramales de tierra.
+        let clearance=nearest;
+        for(const points of clearanceRoutes)for(let i=1;i<points.length;i++)
+            clearance=Math.min(clearance,project(x,z,points[i-1],points[i]).distance);
+        ridgeWeight*=smooth((clearance-summitRidge.pathClearance)/summitRidge.pathBlend);
         if(ridgeWeight>0) {
-            // El cordón posterior debe sobresalir del camino, también donde este asciende.
-            const easternCut=smooth((x-132)/23);
-            const crags=(13+Math.sin(x*.14+z*.09)*3.5+Math.sin(x*.31-z*.17)*2)*(1-.78*easternCut);
-            const easternRidge=smooth((crestX-127)/12);
-            let ridgeTop=top+crags;
-            if(easternRidge>0) {
-                let distance=Infinity,roadAlong=0;
-                for(let i=1;i<route.length;i++) {
-                    const p=project(crestX,crestZ,route[i-1],route[i]);
-                    if(p.distance<distance){distance=p.distance;roadAlong=distances[i-1]+(distances[i]-distances[i-1])*p.t;}
-                }
-                // Lomos amplios y redondeados, con imperfecciones suaves como el extremo occidental.
-                const rockPhase=crestAlong*.21+Math.sin(crestAlong*.055)*.65;
-                const rockyEdge=1.7+Math.sin(rockPhase)*.85+Math.sin(crestAlong*.48+1.1)*.16;
-                const raisedTop=roadY(roadAlong)+6.5+rockyEdge;
-                const roadClearance=smooth((nearest-1.7)/1.4);
-                ridgeTop+=Math.max(0,raisedTop-ridgeTop)*easternRidge*roadClearance;
-            }
-            heights[z][x]+=Math.max(0,ridgeTop-heights[z][x])*ridgeWeight;
-            if(ridgeWeight>.03){floorMap[z][x]='SNOW_PEAK';collisionMap[z][x]='PEAK';}
+            const lift=Math.max(0,crestHeight-sampleNatural(crestX,crestZ));
+            heights[z][x]=naturalHeights[z][x]+lift*ridgeWeight;
+            if(ridgeWeight>.03&&ridgeDistance<summitRidge.width){floorMap[z][x]='SNOW_PEAK';collisionMap[z][x]='PEAK';}
         }
         if(nearest<3.4) {
             const shoulder=smooth((3.4-nearest)/(3.4-1.15));

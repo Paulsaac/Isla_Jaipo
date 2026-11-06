@@ -500,7 +500,9 @@
             pointer-events: none;
         }
         #forest-cue-indicator[hidden],
-        body:not(.test-mode) #forest-cue-indicator { display: none; }
+        body:not(.test-mode) #forest-cue-indicator,
+        body:not(.test-mode) #forest-cue-recorder,
+        body:not(.test-mode) .forest-event-monitor { display: none; }
         .touch-mode #forest-cue-indicator {
             top: calc(max(12px, env(safe-area-inset-top)) + 54px);
         }

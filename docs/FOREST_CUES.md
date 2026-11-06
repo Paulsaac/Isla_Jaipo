@@ -1,3 +1,15 @@
+## Estado vigente — AxByZ — 2026-11-05
+
+Esta entrada prevalece sobre la descripción histórica inferior, sin modificar los segundos de `FOREST_CUES` ni la canción vigente:
+
+- Anochecer continuo48.320–77.029s (marca2+5 a marca3+13), sustituye43.320–64.029s.
+- Cielo psicodélico conserva sus dos apariciones; mándala de cuatro sectores, giro45°/20s y muestreo discreto8FPS sobre cuadrícula120×120. Grado de color hue+.025vueltas, saturación×1.22/valor×.90.
+- Estrellas giran hue desde marca6=126.848s con entrada4s; continúa marcas7/8 y se apaga durante8→9. Canción/marcas/levitación intactas.
+- Otros efectos terminan en marca9=189.127s. Las luces de tronco ligadas a altura se extinguen últimas hasta195.127s; cancelación de estas luces14s y del resto8s. Aterrizaje186.127s conservado.
+- Toda UI de marcas/cronómetro/monitor/grabador requiere Konami; desactivarlo oculta al instante. Grabador sigue sin importarse en partida y no registra fuera del modo prueba.
+
+Evidencias y pendientes en el cierre propio de HANDOFF.md. No confundir la marca9 con la duración del archivo musical.
+
 # Marcas de Bosque: contexto y uso
 
 AxByZ marcó manualmente momentos del archivo original `sonidos/musica/bosque.mpeg` al escucharlo y pulsar Y el 15 de octubre de 2026. Se agregaron el inicio 0 y el final 9. Son referencias para distribuir efectos del bosque psicodélico y ajustar la levitación; no son un análisis automático del beat ni diez efectos ya implementados.

@@ -1,11 +1,11 @@
 import { SKY_CYCLE_TIMING } from '../world/sky-cycle.js';
-import { FOREST_CUES } from '../content/forest-cues.js';
+import { FOREST_DUSK_START, FOREST_DUSK_END } from '../content/forest-cues.js';
 
 // Evento y reproductor comparten el mismo final exacto: noche, sin vuelta al ciclo.
 export function getForestSkyTime(elapsed,timing=SKY_CYCLE_TIMING) {
-    const progress=Math.max(0,Math.min(1,(elapsed-FOREST_CUES[2])/(FOREST_CUES[3]-FOREST_CUES[2])));
+    const progress=Math.max(0,Math.min(1,(elapsed-FOREST_DUSK_START)/(FOREST_DUSK_END-FOREST_DUSK_START)));
     if(progress>=1)return timing.nightStart;
-    // Todo el tramo 2→3, con velocidad y aceleración nulas en los extremos.
+    // Anochecer retrasado y más largo, con velocidad y aceleración nulas en los extremos.
     const eased=progress**3*(progress*(progress*6-15)+10);
     return timing.duskStart+timing.dusk*.5*(1+eased);
 }

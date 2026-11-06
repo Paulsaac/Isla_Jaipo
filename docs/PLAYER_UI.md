@@ -1,3 +1,11 @@
+## Ajustes vigentes — AxByZ — 2026-11-05
+
+- Indicador/cronómetro de marcas, grabador y reproductor Bosque visibles únicamente con Konami; ocultación inmediata al desactivar. Grabador sin actividad fuera de pruebas, sigue sin importarse en partida normal.
+- Automatización y capturas no deben tomar el mouse real: headless y Pointer Lock anulado antes de navegar. Protección adicional en `requestGamePointerLock` cuando `navigator.webdriver` es verdadero; controles manuales conservados.
+- Astroscopio3× normal/10× con Bifrost (sustituye20× histórico). Luna128 de píxeles exactos solo con vista estelar del Omniscopio desde50×; cielo habitual/otros zooms/TV conservan original.
+- Centro del caleidoscopio de lentes25% menos opaco con degradado amplio. Casco roto se oculta inmediatamente sin animación; equipar/quitar ordinario conserva animación. Autocierre lejano de puertas fija ángulo0/colisión de cerrado sin entrecerrarse, manteniendo condición de distancia140 y fuera de vista.
+- Carga muestra etapas/porcentaje/tiempo; preparación gráfica aún puede rondar3min. Pendientes y evidencias en HANDOFF.md.
+
 # Gestión de interfaz y parámetros del jugador
 
 ## Último ajuste local — 2026-10-25 (Río de la isla y advertencia de corriente)

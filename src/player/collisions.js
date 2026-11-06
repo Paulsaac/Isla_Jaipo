@@ -3,6 +3,7 @@ import { getDoorOpening } from '../world/door-opening.js';
 import { bedSurfaces } from './bed-support.js';
 import { sampleMountainPath } from '../world/mountain-path.js';
 import { spaceWizardHouseLayout } from '../content/summit-layout.js';
+import { blocksSummitInnerBank } from './summit-bank-collision.js';
 
 // Consulta las matrices actuales; no mueve al jugador ni modifica el mundo.
 export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidingBoat, solidInteractables = [], boat = null, feetY = -Infinity, treeCollisionTopAt = null, forestFloating = false, waterSupports = null, mountainPathProfile = null, terrainHeight = null, canPassBelow = null) {
@@ -76,6 +77,8 @@ export function isWall(x, z, mapWidth, mapHeight, collisionMap, floorMap, isRidi
         if (gZ < 0 || gZ >= mapHeight || gX < 0 || gX >= mapWidth) return true;
         // El tablero y sus puertas siguen bloqueando arriba; el cauce pasa por debajo.
         if (canPassBelow?.(pX, pZ)) continue;
+
+        if(blocksSummitInnerBank(mountainPathProfile,pX,pZ,feetY,terrainHeight))return true;
 
         // La nieve de la meseta sigue libre. En el corte, solo el piso del
         // sendero es transitable: no convertir sus taludes en otra escalera.

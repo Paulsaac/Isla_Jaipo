@@ -1,11 +1,11 @@
-import {FOREST_CUES} from '../content/forest-cues.js';
+import {FOREST_DUSK_START,FOREST_DUSK_END} from '../content/forest-cues.js';
 
-export const FOREST_SKY_HUE_START=42;
+export const FOREST_SKY_HUE_START=FOREST_DUSK_START-1.32;
 export const FOREST_SKY_HUE_PERIOD=18;
 export const FOREST_HORIZON_HUE_DELAY=.65;
 function hueFade(time) {
     // Acabar en cero suavemente: ni cielo ni horizonte cambian de tono de golpe.
-    const u=Math.max(0,Math.min(1,(time-(FOREST_CUES[3]-2))/2));
+    const u=Math.max(0,Math.min(1,(time-(FOREST_DUSK_END-4))/4));
     return 1-u**3*(u*(u*6-15)+10);
 }
 export function getForestHorizonHueShift(time) {
@@ -16,13 +16,13 @@ export function getForestSkyHueShift(time) {
     return rawSkyHueShift(time)*hueFade(time);
 }
 function rawSkyHueShift(time) {
-    const mark2=FOREST_CUES[2];
+    const mark2=FOREST_DUSK_START;
     if(time<FOREST_SKY_HUE_START)return 0;
     if(time<mark2) {
         const u=(time-FOREST_SKY_HUE_START)/(mark2-FOREST_SKY_HUE_START);
-        return -.25*u*u*(3-2*u);
+        return -.28*u*u*(3-2*u);
     }
-    return -.25*(.5+.5*Math.cos((time-mark2)*2*Math.PI/FOREST_SKY_HUE_PERIOD));
+    return -.28*(.5+.5*Math.cos((time-mark2)*2*Math.PI/FOREST_SKY_HUE_PERIOD));
 }
 
 // Solo el material del atardecer: conserva textura, brillo y transiciones del cielo.
@@ -56,5 +56,5 @@ export function applyForestSkyHue(material,uniforms) {
             }
             #include <opaque_fragment>`);
     };
-    material.customProgramCacheKey=()=>key+'-forest-dusk-hue-v1';
+    material.customProgramCacheKey=()=>key+'-forest-dusk-hue-v2';
 }

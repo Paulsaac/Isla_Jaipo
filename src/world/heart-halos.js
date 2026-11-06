@@ -12,7 +12,7 @@ export function createHeartHalos(THREE, scene, floorMap, unitSize, sampleHeight)
     });
     let refresh = 0;
     function update(delta, position, uniforms) {
-        const amount = uniforms.heartTreeGlow.value * 1.25;
+        const amount = uniforms.heartTreeHeightGlow.value * 1.25;
         const time = uniforms.heartColorTime.value;
         refresh -= delta;
         if (amount > 0.001 && refresh <= 0) {

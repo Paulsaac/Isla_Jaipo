@@ -1,5 +1,10 @@
 // Entrada sin aceleración del sistema, con respaldo para navegadores sin soporte.
 export async function requestGamePointerLock(element,{unadjustedMovement=true}={}) {
+    // Las capturas y recorridos automatizados nunca deben retener el mouse real.
+    if(navigator.webdriver){
+        if(document.pointerLockElement)document.exitPointerLock();
+        return;
+    }
     try {
         await element.requestPointerLock({unadjustedMovement});
     } catch (error) {

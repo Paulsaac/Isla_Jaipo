@@ -108,7 +108,15 @@ export function createHud() {
         helmetViewVisible = visible;
         helmetView.style.visibility = visible ? 'visible' : 'hidden';
     }
-    function setHelmetEquipped(equipped) {
+    function setHelmetEquipped(equipped, { immediate = false } = {}) {
+        if(immediate){
+            helmetViewAnimation?.cancel();
+            helmetViewAnimation=null;
+            helmetViewEquipped=equipped;
+            helmetView.style.transform=equipped?'translateY(0)':'translateY(-160%)';
+            helmetView.style.display=equipped?'block':'none';
+            return;
+        }
         if(equipped===helmetViewEquipped)return;
         helmetViewEquipped=equipped;
         helmetView.style.display='block';
