@@ -1,7 +1,7 @@
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 // Tres gabinetes de utilería: paneles y controles 3D, sin teclado ni motor de audio.
-export function createModularSynthRacks(THREE,woodTexture) {
+function* modularSynthRackSteps(THREE,woodTexture) {
     const group=new THREE.Group();group.name='metal-room-modular-synthesizers';
     const clock={value:0};
     const hardware=new THREE.MeshPhongMaterial({vertexColors:true,shininess:48,flatShading:true,fog:false});
@@ -147,6 +147,7 @@ export function createModularSynthRacks(THREE,woodTexture) {
             const units=modules.reduce((sum,m)=>sum+m[1],0);let left=-W/2+.035;
             for(const [index,[kind,unitsWide]] of modules.entries()) {
                 const w=(W-.07)*unitsWide/units;panel(left+w/2,y,w-.008,rowHeight,kind,index+row*modules.length);left+=w;
+                yield;
             }
             matrix.identity();if(row<n-1)box(W+.05,.055,.72,0,y-rowHeight/2-gap/2,.035,timber);
         }
@@ -158,8 +159,10 @@ export function createModularSynthRacks(THREE,woodTexture) {
             const a=available[Math.floor(random()*available.length)],choices=available.filter(p=>p!==a&&p.point.distanceTo(a.point)>.2);
             const b=choices[Math.floor(random()*choices.length)];if(!b)continue;
             makeCable(a,b,colors[(i+rackIndex)%colors.length],add);stats.cables++;
+            yield;
         }
         finish(batches,rack);rack.updateMatrixWorld(true);
+        yield;
         const boxBounds=new THREE.Box3().setFromObject(rack);
         bounds.push({minX:boxBounds.min.x,maxX:boxBounds.max.x,minZ:boxBounds.min.z,maxZ:boxBounds.max.z});
         rack.userData={type:'MODULAR_SYNTH_RACK',...stats};racks.push(rack);
@@ -174,4 +177,19 @@ export function createModularSynthRacks(THREE,woodTexture) {
     }
     finish(links,group);
     return {group,racks,bounds,update(delta){clock.value+=delta;},get time(){return clock.value;}};
+}
+
+export function createModularSynthRacks(...args) {
+    const steps=modularSynthRackSteps(...args);let step;
+    do {step=steps.next();}while(!step.done);
+    return step.value;
+}
+
+export async function createModularSynthRacksAsync(THREE,woodTexture,checkpoint) {
+    const steps=modularSynthRackSteps(THREE,woodTexture);let step;
+    do {
+        step=steps.next();
+        if(!step.done){const pause=checkpoint();if(pause)await pause;}
+    }while(!step.done);
+    return step.value;
 }

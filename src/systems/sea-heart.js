@@ -36,15 +36,16 @@ export function createSeaHeart(fragments, floorMap, start, unitSize, walkingSpee
     }
     return {
         route,
+        total:fragments.length,
         get next(){return route[collected.size] ?? null;},
         get count(){return collected.size;},
-        get complete(){return fragments.length===10 && collected.size===10;},
+        get complete(){return fragments.length>0 && collected.size===fragments.length;},
         reset(){collected.clear();},
         collect(id) {
             const index=fragments.findIndex(p=>p.id===id)+1;
             if(!index || collected.has(id) || route[collected.size]?.id!==id) return null;
             collected.add(id);
-            return {count:collected.size,complete:fragments.length===10&&collected.size===10,
+            return {count:collected.size,complete:collected.size===fragments.length,
                 airSeconds:30};
         }
     };

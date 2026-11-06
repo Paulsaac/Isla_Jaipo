@@ -35,6 +35,8 @@ export const spawnRoomExit = { x: 235, z: 442 };
 
 // Orilla del lago mostrada en la referencia de Clawshoot, en coordenadas de mapa.
 export const riverDrowningLanding = { x: 403, z: 316 };
+// Referencia del cauce oriental que desemboca hacia el mar.
+export const riverSeawardOutlet = { x: 439, z: 328 };
 
 // Tabique corto y sacos de la casa trasladados junto con su planta 19 celdas al sur.
 export const grahamRoomDivider = { fromX: 231.5, toX: 229, z: 446, torchX: 230.5 };
@@ -61,6 +63,12 @@ export const mapCellOverrides = [
 ];
 
 export const seaHeartAltar = { center: { x: 344, z: 394 }, radius: 3, stepHeight: 0.4 };
+export const seaHeartExtraFragments = [
+    { id:'sea-heart:246,508',x:246,z:508 }
+];
+export const seaHeartFragmentMoves = [
+    { id:'sea-heart:240,498',x:242,z:499 }
+];
 
 export const keyBindings = KEY_DEFINITIONS.map(key=>({id:key.id,name:key.name,
     doors:key.id==='bridge-key'?[{x:264,z:276},{x:265,z:276}]:[]}));
@@ -80,6 +88,9 @@ export const sunkenShip = {
     bounds: { minX: 240, maxX: 245, minZ: 498, maxZ: 508 },
     rotationY: Math.PI / 2,
     burial: 0.08
+};
+export const sunkenShipChest = {
+    id:'sunken-ship-chest',position:{x:244,z:502},rotationY:Math.PI/2
 };
 
 export const divingHelmet = {

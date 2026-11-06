@@ -1,5 +1,6 @@
 const natural=new Set(['GRASS','TALL_GRASS','TREE','BUSH','DIRT','SAND','WET_SAND','WATER','WATER_ROCK','BOAT']);
 const water=new Set(['WATER','WATER_ROCK','BOAT']);
+const sand=new Set(['SAND','WET_SAND']);
 
 // Franja local de orilla; edificios, roca alta y madera conservan su interpolación.
 export function createShorelineMask(floorMap, woodMap) {
@@ -19,6 +20,12 @@ export function createShorelineMask(floorMap, woodMap) {
 
 export function createShorelineHeights(floorMap, elevations, mask, waterHeight) {
     const height=floorMap.length,width=floorMap[0].length;
+    function limitHeight(x,z,target) {
+        const base=elevations[z][x];
+        // Un control de arena más alto que la playa crea un reborde al comenzar el suavizado.
+        const upper=sand.has(floorMap[z][x])?base:base+1.2;
+        return Math.max(base-1.2,Math.min(upper,target));
+    }
     // Suavizar la silueta agua/tierra, no promediar el fondo profundo contra la orilla.
     let field=elevations.map(row=>Float32Array.from(row,value=>value<waterHeight?-1:1));
     for(let pass=0;pass<6;pass++){
@@ -33,7 +40,7 @@ export function createShorelineHeights(floorMap, elevations, mask, waterHeight) 
         field=next;
     }
     let surface=elevations.map((row,z)=>Float32Array.from(row,(value,x)=>mask[z*width+x] && floorMap[z][x]!=='WATER_ROCK'
-        ?Math.max(value-1.2,Math.min(value+1.2,waterHeight+field[z][x]*.9)):value));
+        ?limitHeight(x,z,waterHeight+field[z][x]*.9):value));
     // La B-spline aproxima los centros: conservar también el signo tras interpolar.
     for(let pass=0;pass<12;pass++){
         const next=surface.map(row=>row.slice());let maxCorrection=0;
@@ -43,7 +50,7 @@ export function createShorelineHeights(floorMap, elevations, mask, waterHeight) 
             for(let dz=-1;dz<=1;dz++)for(let dx=-1;dx<=1;dx++)sum+=surface[z+dz][x+dx]*(dx===0?4:1)*(dz===0?4:1);
             const sampled=sum/36;
             const target=elevations[z][x]<waterHeight?Math.min(sampled,waterHeight-.03):Math.max(sampled,waterHeight+.03);
-            const value=Math.max(elevations[z][x]-1.2,Math.min(elevations[z][x]+1.2,surface[z][x]+1.5*(target-sampled)));
+            const value=limitHeight(x,z,surface[z][x]+1.5*(target-sampled));
             maxCorrection=Math.max(maxCorrection,Math.abs(value-surface[z][x]));next[z][x]=value;
         }
         surface=next;if(maxCorrection<1e-5)break;

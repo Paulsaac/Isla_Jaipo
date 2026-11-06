@@ -3,7 +3,7 @@ import {getClosestType} from './map-decoder.js';
 import {UNIT_SIZE} from '../config.js';
 import {lakeHouseLayout,isLakeHouseDoor} from '../content/lake-house-layout.js';
 
-// Variante de ejecución: retirar los muros cuadrados sin tocar los PNG fuente.
+// Retirar los muros cuadrados para construir la casa circular sin tocar los PNG fuente.
 export function applyLakeHouseLayout(mapData) {
     const basePixels=mapData.basePixels.slice(),roofPixels=mapData.roofPixels.slice();
     const {bounds,structure,center,radius}=lakeHouseLayout;
@@ -17,7 +17,7 @@ export function applyLakeHouseLayout(mapData) {
         const inside=Math.hypot((x-center.x)*UNIT_SIZE,(z-center.z)*UNIT_SIZE)<=radius;
         if(inStructure&&!isLakeHouseDoor(x,z)&&['BUILDING','INDOOR_FLOOR'].includes(type))
             paint(basePixels,index,inside?'INDOOR_FLOOR':'GRASS');
-        // Conservar metadatos de interior para audio/iluminación; el domo dibuja su propia cubierta.
+        // Conservar metadatos de interior para audio/iluminación; la casa dibuja su propia cubierta.
         paint(roofPixels,index,inStructure&&inside?'ROOF':'SNOW_PEAK');
     }
     return {...mapData,basePixels,roofPixels};

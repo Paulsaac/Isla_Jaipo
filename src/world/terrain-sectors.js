@@ -49,6 +49,7 @@ function* terrainSectorSteps(THREE, source, material, segmentsW, segmentsH, sect
             mesh.name = `terrain-sector-${startX}-${startZ}`;
             mesh.frustumCulled = true;
             mesh.userData.hasMountain = hasMountain;
+            mesh.userData.fogRadialCulling = true;
             group.add(mesh);
             yield;
         }

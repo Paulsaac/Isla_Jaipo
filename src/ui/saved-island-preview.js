@@ -99,7 +99,7 @@ export async function createSavedIslandPreview() {
             worker.onmessageerror = () => fail(new Error('No se pudo recibir la portada 3D.'));
             worker.onmessage = ({data}) => {
                 if (data.type === 'frame') {
-                    if (data.state.phase !== 'arrival') {
+                    if (!data.state.finalFrame) {
                         latestFreeFrame = data.state;
                         if (!freeFrameScheduled) {
                             freeFrameScheduled = true;

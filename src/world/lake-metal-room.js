@@ -5,23 +5,25 @@ export const LAKE_HATCH_CELL={x:376,z:283};
 const ROOM_WIDTH=15,ROOM_HEIGHT=5,ROOM_BASE=-48,EXIT_Z=4.8;
 const LADDER_TOP_Z=5.95,LADDER_BOTTOM_Z=LADDER_TOP_Z,LADDER_RAIL_HEIGHT=4.58;
 
-function roundedWindow(THREE,width,height,radius) {
-    const shape=new THREE.Shape(),x=width/2,bottom=(ROOM_HEIGHT-height)/2,top=bottom+height;
-    shape.moveTo(-x+radius,bottom);shape.lineTo(x-radius,bottom);
-    shape.quadraticCurveTo(x,bottom,x,bottom+radius);shape.lineTo(x,top-radius);
-    shape.quadraticCurveTo(x,top,x-radius,top);shape.lineTo(-x+radius,top);
-    shape.quadraticCurveTo(-x,top,-x,top-radius);shape.lineTo(-x,bottom+radius);
-    shape.quadraticCurveTo(-x,bottom,-x+radius,bottom);shape.closePath();return shape;
+function ovalWindow(THREE,width,height) {
+    const shape=new THREE.Shape();
+    shape.absellipse(0,ROOM_HEIGHT/2,width/2,height/2,0,Math.PI*2,false);
+    return shape;
 }
 
 // Escotilla exterior y destino aislado; ningún mapa ni progreso se reconstruye al viajar.
 export function createLakeMetalRoom(THREE,groundY) {
     const hatch=new THREE.Group();hatch.name='lake-ground-hatch';
-    hatch.position.set(LAKE_HATCH_CELL.x*UNIT_SIZE,groundY,LAKE_HATCH_CELL.z*UNIT_SIZE);
+    hatch.position.set(LAKE_HATCH_CELL.x*UNIT_SIZE,groundY,LAKE_HATCH_CELL.z*UNIT_SIZE);hatch.visible=false;
     const room=new THREE.Group();room.name='lake-metal-room';room.position.set(-2048,ROOM_BASE,-2048);room.visible=false;
-    const steel=new THREE.MeshPhongMaterial({color:0x657684,specular:0xb3c6d7,shininess:55,flatShading:true});
-    const iron=new THREE.MeshPhongMaterial({color:0x303d47,shininess:25,flatShading:true});
-    const brass=new THREE.MeshPhongMaterial({color:0x9a8157,shininess:35,flatShading:true});
+    const bronze=new THREE.MeshPhongMaterial({color:0xbc8a43,specular:0xe0ba73,shininess:38,flatShading:true});
+    const iron=new THREE.MeshPhongMaterial({color:0x583c25,shininess:25,flatShading:true});
+    const brass=new THREE.MeshPhongMaterial({color:0xe0ba73,shininess:35,flatShading:true});
+    const roomBronze=new THREE.MeshPhongMaterial({color:0xbc8a43,emissive:0x46301a,emissiveIntensity:.35,
+        specular:0xe0ba73,shininess:42,flatShading:true,fog:false});
+    const roomBrass=new THREE.MeshPhongMaterial({color:0xe0ba73,emissive:0x32220e,emissiveIntensity:.25,shininess:38,fog:false});
+    const copper=new THREE.MeshPhongMaterial({color:0x80532f,emissive:0x24180e,emissiveIntensity:.3,shininess:32,fog:false});
+    const roomHatchIron=iron.clone();roomHatchIron.fog=false;
     const panels=new THREE.MeshPhongMaterial({color:0x586b79,emissive:0x293944,emissiveIntensity:.55,
         specular:0x9eb8ce,shininess:48,flatShading:true,fog:false});
     const roomIron=new THREE.MeshPhongMaterial({color:0x24323c,emissive:0x17232b,emissiveIntensity:.35,shininess:30,fog:false});
@@ -40,11 +42,32 @@ export function createLakeMetalRoom(THREE,groundY) {
         g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),direction.normalize()));
         g.translate(...p.add(q).multiplyScalar(.5).toArray());add(g,material,parent);
     }
-    function wheel(parent,x,y,z,horizontal=false) {
-        const g=new THREE.TorusGeometry(.29,.037,5,12);if(horizontal)g.rotateX(Math.PI/2);g.translate(x,y,z);add(g,brass,parent);
+    function wheel(parent,x,y,z,horizontal=false,scale=1,material=brass) {
+        const g=new THREE.TorusGeometry(.29*scale,.037*scale,5,12);if(horizontal)g.rotateX(Math.PI/2);g.translate(x,y,z);add(g,material,parent);
         for(let i=0;i<4;i++) {
-            const a=i*Math.PI/2,dx=Math.cos(a)*.29,d=Math.sin(a)*.29;
-            rod(parent,[x,y,z],horizontal?[x+dx,y,z+d]:[x+dx,y+d,z],.024,brass);
+            const a=i*Math.PI/2,dx=Math.cos(a)*.29*scale,d=Math.sin(a)*.29*scale;
+            rod(parent,[x,y,z],horizontal?[x+dx,y,z+d]:[x+dx,y+d,z],.024*scale,material);
+        }
+    }
+    function hatchLid(parent,radius,centerZ,side,plateMaterial,frameMaterial,detailMaterial) {
+        const scale=radius/1.10;
+        const lid=new THREE.CylinderGeometry(radius,radius,.11*scale,32);
+        lid.translate(0,0,centerZ);add(lid,plateMaterial,parent);
+        const rim=new THREE.TorusGeometry(.98*scale,.022*scale,5,32);
+        rim.rotateX(Math.PI/2);rim.translate(0,side*.069*scale,centerZ);add(rim,frameMaterial,parent);
+        for(const sign of [-1,1])
+            box(parent,.22*scale,.08*scale,.30*scale,sign*.42*scale,side*.01*scale,centerZ-.93*scale,frameMaterial);
+        for(let i=0;i<8;i++) {
+            const angle=i*Math.PI/4;
+            rod(parent,[Math.cos(angle)*.36*scale,side*.064*scale,centerZ+Math.sin(angle)*.36*scale],
+                [Math.cos(angle)*.91*scale,side*.064*scale,centerZ+Math.sin(angle)*.91*scale],.012*scale,frameMaterial);
+        }
+        wheel(parent,0,side*.20*scale,centerZ,true,scale,detailMaterial);
+        for(let i=0;i<12;i++) {
+            const angle=i*Math.PI/6;
+            const bolt=new THREE.IcosahedronGeometry(.043*scale,0);
+            bolt.translate(Math.cos(angle)*.98*scale,side*.08*scale,centerZ+Math.sin(angle)*.98*scale);
+            add(bolt,detailMaterial,parent);
         }
     }
     // Fondo negro sobre el terreno: se ve al levantar la tapa, sin perforar la imagen del mapa.
@@ -55,24 +78,15 @@ export function createLakeMetalRoom(THREE,groundY) {
     const rim=new THREE.ExtrudeGeometry(rimShape,{depth:.38,bevelEnabled:false,curveSegments:16});
     rim.rotateX(-Math.PI/2);rim.translate(0,-.26,0);add(rim,iron,hatch);
     const hinge=new THREE.Group();hinge.name='lake-hatch-hinged-lid';hinge.position.set(0,.13,-1.08);hatch.add(hinge);
-    const lid=new THREE.CylinderGeometry(1.10,1.10,.11,32);lid.translate(0,0,1.08);add(lid,steel,hinge);
-    const lidRim=new THREE.TorusGeometry(.98,.022,5,32);lidRim.rotateX(Math.PI/2);lidRim.translate(0,.069,1.08);add(lidRim,iron,hinge);
+    hatchLid(hinge,1.10,1.08,1,bronze,iron,brass);
     for(const sign of [-1,1]) {
-        box(hinge,.22,.08,.30,sign*.42,.01,.15,iron);
         rod(hatch,[sign*.42-.14,.13,-1.08],[sign*.42+.14,.13,-1.08],.10,brass);
-    }
-    for(let i=0;i<8;i++) {
-        const angle=i*Math.PI/4;
-        rod(hinge,[Math.cos(angle)*.36,.064,1.08+Math.sin(angle)*.36],
-            [Math.cos(angle)*.91,.064,1.08+Math.sin(angle)*.91],.012,iron);
-    }
-    wheel(hinge,0,.20,1.08,true);
-    for(let i=0;i<12;i++) {
-        const angle=i*Math.PI/6;
-        const g=new THREE.IcosahedronGeometry(.043,0);g.translate(Math.cos(angle)*.98,.08,1.08+Math.sin(angle)*.98);add(g,brass,hinge);
     }
     const target=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,.32,24),new THREE.MeshBasicMaterial({visible:false}));
     target.name='lake-hatch-interaction';target.position.y=.08;target.userData={type:'LAKE_HATCH'};hatch.add(target);
+    let revealed=false;
+    const raycastTarget=target.raycast;
+    target.raycast=function(raycaster,hits){if(revealed)raycastTarget.call(this,raycaster,hits);};
 
     // Sala de 15 × 15 × 5 m. La salida conserva X/Z y ahora ocupa el techo.
     const half=ROOM_WIDTH/2,span=ROOM_WIDTH+.4;
@@ -88,26 +102,43 @@ export function createLakeMetalRoom(THREE,groundY) {
         if(sign>0)box(room,span,ROOM_HEIGHT,.2,0,ROOM_HEIGHT/2,sign*(half+.10),panels);
         for(const x of [-half+.08,half-.08])box(room,.15,ROOM_HEIGHT,.15,x,ROOM_HEIGHT/2,sign*(half-.08),roomIron);
     }
-    // Muro norte, frente al jugador al entrar: abertura real con esquinas redondeadas.
-    const windowShape=roundedWindow(THREE,13.2,3.8,.65);
+    // Muro norte: ojo de buey ovalado con marco de bronce, juntas y pernos.
+    const windowShape=ovalWindow(THREE,13.2,3.8);
     const frontWall=new THREE.Shape();frontWall.moveTo(-half-.2,0);frontWall.lineTo(half+.2,0);
     frontWall.lineTo(half+.2,ROOM_HEIGHT);frontWall.lineTo(-half-.2,ROOM_HEIGHT);frontWall.closePath();
-    frontWall.holes.push(new THREE.Path(windowShape.getPoints(12).reverse()));
-    const wallGeometry=new THREE.ExtrudeGeometry(frontWall,{depth:.2,bevelEnabled:false});
+    frontWall.holes.push(new THREE.Path(windowShape.getPoints(48).reverse()));
+    const wallGeometry=new THREE.ExtrudeGeometry(frontWall,{depth:.2,bevelEnabled:false,curveSegments:48});
     wallGeometry.translate(0,0,-half-.2);add(wallGeometry,panels,room);
-    const windowFrame=roundedWindow(THREE,13.55,4.15,.78);
-    windowFrame.holes.push(new THREE.Path(windowShape.getPoints(12).reverse()));
-    const frameGeometry=new THREE.ExtrudeGeometry(windowFrame,{depth:.18,bevelEnabled:false});
-    frameGeometry.translate(0,0,-half-.08);add(frameGeometry,roomIron,room);
-    const glass=new THREE.Mesh(new THREE.ShapeGeometry(windowShape),new THREE.MeshPhongMaterial({
+    const windowAssembly=new THREE.Group();windowAssembly.name='metal-room-oval-bronze-porthole';room.add(windowAssembly);
+    function windowRing(width,height,holeWidth,holeHeight,z,depth,material) {
+        const shape=ovalWindow(THREE,width,height);
+        shape.holes.push(new THREE.Path(ovalWindow(THREE,holeWidth,holeHeight).getPoints(48).reverse()));
+        const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:48});
+        geometry.translate(0,0,z);add(geometry,material,windowAssembly);
+    }
+    windowRing(13.96,4.45,13.18,3.78,-half-.07,.17,roomIron);
+    windowRing(13.82,4.30,13.20,3.80,-half+.10,.14,roomBronze);
+    windowRing(13.36,3.96,13.20,3.80,-half+.24,.045,roomBrass);
+    const glass=new THREE.Mesh(new THREE.ShapeGeometry(windowShape,48),new THREE.MeshPhongMaterial({
         color:0x9adce9,specular:0xe4faff,shininess:100,transparent:true,opacity:.065,depthWrite:false,side:THREE.DoubleSide,fog:false}));
-    glass.name='metal-room-rounded-aquarium-window';glass.position.z=-half-.13;glass.renderOrder=2;room.add(glass);
-    for(const x of [-5.6,-3.7,-1.8,0,1.8,3.7,5.6])for(const y of [.50,4.50]) {
-        const rivet=new THREE.IcosahedronGeometry(.035,0);rivet.translate(x,y,-half+.115);add(rivet,brass,room);
+    glass.name='metal-room-oval-aquarium-window';glass.position.z=-half-.13;glass.renderOrder=2;room.add(glass);
+    for(let i=0;i<40;i++) {
+        const angle=i*Math.PI*2/40,x=Math.cos(angle)*6.76,y=ROOM_HEIGHT/2+Math.sin(angle)*2.025;
+        const bolt=new THREE.CylinderGeometry(.062,.062,.045,6);
+        bolt.rotateX(Math.PI/2);bolt.translate(x,y,-half+.265);add(bolt,roomBrass,windowAssembly);
     }
-    for(const x of [-6.70,6.70])for(const y of [1.35,2.5,3.65]) {
-        const rivet=new THREE.IcosahedronGeometry(.035,0);rivet.translate(x,y,-half+.115);add(rivet,brass,room);
+    for(const side of [-1,1]) {
+        rod(windowAssembly,[side*7.12,.4,-half+.19],[side*7.12,4.6,-half+.19],.065,copper);
+        for(const y of [.55,1.05,3.95,4.45]) {
+            const collar=new THREE.CylinderGeometry(.10,.10,.09,8);
+            collar.translate(side*7.12,y,-half+.19);add(collar,roomBronze,windowAssembly);
+        }
     }
+    const gauge=new THREE.CylinderGeometry(.25,.25,.12,16);
+    gauge.rotateX(Math.PI/2);gauge.translate(6.98,.86,-half+.25);add(gauge,roomBronze,windowAssembly);
+    const dial=new THREE.CircleGeometry(.195,24);dial.translate(6.98,.86,-half+.315);
+    add(dial,new THREE.MeshBasicMaterial({color:0xdfcc9a,fog:false}),windowAssembly);
+    rod(windowAssembly,[6.98,.86,-half+.325],[7.08,.98,-half+.325],.016,roomIron);
     // Juntas rasantes: no introducen escalones en el suelo.
     for(let step=-6;step<=6;step+=2) {
         box(room,.025,.008,ROOM_WIDTH,step,.005,0,roomIron);
@@ -131,10 +162,16 @@ export function createLakeMetalRoom(THREE,groundY) {
         box(room,.32,.035,4.65,x,ROOM_HEIGHT-.16,0,lamp);
     }
     // Escotilla circular horizontal, con volante accesible desde el último peldaño.
-    const exitRim=new THREE.TorusGeometry(.95,.085,6,32);exitRim.rotateX(Math.PI/2);exitRim.translate(0,ROOM_HEIGHT-.03,EXIT_Z);add(exitRim,roomIron,room);
+    const exitFrame=new THREE.Group();exitFrame.name='metal-room-inner-hatch-frame';room.add(exitFrame);
+    const exitScale=.86/1.10;
+    const exitRim=new THREE.ExtrudeGeometry(rimShape,{depth:.38*exitScale,bevelEnabled:false,curveSegments:16});
+    exitRim.scale(exitScale,exitScale,1);exitRim.rotateX(Math.PI/2);
+    exitRim.translate(0,ROOM_HEIGHT+.26*exitScale,EXIT_Z);add(exitRim,roomHatchIron,exitFrame);
     const exitHinge=new THREE.Group();exitHinge.name='metal-room-ceiling-hatch';exitHinge.position.set(0,ROOM_HEIGHT,EXIT_Z-.86);room.add(exitHinge);
-    const exitLid=new THREE.CylinderGeometry(.86,.86,.08,32);exitLid.translate(0,0,.86);add(exitLid,panels,exitHinge);
-    wheel(exitHinge,0,-.15,.86,true);
+    hatchLid(exitHinge,.86,.86,-1,roomBronze,roomHatchIron,roomBrass);
+    for(const sign of [-1,1])
+        rod(exitFrame,[(sign*.42-.14)*exitScale,ROOM_HEIGHT,EXIT_Z-.86],
+            [(sign*.42+.14)*exitScale,ROOM_HEIGHT,EXIT_Z-.86],.10*exitScale,roomBrass);
     const exitTarget=new THREE.Mesh(new THREE.CylinderGeometry(1.03,1.03,.3,24),new THREE.MeshBasicMaterial({visible:false}));
     exitTarget.name='metal-room-return-port';exitTarget.position.set(0,ROOM_HEIGHT-.06,EXIT_Z);exitTarget.userData={type:'METAL_ROOM_EXIT'};room.add(exitTarget);
     // Base alineada con el extremo superior: escalera vertical fuera de la escotilla.
@@ -146,7 +183,7 @@ export function createLakeMetalRoom(THREE,groundY) {
         rod(ladderGroup,[x,LADDER_RAIL_HEIGHT,LADDER_TOP_Z],[x,ROOM_HEIGHT-.10,LADDER_TOP_Z+.04],.04,roomIron);
         box(ladderGroup,.20,.12,.24,x,ROOM_HEIGHT-.09,LADDER_TOP_Z+.04,roomIron);
     }
-    for(let y=.27;y<LADDER_RAIL_HEIGHT;y+=.30)rod(ladderGroup,[-.42,y,ladderZ(y)],[.42,y,ladderZ(y)],.031,steel);
+    for(let y=.27;y<LADDER_RAIL_HEIGHT;y+=.30)rod(ladderGroup,[-.42,y,ladderZ(y)],[.42,y,ladderZ(y)],.031,bronze);
     for(const {parent,material,parts} of batches.values()) {
         const mesh=new THREE.Mesh(mergeGeometries(parts,false),material);mesh.name=parent===room?'metal-room-panels-and-details':'metal-hatch-details';
         parent.add(mesh);for(const part of parts)part.dispose();
@@ -163,13 +200,14 @@ export function createLakeMetalRoom(THREE,groundY) {
         spawn:new THREE.Vector3(room.position.x,ROOM_BASE+PLAYER_HEIGHT,room.position.z+2),
         returnPosition:new THREE.Vector3(hatch.position.x+2.25,groundY+PLAYER_HEIGHT,hatch.position.z),
         get active(){return active;},get busy(){return phase!=='idle';},get fade(){return fade;},get phase(){return phase;},
-        beginEnter(){if(active||!begin('opening'))return false;exitHinge.rotation.x=0;return true;},
+        setRevealed(value){revealed=!!value;hatch.visible=revealed;},
+        beginEnter(){if(!revealed||active||!begin('opening'))return false;exitHinge.rotation.x=0;return true;},
         beginLeave(){return active&&begin('leaving');},
-        nearHatch(position){return Math.hypot(position.x-hatch.position.x,position.z-hatch.position.z)<3&&Math.abs(position.y-groundY)<3;},
+        nearHatch(position){return revealed&&Math.hypot(position.x-hatch.position.x,position.z-hatch.position.z)<3&&Math.abs(position.y-groundY)<3;},
         nearExit(position){return Math.hypot(position.x-room.position.x,position.z-(room.position.z+EXIT_Z))<1.05&&position.y>=ROOM_BASE+ROOM_HEIGHT-.95;},
         nearLadder(position){return Math.hypot(position.x-room.position.x,position.z-(room.position.z+LADDER_BOTTOM_Z-.48))<1.15;},
         setFurnitureBounds(bounds){furnitureBounds=bounds;},
-        surfaceHeight(x,z){return Math.hypot(x-hatch.position.x,z-hatch.position.z)<1.35?groundY+.18:null;},
+        surfaceHeight(x,z){return revealed&&Math.hypot(x-hatch.position.x,z-hatch.position.z)<1.35?groundY+.18:null;},
         getHeight(){return ROOM_BASE;},
         upperLimit(){return ROOM_BASE+ROOM_HEIGHT-.15;},
         isWall(x,z){

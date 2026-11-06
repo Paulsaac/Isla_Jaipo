@@ -86,14 +86,16 @@ export function getTerrainVertexY(colF, rowF, mapWidth, mapHeight, floorMap, ele
     const y1 = y01 * (1 - tx) + y11 * tx;
     let y = y0 * (1 - tz) + y1 * tz;
     const shore=elevationMap.shorelineMask;
+    let shoreWeight=0;
     if(shore){
-        const weight=(shore[r0*mapWidth+c0]*(1-tx)+shore[r0*mapWidth+c1]*tx)*(1-tz)
+        shoreWeight=(shore[r0*mapWidth+c0]*(1-tx)+shore[r0*mapWidth+c1]*tx)*(1-tz)
             +(shore[r1*mapWidth+c0]*(1-tx)+shore[r1*mapWidth+c1]*tx)*tz;
-        if(weight>0)y+=(sampleShorelineHeight(elevationMap.shorelineHeights ?? elevationMap,c0,r0,mapWidth,mapHeight,tx,tz)-y)*weight;
+        if(shoreWeight>0)y+=(sampleShorelineHeight(elevationMap.shorelineHeights ?? elevationMap,c0,r0,mapWidth,mapHeight,tx,tz)-y)*shoreWeight;
     }
 
     const interpolate = (a, b, c, d) => (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
-    const noiseWeight = (value,x,z) => mountainPathProfile?.followsTerrain && mountainPathProfile.mountainMask[z]?.[x] ? 0 : ['SAND', 'WET_SAND'].includes(value) ? 0.25 : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
+    const sandNoiseWeight = 0.25 * (1 - shoreWeight);
+    const noiseWeight = (value,x,z) => mountainPathProfile?.followsTerrain && mountainPathProfile.mountainMask[z]?.[x] ? 0 : ['SAND', 'WET_SAND'].includes(value) ? sandNoiseWeight : ['GRASS', 'TALL_GRASS', 'TREE', 'DIRT', 'BUSH', 'TORCH', 'OTHER2', 'CHEST'].includes(value) ? 1 : 0;
     const t00 = floorMap[r0][c0], t10 = floorMap[r0][c1], t01 = floorMap[r1][c0], t11 = floorMap[r1][c1];
     // Interpolar profundidad y relieve evita el salto de dos metros al cambiar de celda.
     const coastalRelief = Math.max(0, Math.min(1, (y - 0.2) / 0.8));

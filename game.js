@@ -1,4 +1,5 @@
 import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
+import { createBeachSwimmers } from './src/world/beach-swimmers.js';
 import { createHeldMate } from './src/player/held-mate.js';
 import { createTelescope } from './src/world/telescope.js';
 import { createTelescopeGlare } from './src/world/telescope-glare.js';
@@ -6,6 +7,7 @@ import { createTelescopeView, TELESCOPE_ZOOM } from './src/player/telescope-view
 import { createRiverCameraMotion } from './src/player/river-camera-motion.js';
 import { createRiverBankBarrier } from './src/player/river-bank-barrier.js';
 import { createSeaHeartSoundMotion } from './src/systems/sea-heart-sound-motion.js';
+import { createSeaHeartGuideMotion } from './src/systems/sea-heart-guide-motion.js';
 import { createObservatoryScope } from './src/player/observatory-scope.js';
 import { createObservatoryLadder } from './src/player/observatory-ladder.js';
 import { createHeldOverlay } from './src/player/held-overlay.js';
@@ -15,10 +17,9 @@ import { createTelescopeWorkshop } from './src/world/telescope-workshop.js';
 import { createWizardUpperFloor, isWizardHouseRoofCell } from './src/world/wizard-upper-floor.js';
 import { createWizardTelevisions } from './src/world/wizard-televisions.js';
 import { createSummitObservatory } from './src/world/summit-observatory.js';
-import { createLakeHouseDome } from './src/world/lake-house-dome.js';
+import { createLakeHouse } from './src/world/lake-house.js';
 import { createLakeMetalRoom, LAKE_HATCH_CELL } from './src/world/lake-metal-room.js';
-import { createLakeAquarium } from './src/world/lake-aquarium.js';
-import { createModularSynthRacks } from './src/world/modular-synth-racks.js';
+import { createLakeRoomDetails } from './src/world/lake-room-details.js';
 import { createMetalRoomLadder } from './src/player/metal-room-ladder.js';
 import { applyLakeHouseLayout } from './src/world/lake-house-layout.js';
 import { lakeHouseLayout, isLakeHouseCell, isLakeHouseDoor } from './src/content/lake-house-layout.js';
@@ -43,14 +44,15 @@ import { createInteriorLightMask } from './src/world/interior-light-mask.js';
 import { getTerrainTextureBlend } from './src/world/terrain-textures.js';
 import { createPerformancePanel } from './src/ui/performance-panel.js';
 import { waitForRenderedFrame, prepareProgramsInBatches } from './src/ui/render-ready.js';
+import { prepareStartupViews } from './src/ui/startup-views.js';
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { UNIT_SIZE, WALL_HEIGHT, DOOR_HEIGHT, DOOR_THICKNESS, VEGETATION_HEIGHT, TREE_SPRITE_SCALE, TREE_SPRITE_HEIGHT, TORCH_MOUNT_HEIGHT, NIGHT_SKY_ROTATION_SPEED, MANUAL_SKY_TRANSITION_SECONDS, WATER_SURFACE_HEIGHT, BOAT_FLOAT_HEIGHT, BOAT_WIDTH, PLAYER_HEIGHT, GRAHAM_HEIGHT, FURNITURE_SCALE, MOVEMENT_SPEED, FRICTION, COLLISION_RADIUS, SPRINT_MULTIPLIER, GRAVITY, JUMP_FORCE, STAMINA_MAX } from './src/config.js';
-import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, riverDrowningMessage, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
+import { npcDialogs, heartSearchDialogs, heartDeliveryDialogs, heartDeliveredDialogs, grahamWakeGreetings, atticAntDialogs, mateOfferDialogs, mateAlreadyHeldDialogs } from './src/content/dialogues.js';
 import { createDrowningRescue } from './src/ui/drowning-rescue.js';
 import { grahamJournal } from './src/content/readables.js';
-import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, kitchenBroom, spawnRoomExit, seaDrowningLanding, kitchenGardenPosition, shipwreckProps, sunkenShip, divingHelmet, keyBindings, seaHeartAltar } from './src/content/entities.js';
+import { entities, grahamPosition, grahamRoomDivider, kitchenSacks, kitchenBroom, spawnRoomExit, riverDrowningLanding, riverSeawardOutlet, seaDrowningLanding, kitchenGardenPosition, shipwreckProps, sunkenShip, sunkenShipChest, divingHelmet, keyBindings, seaHeartAltar, seaHeartExtraFragments, seaHeartFragmentMoves } from './src/content/entities.js';
 import { createSpawnGreeting } from './src/systems/spawn-greeting.js';
 import { createHeartPull } from './src/systems/heart-pull.js';
 import { DOOR_SIDE_MARGIN } from './src/config.js';
@@ -122,6 +124,7 @@ import { createUnderwaterVegetation } from './src/world/underwater-vegetation.js
 import { createVegetationVisibility } from './src/world/vegetation-visibility.js';
 import { createRiverCurrentField, getRiverCurrentSpeed, getRiverCenterOffset, getRiverLakeDirection } from './src/world/river-current.js';
 import { createChestGeometry, createChestOpening } from './src/world/chest-geometry.js';
+import { createChestBubbles } from './src/world/chest-bubbles.js';
 import { createDryVineShrine } from './src/world/dry-vine-geometry.js';
 import { applyForestHeartCyan } from './src/world/forest-heart-color.js';
 import { GRAHAM_BRIDGE_KEY_AVAILABLE } from './src/config.js';
@@ -131,6 +134,7 @@ import { createForestMovementBoundary } from './src/player/forest-movement-bound
 import { createTerrainSectorsAsync } from './src/world/terrain-sectors.js';
 import { createInstanceSectorsAsync } from './src/world/instance-sectors.js';
 import { createFogCulling } from './src/world/fog-culling.js';
+import { createHorizonFog, SURFACE_FOG_DENSITY_SCALE } from './src/world/horizon-fog.js';
 import { createMountainInteriorProximity } from './src/world/mountain-interior-proximity.js';
 import { mergeRoofBlocks } from './src/world/roof-blocks.js';
 import { createBedGeometry } from './src/world/bed-geometry.js';
@@ -231,7 +235,8 @@ let atticAnt = null;
 let wizardUpperFloor = null;
 let wizardTelevisions = null;
 let summitObservatory = null;
-let lakeHouseDome = null;
+let lakeHouse = null;
+let beachSwimmers = null;
 const bedDefinition = furniture.find(item => item.id === 'graham-bed');
 let isCrouching = false;
 let crouchRequested = false;
@@ -266,6 +271,11 @@ let seaHeart = null;
 const seaHeartSprites = new Map();
 const seaHeartSoundPosition = new THREE.Vector3();
 const seaHeartSoundMotion = createSeaHeartSoundMotion(THREE,seaHeartSoundPosition);
+const seaHeartGuidePosition = new THREE.Vector3();
+const seaHeartGuideMotion = createSeaHeartGuideMotion(THREE,seaHeartGuidePosition);
+const SEA_HEART_GLOW_SIZE = 18.75 * .081;
+let seaHeartGlow = null;
+let seaHeartPulseStartedAt=0,seaHeartPulseWaitingForDive=true,seaHeartTravelBlend=0;
 const seaHeartSoundRelative = new THREE.Vector3();
 const seaHeartListenerPosition = new THREE.Vector3();
 const seaHeartListenerRotation = new THREE.Quaternion();
@@ -281,32 +291,57 @@ const forestAmbienceSources = Array.from({length:4},()=>({x:0,y:0,z:0,weight:0})
 let seaHeartLight = null;
 let altarWaterHeight = null;
 
+function updateSeaHeartGuideVisibility() {
+    if(!seaHeartGlow)return;
+    const visible=!!seaHeart?.next&&helmetEquipped&&!helmetBroken&&!isDead;
+    seaHeartGlow.userData.visibilityEnabled=visible;
+    seaHeartGlow.visible=visible;
+    if(!visible&&seaHeartLight)seaHeartLight.intensity=0;
+    const illuminated=visible&&!seaHeartGuideMotion.moving;
+    for(const [id,fragment] of seaHeartSprites) {
+        const show=illuminated&&id===seaHeart.next.id;
+        if(fragment.userData.visibilityEnabled===show)continue;
+        fragment.userData.visibilityEnabled=show;
+        fragment.visible=show;
+        const index=interactables.indexOf(fragment);
+        if(show&&index<0)interactables.push(fragment);
+        else if(!show&&index>=0)interactables.splice(index,1);
+        if(!show&&targetInteractable===fragment){targetInteractable=null;hud.hideInteraction();}
+    }
+}
+
 function revealNextSeaHeartFragment(animateSound=false) {
     const next = seaHeart?.next;
-    for (const [id, sprite] of seaHeartSprites) {
-        const active = id === next?.id;
-        if (active && sprite.userData.visibilityEnabled !== true) {
-            sprite.userData.haloStartedAt = underwaterViewTime.value;
-            sprite.userData.haloWaitingForDive = next.number === 1;
-            sprite.children[0]?.scale.set(18.75 * 0.15,18.75 * 0.15,1);
-        }
-        sprite.userData.visibilityEnabled = active;
-        sprite.visible = active;
-        const index = interactables.indexOf(sprite);
-        if (active && index < 0) interactables.push(sprite);
-        else if (!active && index >= 0) interactables.splice(index,1);
+    if(animateSound&&seaHeartPulseWaitingForDive) {
+        seaHeartPulseStartedAt=underwaterViewTime.value;
+        seaHeartPulseWaitingForDive=false;
+    }
+    if(next&&!animateSound) {
+        seaHeartPulseStartedAt=underwaterViewTime.value;
+        seaHeartPulseWaitingForDive=next.number===1;
+        seaHeartTravelBlend=0;
+        seaHeartGlow?.scale.set(SEA_HEART_GLOW_SIZE*.15,SEA_HEART_GLOW_SIZE*.15,1);
     }
     const activeSprite = next && seaHeartSprites.get(next.id);
     // Al completar la ruta conserva la posición del último fragmento (altar).
     if (activeSprite && animateSound) seaHeartSoundMotion.moveTo(activeSprite.position,camera);
     else seaHeartSoundMotion.snapTo(activeSprite?.position ?? seaHeartSoundPosition);
+    if(activeSprite&&animateSound)seaHeartGuideMotion.moveTo(activeSprite.position,camera);
+    else seaHeartGuideMotion.snapTo(activeSprite?.position??seaHeartGuidePosition);
+    if(seaHeartGlow) {
+        seaHeartGlow.userData.visibilityEnabled=!!activeSprite;
+        seaHeartGlow.visible=!!activeSprite;
+        seaHeartGlow.position.copy(seaHeartGuidePosition);
+    }
     if (seaHeartLight) {
-        seaHeartLight.intensity = activeSprite ? 2.4 : 0;
+        if(!activeSprite)seaHeartLight.intensity=0;
+        else if(!animateSound)seaHeartLight.intensity=2.4;
         if (activeSprite) {
-            seaHeartLight.position.copy(activeSprite.position);
+            seaHeartLight.position.copy(seaHeartGuidePosition);
             seaHeartLight.position.y += 0.4;
         }
     }
+    updateSeaHeartGuideVisibility();
 }
 
 function collectSeaHeartFragment(fragment) {
@@ -324,7 +359,7 @@ function collectSeaHeartFragment(fragment) {
     revealNextSeaHeartFragment(!reward.complete);
     if (targetInteractable === fragment) targetInteractable = null;
     hud.hideInteraction();
-    menus.setSeaHeartState(reward.count,reward.complete);
+    menus.setSeaHeartState(reward.count,reward.complete,seaHeart.total);
     if (reward.complete) {
         for (const flame of altarFlames) {
             flame.userData.visibilityEnabled = true;
@@ -333,8 +368,8 @@ function collectSeaHeartFragment(fragment) {
         for (const torch of altarFireTorches) torch.enabled = true;
         musicEvents.igniteAltarFire();
     }
-    if (reward.count >= 8) {
-        const stage = reward.count - 7;
+    const stage=reward.complete?3:reward.count>=9?2:reward.count>=8?1:0;
+    if (stage>helmetCrackStage) {
         const duration = stage === 3 ? 0.8 : 1.4;
         helmetCracked = true;
         menus.setHelmetState(true,helmetEquipped,false,true);
@@ -377,6 +412,7 @@ function beginDrowningRescue() {
     telescopeView?.cancel();
     drowningRescueContext = {
         river: riverSoundField?.river[gz * mapWidth + gx] === 1,
+        inlandWater: riverSoundField?.river[gz * mapWidth + gx] === 1 || riverSoundField?.lake[gz * mapWidth + gx] === 1,
         // El primer fragmento inicia el evento; el último lo termina,
         // incluso durante los instantes previos a romperse el casco.
         shipwreck: atSea && helmetEquipped && !helmetBroken && seaHeart.count > 0 && !seaHeart.complete,
@@ -392,10 +428,11 @@ function beginDrowningRescue() {
     touchControls?.sync(false);
     touchControls?.hide();
     musicEvents.setPaused(true);
-    drowningRescue.start({ waitForInput: drowningRescueContext.river });
+    drowningRescue.start();
     return true;
 }
 function restorePlayerAfterDrowning() {
+    wreckChestBubbles?.reset();
     closeRespawnDoors();
     riverCameraMotion.reset();
     if (drowningRescueContext.repairHelmet) {
@@ -424,25 +461,25 @@ function restorePlayerAfterDrowning() {
     divingAir.reset(); stamina = STAMINA_MAX;
     clearGreetingInput(); isCrouching = false; canJump = true; bedSettleIndex = -1;
     seatedChair = chairEntryPosition = null; isFlying = false;
-    const landing = drowningRescueContext.shipwreck ? seaDrowningLanding : { x: playerStartX, z: playerStartZ };
+    const landing = drowningRescueContext.inlandWater ? riverDrowningLanding
+        : drowningRescueContext.shipwreck ? seaDrowningLanding : { x: playerStartX, z: playerStartZ };
     const x = landing.x * UNIT_SIZE, z = landing.z * UNIT_SIZE;
     camera.position.set(x, getTerrainHeight(x, z) + PLAYER_HEIGHT, z);
     camera.rotation.set(0, 0, 0);
     if (drowningRescueContext.shipwreck) camera.lookAt(divingHelmet.position.x*UNIT_SIZE,camera.position.y,divingHelmet.position.z*UNIT_SIZE);
+    else if (drowningRescueContext.inlandWater) camera.lookAt(lakeHouseLayout.origin.x+12,camera.position.y,lakeHouseLayout.origin.z);
     camera.updateMatrixWorld(true);
     previousPlayerPosition.copy(camera.position);
     playerWasSubmerged = false; underwaterBlend = 0; vegetationBlend = 0; surfaceVegetationBlend = 1;
     targetInteractable = null;
     menus.setHelmetState(hasDivingHelmet, helmetEquipped, helmetBroken, helmetCracked);
-    menus.setSeaHeartState(seaHeart.count, seaHeart.complete);
+    menus.setSeaHeartState(seaHeart.count, seaHeart.complete, seaHeart.total);
     hud.setHelmetCrackStage(helmetCrackStage, 0);
     hud.setHelmetViewVisible(false); hud.setUnderwaterTint(0);
     musicEvents.resetWaterAudio(); musicEvents.resetRiverAmbience(); musicEvents.resetSeaAmbience();
     forestAmbienceSample = riverSoundSample = seaSoundSample = null;
     forestAmbienceSampleTime = riverSoundSampleTime = seaSoundSampleTime = 0;
-    if (drowningRescueContext.river) {
-        menus.showDialog(riverDrowningMessage, { speaker: '?', blurBackdrop: false });
-    }
+    if (drowningRescueContext.inlandWater) musicEvents.playWakeSplash();
 }
 function finishDrowningRescue() {
     controls.pointerSpeed = drowningRescueContext.pointerSpeed;
@@ -461,6 +498,7 @@ function finishDrowningRescue() {
 const heartQuest = createForestHeartQuest();
 const interactables = [];
 const chestOpenings = [];
+let wreckChestBubbles = null;
 let forestHeartShrine = null;
 const heartBeaconPosition = new THREE.Vector3();
 const heartBeaconCameraRotation = new THREE.Quaternion();
@@ -481,6 +519,7 @@ let woodStoveFire = null;
 const stoveFireSoundRelative = new THREE.Vector3();
 let underwaterVegetation = null;
 let underwaterVegetationPreparation = null;
+let viewEffectsPreparation = null;
 let underwaterPlantDefinitions = [];
 let vegetationBlend = 0;
 let surfaceVegetationFade = null;
@@ -539,8 +578,8 @@ let bridgeKeyEventActive = GRAHAM_BRIDGE_KEY_AVAILABLE;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a14); // Noche azulada lúgubre
 const WORLD_VISIBILITY_DISTANCE = 300;
-const terrainVisibilityDistance = { value: WORLD_VISIBILITY_DISTANCE };
-const MOUNTAIN_VISIBILITY_DISTANCE = 600;
+const terrainVisibilityDistance = { value: WORLD_VISIBILITY_DISTANCE / SURFACE_FOG_DENSITY_SCALE };
+const MOUNTAIN_VISIBILITY_DISTANCE = WORLD_VISIBILITY_DISTANCE;
 const FOG_RESIDUAL = 0.0001;
 let underwaterBlend = 0;
 let playerWasSubmerged = false;
@@ -554,7 +593,8 @@ const underwaterCurrentColor = underwaterFogColor.clone();
 let underwaterLightLevel = 1;
 const UNDERWATER_VISIBILITY_DISTANCE = 80;
 const UNDERWATER_PLANT_DISTANCE = UNDERWATER_VISIBILITY_DISTANCE / 1.3;
-scene.fog = new THREE.FogExp2(0x030304, Math.sqrt(-Math.log(FOG_RESIDUAL)) / WORLD_VISIBILITY_DISTANCE);
+scene.fog = new THREE.FogExp2(0x030304, Math.sqrt(-Math.log(FOG_RESIDUAL)) / WORLD_VISIBILITY_DISTANCE * SURFACE_FOG_DENSITY_SCALE);
+const horizonFog = createHorizonFog(THREE, scene.fog);
 
 // Iluminación Dark Fantasy (Noche de Luna)
 const ambientLight = new THREE.AmbientLight(0x11111a, 0.2); // Luz ambiental suave (más oscura)
@@ -564,7 +604,7 @@ scene.add(dirLight,dirLight.target);
 
 let skyMesh;
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1500);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 2400);
 const doorAutoCloseView=createDoorViewCheck(THREE,camera),doorAutoClosePosition=new THREE.Vector3();
 const riverCameraMotion = createRiverCameraMotion(THREE, camera);
 const riverCenterOffset = { x: 0, z: 0 };
@@ -635,6 +675,14 @@ function getPlayerGroundHeight(x, z) {
 function isHelmetUnderwater() {
     return helmetEquipped && !helmetBroken && !isFlying && !isRidingBoat && isPlayerUnderwater();
 }
+function isHelmetJumpBlocked() {
+    if (!isHelmetUnderwater()) return false;
+    const gx = Math.floor((camera.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
+    const gz = Math.floor((camera.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
+    const index = gz * mapWidth + gx;
+    // En superficie se conserva el salto corto; bajo el agua solo se permite en el mar.
+    return isHelmetSubmergedInRiver() || caveMap?.active || seaSoundField?.surface[index] !== 1;
+}
 function isHelmetSubmergedInRiver() {
     if (!helmetEquipped || helmetBroken || isRidingBoat || isFlying || caveMap?.active || metalRoom?.active
         || camera.position.y >= WATER_SURFACE_HEIGHT || !riverSoundField) return false;
@@ -688,7 +736,7 @@ const dayFogColor = new THREE.Color(0xc3cbd5); // Gris blanquecino con un leve m
 const duskFogColor = new THREE.Color(0xd99966); // Naranja cálido del horizonte al atardecer.
 const eventDuskFogColor = duskFogColor.clone();
 const dawnFogColor = new THREE.Color(0xbfa0ad); // Rosa apagado acorde al cielo del amanecer.
-function updateFogColor() {
+function updateFogColor(surfaceDensityScale = SURFACE_FOG_DENSITY_SCALE) {
     const { night, day, dusk, dawn } = skyCycle.weights;
     // El horizonte sigue el giro del cielo con un pequeño retraso musical.
     const skyHueShift=heartVision.uniforms.heartHorizonHueShift.value;
@@ -706,8 +754,9 @@ function updateFogColor() {
     underwaterCurrentColor.copy(underwaterFogColor).multiplyScalar(underwaterLightLevel);
     scene.fog.color.lerp(underwaterCurrentColor, underwaterBlend);
     scene.fog.density = THREE.MathUtils.lerp(
-        Math.sqrt(-Math.log(FOG_RESIDUAL))/WORLD_VISIBILITY_DISTANCE,
+        Math.sqrt(-Math.log(FOG_RESIDUAL))/WORLD_VISIBILITY_DISTANCE * surfaceDensityScale,
         Math.sqrt(-Math.log(FOG_RESIDUAL))/UNDERWATER_VISIBILITY_DISTANCE * 1.3, underwaterBlend);
+    horizonFog.setStart(horizonFog.surfaceStart * (1-underwaterBlend));
 }
 const nightAmbientColor = new THREE.Color(0x11111a);
 const dayAmbientColor = new THREE.Color(0xffffff);
@@ -1090,7 +1139,7 @@ function useInventoryItem(item) {
         setHeldItem(heldItem==='sky-heart'?null:'sky-heart');
         menus.setItemDescription('Corazón del Cielo');
     } else if (item === 'sea-heart' && seaHeart?.count) {
-        menus.setItemDescription(seaHeart.complete ? 'Corazón del Mar completo. La escafandra está rota.' : `Fragmentos del Corazón del Mar: ${seaHeart.count}/10. Recoger otro renueva el aire.`);
+        menus.setItemDescription(seaHeart.complete ? 'Corazón del Mar completo. La escafandra está rota.' : `Fragmentos del Corazón del Mar: ${seaHeart.count}/${seaHeart.total}. Recoger otro renueva el aire.`);
     } else if (item === 'key' && keys > 0) {
         menus.setItemDescription('Consulta tus llaves en el llavero. Se usan automáticamente.');
     }
@@ -1389,6 +1438,7 @@ function toggleDoorWithPlayer(door) {
     if (door.userData.isOpen && !door.userData.locked && heartQuest.stage === 'delivered'
         && bridgeDoors.some(cell => cell.x === door.userData.gx && cell.z === door.userData.gz)) {
         questSkyCycle.openBridge();
+        bridgeRegionUnlocked=true;
     }
 }
 
@@ -1475,7 +1525,8 @@ function interact() {
     if(metalRoom?.busy)return true;
     if(metalRoom?.active) {
         if(metalRoom.nearExit(controls.getObject().position)) {
-            metalRoom.beginLeave();clearGreetingInput();targetInteractable=null;hud.hideInteraction();
+            if(metalRoom.beginLeave())musicEvents.stopLabMusic();
+            clearGreetingInput();targetInteractable=null;hud.hideInteraction();
         }
         return true;
     }
@@ -1526,6 +1577,8 @@ function interact() {
                     hasTorch = true;
                     menus.setTorchVisible(true);
                     hud.showReceivedItem('una antorcha');
+                    musicEvents.prepare('forest').catch(() => {});
+                    setTimeout(prepareViewEffects, 0);
                 }
                 if (deliveringHeart) {
                     heartQuest.deliver(); menus.setHeartVisible(false);
@@ -1554,10 +1607,9 @@ function interact() {
             velocityY = 10.0; // Pequeño salto al salir
         } else if (targetInteractable) {
             if(targetInteractable.userData.type==='LAKE_HATCH') {
-                if(!isRidingBoat&&metalRoom.nearHatch(controls.getObject().position)
+                if(pinkSunglassesEquipped&&!isRidingBoat&&metalRoom.nearHatch(controls.getObject().position)
                     && !musicEvents.isEventActive('forest')&&heartLevitationHeight<=.15) {
-                    metalRoom.beginEnter();clearGreetingInput();velocity.set(0,0,0);velocityY=0;
-                    targetInteractable=null;hud.hideInteraction();
+                    requestLakeRoomEntry();
                 }
                 return true;
             }
@@ -1647,6 +1699,7 @@ function interact() {
                 if (hasPinkSunglasses) return true;
                 hasPinkSunglasses = true;
                 pinkSunglassesEquipped = true;
+                setTimeout(prepareViewEffects, 0);
                 menus.setPinkSunglassesState(true, true);
                 hud.showReceivedItem('unos lentes de sol rosados');
                 const pickup = targetInteractable;
@@ -1708,10 +1761,13 @@ function interact() {
                         }
                         return done;
                     } };
+                } else if (targetInteractable.userData.item === 'bubbles') {
+                    wreckChestBubbles.burst(targetInteractable);
                 } else {
-                    keyInventory.add(targetInteractable.userData.id);
+                    const keyId=targetInteractable.userData.keyId??targetInteractable.userData.id;
+                    keyInventory.add(keyId);
                     updateKeyInventory();
-                    hud.showReceivedItem('una llave');
+                    hud.showReceivedItem(keyBindings.find(key=>key.id===keyId)?.name??'una llave');
                 }
                 mapChestSoundSource = targetInteractable;
                 musicEvents.playChestUnlock(getMapChestSoundPosition());
@@ -1932,7 +1988,7 @@ const gameActions = {
     scopeZoom(direction,pressed){observatoryScope?.setZoomInput(direction,pressed);},
     isObservatoryScopeActive(){return !!observatoryScope?.active;},
     holdJump(pressed) {
-        jumpHeld = pressed;
+        jumpHeld = pressed && !isHelmetJumpBlocked();
         if (pressed) bedSettleIndex = -1;
         if (!pressed) {
             touchJumpRepeatWait = 0;
@@ -1942,7 +1998,8 @@ const gameActions = {
         }
     },
     jump() {
-        if (seatedChair || observatoryScope?.seated || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0) return;
+        if (seatedChair || observatoryScope?.seated || bedCeilingTimer > 0 || bedHoleOpeningTime >= 0
+            || isHelmetJumpBlocked()) return;
         if (!isFlying && !isRidingBoat && canJump && heartLevitationHeight <= 0) {
             const player = controls.getObject();
             const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
@@ -2109,7 +2166,7 @@ const touchActions = {
         if (heldItem === 'mate') {
             gameActions.holdJump(false);
             touchMateHeld = true;
-            if (canDrinkMate()) heldMate?.press();
+            pressMate();
             return;
         }
         gameActions.holdJump(true);
@@ -2161,7 +2218,24 @@ let metalRoom = null;
 let metalRoomLadder = null;
 let lakeAquarium = null;
 let modularSynthRacks = null;
+let lakeRoomDetails=null,lakeDetailsScheduled=false,lakeEntryPending=false,bridgeRegionUnlocked=false;
 let metalRoomShade = null;
+
+async function requestLakeRoomEntry() {
+    if(lakeEntryPending)return;
+    lakeEntryPending=true;
+    try {
+        await lakeRoomDetails.prepare();
+        if(isDead||!controls.isLocked||isInventoryOpen||isDialogOpen||forestMonitorSnapshot
+            ||!pinkSunglassesEquipped||!metalRoom.nearHatch(camera.position)
+            ||isRidingBoat||musicEvents.isEventActive('forest')||heartLevitationHeight>.15)return;
+        if(metalRoom.beginEnter())musicEvents.prepare('lab');
+        clearGreetingInput();velocityY=0;targetInteractable=null;hud.hideInteraction();
+    } catch(error) {
+        console.warn('No se pudo preparar el laboratorio:',error);
+        hud.showNotification('No se pudo abrir la escotilla. Inténtalo de nuevo.');
+    } finally {lakeEntryPending=false;}
+}
 
 function updateMetalRoomTravel(delta) {
     if(!metalRoom?.busy)return;
@@ -2172,6 +2246,7 @@ function updateMetalRoomTravel(delta) {
         const player=controls.getObject();
         if(event==='enter') {
             player.position.copy(metalRoom.spawn);camera.rotation.set(0,0,0);
+            musicEvents.trigger('lab');
             if(minimap.enabled)minimap.toggle();menus.setItemActive('map',false);
         } else {
             player.position.copy(metalRoom.returnPosition);
@@ -2196,6 +2271,7 @@ async function enterCaveTestMap() {
                 waterTime:waterWaveTime, immersion:underwaterStrength
             });
             scene.add(caveMap.group);
+            horizonFog.apply(caveMap.group);
             await renderer.compileAsync(scene,camera);
         }
         caveMap.active=true;caveMap.group.visible=true;
@@ -2303,6 +2379,11 @@ function canUseTelescope() {
 }
 const canDrinkMate = () => !forestMonitorSnapshot && heldItem === 'mate' && gameStarted && controls.isLocked && !isDead
     && !woodcutting.active && !isDialogOpen && !isInventoryOpen && !spawnGreeting.active && !heartPull.active && !grahamDap.active;
+function pressMate() {
+    if(!canDrinkMate())return;
+    heldMate.press();
+    if(seatedChair?.userData.id==='shore-rustic-chair')beachSwimmers?.start();
+}
 document.addEventListener('mousedown', event => {
     if(event.button===1&&controls.isLocked&&!isInventoryOpen&&!isDialogOpen&&canToggleTestFlight()) {
         event.preventDefault();toggleTestFlight();return;
@@ -2323,7 +2404,7 @@ document.addEventListener('mousedown', event => {
     if (event.button === 2 && !isTouchMode && (event.target === renderer.domElement || event.target === document.body) && canUseTelescope()) {
         event.preventDefault(); telescopeView.attemptZoom(); return;
     }
-    if (event.button === 2 && canDrinkMate()) { event.preventDefault(); heldMate.press(); }
+    if (event.button === 2 && canDrinkMate()) { event.preventDefault(); pressMate(); }
 });
 document.addEventListener('mouseup', event => { if (event.button === 2) heldMate.release(); });
 document.addEventListener('contextmenu',event=>{if (canUseTelescope()||targetInteractable?.userData.type==='OBSERVATORY_TELESCOPE') event.preventDefault();});
@@ -2464,6 +2545,7 @@ const dawnSkyMesh=createTransitionSky('Amanecer.png',-3);
 const duskSkyMesh=createTransitionSky('Atardecer.png',-2);
 applyForestSkyHue(duskSkyMesh.material,heartVision.uniforms);
 for(const material of [...dayMaterials,...nightMaterials,dawnSkyMesh.material,duskSkyMesh.material])mateForestVisual.apply(material,'sky');
+horizonFog.applySky([...dayMaterials,...nightMaterials,dawnSkyMesh.material,duskSkyMesh.material]);
 duskSkyMesh.material.opacity=skyCycle.weights.dusk;
 nightSkyMesh.renderOrder=-4;
 
@@ -2569,7 +2651,6 @@ Promise.all([
     performancePanel?.mark('Vegetación submarina lista');
     setIslandLoadingStage('Cargando texturas');
     await worldTexturesReady;
-    await heartVision.ready;
     performancePanel?.mark('Texturas listas');
     // Crear el contexto secundario con el inventario oculto evita estrenarlo al abrirlo.
     menus.prepareInventory();
@@ -2616,14 +2697,29 @@ Promise.all([
     nightSkyMesh.position.y = dawnSkyMesh.position.y = duskSkyMesh.position.y = daySkyMesh.position.y;
     torchLighting?.update(spawn, performance.now() / 1000, dayTransition);
     celestialLight.update(skyCycle.weights.night<.999&&sunSprite.visible);
+    horizonFog.updateAltitude(spawn.y,(mountainPathProfile?.summitHeight??129)+PLAYER_HEIGHT);
     updateFogColor();
     const startupFogPlane = fogCulling?.update(camera);
     vegetationSectors?.update(camera, startupFogPlane);
     structureSectors?.update(camera, startupFogPlane);
     sunFlare.update();
     if(observatoryScope?.active)sunFlare.object.visible=false;
+    // Preparar la ráfaga con alfa cero para evitar estrenar su shader al abrir el cofre.
+    wreckChestBubbles.points.visible=true;
+    const diveObjects=[underwaterBackdrop,seaHeartGlow,...seaHeartSprites.values()].filter(Boolean);
+    await prepareStartupViews(THREE,renderer,scene,camera,()=>{
+        const plane=fogCulling?.update(camera);
+        vegetationSectors?.update(camera,plane);structureSectors?.update(camera,plane);
+    },checkpoint,diveObjects);
+    for(const object of diveObjects)if(object.material.map)renderer.initTexture(object.material.map);
+    await underwaterView.prepare(scene,camera,true,(world,view,target)=>
+        prepareProgramsInBatches(THREE,renderer,world,view,checkpoint,target,undefined,diveObjects,2));
+    sunFlare.prepare(scene);
+    await waitForRenderedFrame(renderer);
+    performancePanel?.mark('Vistas iniciales preparadas');
     underwaterView.render(scene, camera);
     await waitForRenderedFrame(renderer);
+    wreckChestBubbles.reset();
     await new Promise(resolve => requestAnimationFrame(resolve));
     performancePanel?.mark('Primer fotograma preparado');
     performancePanel?.mark('Juego listo');
@@ -2661,6 +2757,9 @@ Promise.all([
 
 async function buildWorld(prepared, checkpoint) {
     ({ mapWidth, mapHeight, collisionMap, floorMap, roofMap, playerStartX, playerStartZ } = prepared);
+    // Desde cualquier punto del mapa, toda la tierra queda antes de la bruma.
+    horizonFog.surfaceStart = Math.hypot(mapWidth*UNIT_SIZE,mapHeight*UNIT_SIZE)+64;
+    horizonFog.setStart(horizonFog.surfaceStart);
     const { counts, floorCanvas } = prepared;
     const registry = createEntityRegistry(entities, floorMap, mapWidth, mapHeight);
     const fields = await prepareWorldFields('base', {floorMap,collisionMap,roofMap,
@@ -2668,6 +2767,7 @@ async function buildWorld(prepared, checkpoint) {
     const { mountainReliefMap, seaFloorHeights } = fields;
     waterDeckMap = fields.waterDeckMap;
     floorMap = fields.floorMap;
+    horizonFog.configureIsland(floorMap,UNIT_SIZE);
     forestMovementBoundary=createForestMovementBoundary(floorMap,waterDeckMap,grahamPosition,
         keyBindings.find(binding=>binding.id==='bridge-key').doors,UNIT_SIZE,COLLISION_RADIUS);
     woodFloorMap = fields.woodFloorMap;
@@ -2772,7 +2872,7 @@ async function buildWorld(prepared, checkpoint) {
     // El mar conserva su cota real: adelantar su profundidad lo hacía invadir
     // tierra baja e islotes al mirar la costa de lejos o en ángulo rasante.
     aguaFloorMat = new THREE.MeshPhongMaterial({ map: agua1Tex, color: 0xffffff, transparent: true, opacity: 1, shininess: 60, side: THREE.DoubleSide, depthFunc: THREE.LessDepth });
-    riverSoundField = createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight);
+    riverSoundField = createRiverCurrentField(floorMap, waterDeckMap, mapWidth, mapHeight, riverSeawardOutlet);
     seaSoundField = createSeaSoundField(floorMap, waterDeckMap, riverSoundField, mapWidth, mapHeight);
     applyWaterWaves(THREE, aguaFloorMat, waterWaveTime,
         riverSoundField, UNIT_SIZE, underwaterStrength, raisedWaterCell, new THREE.Vector2(), waterShoreline);
@@ -2907,6 +3007,7 @@ async function buildWorld(prepared, checkpoint) {
     previousMountainMaximum *= 0.85 * 0.8;
     const { heights: mountainHeights, mask: mountainMask } = await prepareWorldFields('mountain',
         {floorMap:mountainReliefMap,width:mapWidth,height:mapHeight,targetHeight:previousMountainMaximum});
+    horizonFog.configureMountain(mountainMask,mapWidth,mapHeight,UNIT_SIZE);
     // Aplanar y esculpir
     for (let z = 0; z < mapHeight; z++) {
         { const pause = checkpoint(); if (pause) await pause; }
@@ -3024,8 +3125,10 @@ async function buildWorld(prepared, checkpoint) {
     }
     levelBuildingAtTerrain(grahamPosition, floorMap, roofMap, elevationMap, (x, z) =>
         getTerrainVertexY(x, z, mapWidth, mapHeight, floorMap, elevationMap, woodFloorMap, mountainPathProfile));
-    lakeHouseDome=createLakeHouseDome(THREE,elevationMap[lakeHouseLayout.center.z][lakeHouseLayout.center.x]);
-    scene.add(lakeHouseDome.group);
+    lakeHouse=createLakeHouse(THREE,elevationMap[lakeHouseLayout.center.z][lakeHouseLayout.center.x],{
+        stone:bldgMat,roof:roofMat,wood:maderaFloorMat
+    });
+    scene.add(lakeHouse.group);
     const roofBaseMap = createRoofBaseMap(roofMap, floorMap, elevationMap);
     atticSupport = bedDefinition ? createAtticSupport(roofMap, roofBaseMap, bedDefinition, roofSubdivisions) : null;
 
@@ -3155,14 +3258,14 @@ async function buildWorld(prepared, checkpoint) {
                     wallZ = posZ + dz * (UNIT_SIZE / 2 - 0.04);
                     supportHeight = elevationMap[z+dz][x+dx];
                 }
-                const domeMount=lakeHouseDome.torchMount(x,z,prepared.externalTorchMap[z][x]);
-                if(domeMount){wallX=domeMount.x;wallZ=domeMount.z;}
+                const lakeMount=lakeHouse.torchMount(x,z,prepared.externalTorchMap[z][x]);
+                if(lakeMount){wallX=lakeMount.x;wallZ=lakeMount.z;}
                 if(!prepared.externalTorchMap[z][x]&&isWizardHouseRoofCell(x,z)&&support) {
                     const [dx,dz]=support,g=wizardHouseLayout.ground,o=wizardHouseLayout.origin;
                     if(dx)wallX=o.x+dx*(g.halfX-g.wallThickness-.08);
                     if(dz)wallZ=o.z+dz*(g.halfZ-g.wallThickness-.08);
                 }
-                const torchY = domeMount?.y ?? supportHeight + TORCH_MOUNT_HEIGHT;
+                const torchY = lakeMount?.y ?? supportHeight + TORCH_MOUNT_HEIGHT;
                 worldTorches.push({ x: wallX, z: wallZ, y: torchY, isBlue: isBlueTorch, isIndoor: woodFloorMap[z][x], gx: x, gz: z });
                 const isIndoor = woodFloorMap[z][x];
                 const material = new THREE.MeshBasicMaterial({ map: torchFrames[0], transparent: true, fog: !isIndoor, depthWrite: false, color: isBlueTorch ? 0x66ccff : 0xffffff });
@@ -3387,16 +3490,11 @@ async function buildWorld(prepared, checkpoint) {
                 dummy.scale.set(isHorizontal?opening.width+.04:.04,.05,isHorizontal?.04:opening.width+.04);
                 dummy.updateMatrix();doorStops.setMatrixAt(idxDoorStop++,dummy.matrix);dummy.scale.set(1,1,1);
                 
-                const lakeDoor=isLakeHouseDoor(x,z);
-                const matNormal = new THREE.MeshPhongMaterial(lakeDoor
-                    ? {color:0x71839a,specular:0xb9c9db,shininess:65,flatShading:true}
-                    : {map:puertaTex,color:tintColor,shininess:0});
-                const matFlipped = new THREE.MeshPhongMaterial(lakeDoor
-                    ? {color:0x71839a,specular:0xb9c9db,shininess:65,flatShading:true}
-                    : {map:puertaFlippedTex,color:tintColor,shininess:0});
+                const matNormal = new THREE.MeshPhongMaterial({map:puertaTex,color:tintColor,shininess:0});
+                const matFlipped = new THREE.MeshPhongMaterial({map:puertaFlippedTex,color:tintColor,shininess:0});
                 // No comprimir el dibujo completo (incluidos herrajes claros) en
                 // los cantos de 20 cm: produce rayas brillantes al mover la cámara.
-                const edgeMaterial=new THREE.MeshPhongMaterial({color:lakeDoor?0x303d49:0x46372b,shininess:lakeDoor?24:0});
+                const edgeMaterial=new THREE.MeshPhongMaterial({color:0x46372b,shininess:0});
                 edgeMaterial.userData.doorEdge=true;
                 let mats;
                 
@@ -3965,6 +4063,27 @@ async function buildWorld(prepared, checkpoint) {
     submergedShip.position.set(shipX,Math.min(shipBottom,WATER_SURFACE_HEIGHT - 0.15 - shipGeometry.boundingBox.max.y),shipZ);
     scene.add(submergedShip);
 
+    const wreckChestGeometry=createChestGeometry(THREE);
+    const wreckChest=new THREE.Mesh(wreckChestGeometry,[
+        new THREE.MeshPhongMaterial({map:maderaTex,color:0x8b4513,shininess:0}),
+        new THREE.MeshPhongMaterial({color:0x42464b,shininess:18})
+    ]);
+    const wreckChestX=sunkenShipChest.position.x*UNIT_SIZE,wreckChestZ=sunkenShipChest.position.z*UNIT_SIZE;
+    submergedShip.updateMatrixWorld(true);
+    const wreckChestSupport=new THREE.Raycaster(new THREE.Vector3(wreckChestX,submergedShip.position.y+.9,wreckChestZ),
+        new THREE.Vector3(0,-1,0),0,3).intersectObject(submergedShip,false)[0];
+    const wreckChestFloor=Math.max(getTerrainHeight(wreckChestX,wreckChestZ),wreckChestSupport?.point.y??-Infinity);
+    wreckChest.name=sunkenShipChest.id;
+    wreckChest.position.set(wreckChestX,wreckChestFloor-wreckChestGeometry.boundingBox.min.y,wreckChestZ);
+    wreckChest.rotation.y=sunkenShipChest.rotationY;
+    wreckChest.userData={type:'CHEST',gx:sunkenShipChest.position.x,gz:sunkenShipChest.position.z,
+        id:sunkenShipChest.id,item:'bubbles'};
+    wreckChest.userData.opening=createChestOpening(THREE,wreckChest);
+    scene.add(wreckChest);wreckChest.updateMatrixWorld(true);
+    solidInteractables.push(wreckChest);interactables.push(wreckChest);
+    wreckChestBubbles=createChestBubbles(THREE,WATER_SURFACE_HEIGHT);
+    scene.add(wreckChestBubbles.points);
+
     const helmetGeometry = createDivingHelmetGeometry(THREE);
     const helmet = new THREE.Mesh(helmetGeometry, createDivingHelmetMaterials(THREE));
     const helmetX = divingHelmet.position.x * UNIT_SIZE;
@@ -3980,7 +4099,13 @@ async function buildWorld(prepared, checkpoint) {
     interactables.push(helmet);
     divingHelmetMesh = helmet;
 
-    seaHeart = createSeaHeart(prepared.seaHeartFragments, floorMap, divingHelmet.position,
+    const mappedFragments=prepared.seaHeartFragments.map(point=>{
+        const moved=seaHeartFragmentMoves.find(move=>move.id===point.id);
+        return moved?{...point,x:moved.x,z:moved.z}:point;
+    });
+    const seaHeartFragments=[...mappedFragments,...seaHeartExtraFragments.filter(point=>
+        !mappedFragments.some(existing=>existing.x===point.x&&existing.z===point.z))];
+    seaHeart = createSeaHeart(seaHeartFragments, floorMap, divingHelmet.position,
         UNIT_SIZE, MOVEMENT_SPEED * DIVING_WATER_SPEED_MOD / FRICTION, seaHeartAltar.center);
     const fragmentTexture = texLoader.load('./imagenes/Sprites/fragmento-mar.png');
     fragmentTexture.colorSpace = THREE.SRGBColorSpace;
@@ -4010,7 +4135,7 @@ async function buildWorld(prepared, checkpoint) {
             #endif`);
     };
     glowMaterial.customProgramCacheKey = () => 'sea-heart-glow-distance-v1';
-    for (const point of prepared.seaHeartFragments) {
+    for (const point of seaHeartFragments) {
         { const pause = checkpoint(); if (pause) await pause; }
         const fragment = new THREE.Sprite(new THREE.SpriteMaterial({
             map: fragmentTexture, transparent: true, alphaTest: 0.1, depthWrite: false, fog: true
@@ -4018,19 +4143,22 @@ async function buildWorld(prepared, checkpoint) {
         fragment.name = point.id;
         const number = seaHeart.route.find(p=>p.id===point.id).number;
         fragment.userData = { type: 'SEA_HEART_FRAGMENT', id: point.id, gx: point.x, gz: point.z, number, visibilityEnabled:false, fogDistanceMultiplier:2 };
+        fragment.visible=false;
         const fragmentHalfHeight = 0.081 / 2;
         fragment.position.set(point.x * UNIT_SIZE, getTerrainHeight(point.x * UNIT_SIZE, point.z * UNIT_SIZE) + fragmentHalfHeight, point.z * UNIT_SIZE);
         if(point.x===seaHeartAltar.center.x && point.z===seaHeartAltar.center.z) fragment.position.y=altarCenterTop+fragmentHalfHeight;
         // El fragmento se reduce; el halo conserva su tamaño independiente.
         fragment.scale.set(0.081, 0.081, 1);
-        const glow = new THREE.Sprite(glowMaterial);
-        glow.raycast = () => {}; // El halo no sustituye al fragmento como objetivo.
-        glow.scale.set(18.75,18.75,1);
-        glow.userData.fogDistanceMultiplier = 2;
-        fragment.add(glow);
         scene.add(fragment);
         seaHeartSprites.set(point.id,fragment);
     }
+    seaHeartGlow=new THREE.Sprite(glowMaterial);
+    seaHeartGlow.name='sea-heart-guide-glow';
+    seaHeartGlow.raycast=()=>{};
+    seaHeartGlow.scale.set(SEA_HEART_GLOW_SIZE,SEA_HEART_GLOW_SIZE,1);
+    seaHeartGlow.userData={fogDistanceMultiplier:2,visibilityEnabled:false};
+    seaHeartGlow.visible=false;
+    scene.add(seaHeartGlow);
     // Una luz reutilizada: solo el fragmento pendiente emite, sin sombras adicionales.
     seaHeartLight = new THREE.PointLight(0xffffff, 0, 32, 2);
     seaHeartLight.name = 'sea-heart-fragment-light';
@@ -4106,6 +4234,10 @@ async function buildWorld(prepared, checkpoint) {
                 model.userData.seatLookLift = 0.12;
             }
             interactables.push(model);
+        }
+        if (definition.id === 'shore-rustic-chair') {
+            beachSwimmers=createBeachSwimmers(THREE,model,WATER_SURFACE_HEIGHT);
+            scene.add(beachSwimmers.points);
         }
         if (definition.type === 'WOOD_STOVE') {
             const pipeAt = new THREE.Vector3(0,0,-0.14).multiplyScalar(furnitureScale).applyEuler(model.rotation).add(model.position);
@@ -4210,10 +4342,11 @@ async function buildWorld(prepared, checkpoint) {
     const hatchGround=Math.max(...[-1.3,0,1.3].flatMap(dx=>[-1.3,0,1.3].map(dz=>getTerrainHeight(hatchX+dx,hatchZ+dz))))+.015;
     metalRoom=createLakeMetalRoom(THREE,hatchGround);
     metalRoomLadder=createMetalRoomLadder(camera,controls,metalRoom,PLAYER_HEIGHT);
-    lakeAquarium=await createLakeAquarium(THREE,texLoader,metalRoom.aquariumLayout,{sand:arenaTex,rock:rocaTex},metalRoom.room.position);
-    metalRoom.room.add(lakeAquarium.group);
-    modularSynthRacks=createModularSynthRacks(THREE,maderaTex);
-    metalRoom.room.add(modularSynthRacks.group);metalRoom.setFurnitureBounds(modularSynthRacks.bounds);
+    lakeRoomDetails=createLakeRoomDetails(THREE,renderer,scene,metalRoom,{
+        loader:texLoader,textures:{sand:arenaTex,rock:rocaTex,wood:maderaTex},
+        prepareMaterials(roots){for(const root of roots){prepareInactiveLights(THREE,root,interiorLightMask);horizonFog.apply(root);}},
+        onReady({aquarium,racks}){lakeAquarium=aquarium;modularSynthRacks=racks;}
+    });
     scene.add(metalRoom.hatch,metalRoom.room);
     interactables.push(metalRoom.target,metalRoom.exitTarget);
     metalRoomShade=document.createElement('div');metalRoomShade.id='metal-room-travel-shade';
@@ -4233,6 +4366,7 @@ async function buildWorld(prepared, checkpoint) {
     wizardUpperFloor=createWizardUpperFloor(THREE,mountainWorkshop.desk.position.y,
         {wood:maderaTex,wall:muroTex,roof:techoTex,door:puertaTex});
     scene.add(wizardUpperFloor.group);
+    horizonFog.registerMountainBuilding(wizardUpperFloor.group,wizardUpperFloor.interior);
     interactables.push(wizardUpperFloor.door);
 
     const crtOffset=wizardHouseLayout.furnitureOffsets.televisions;
@@ -4248,6 +4382,7 @@ async function buildWorld(prepared, checkpoint) {
     const observatoryZ=(summitStonePlatform.minZ+(summitStonePlatform.cellsPerSide-1)/2)*UNIT_SIZE;
     summitObservatory=createSummitObservatory(THREE,getTerrainHeight(observatoryX,observatoryZ),{wall:muroTex,wood:maderaTex});
     scene.add(summitObservatory.group);
+    horizonFog.registerMountainBuilding(summitObservatory.group,summitObservatory.interior);
     observatoryScope=createObservatoryScope(THREE,camera,controls,summitObservatory,
         (moving,silent)=>musicEvents.setObservatoryGearMoving(moving,silent),stellar=>musicEvents.playObservatoryLensChange(stellar));
     observatoryLadder=createObservatoryLadder(THREE,camera,controls,summitObservatory,PLAYER_HEIGHT);
@@ -4375,12 +4510,13 @@ async function buildWorld(prepared, checkpoint) {
             || ['INDOOR_FLOOR','DOOR_UNLOCKED','DOOR_LOCKED','TORCH','OTHER2','CHEST'].includes(floorMap[z][x])
             || ['TORCH','OTHER2'].includes(roofMap[z][x]))) return null;
         const wx=x*UNIT_SIZE,wz=z*UNIT_SIZE,floor=getTerrainHeight(wx,wz);
-        const ceiling = lakeHouseDome?.upperLimit(wx,wz,floor)
+        const ceiling = lakeHouse?.upperLimit(wx,wz,floor)
             ?? summitObservatory?.upperLimit(wx,wz,1000)
             ?? wizardUpperFloor?.upperLimit(wx,wz,1000);
         return {floor,ceiling:ceiling == null ? floor+WALL_HEIGHT : ceiling+.2};
     }, [...solidInteractables.filter(object=>object.userData.type==='DOOR'),wizardUpperFloor.door]);
     prepareInactiveLights(THREE, scene, interiorLightMask);
+    horizonFog.apply(scene);
     { const pause = checkpoint(); if (pause) await pause; }
     fogCulling.register();
     { const pause = checkpoint(); if (pause) await pause; }
@@ -4419,8 +4555,8 @@ function getTerrainHeight(x, z) {
     if(hatchFloor!=null)return hatchFloor;
     if (caveMap?.active && caveMap.contains(x,z)) return caveMap.getHeight(x,z);
     if (caveEntrance?.contains(x,z)) return caveEntrance.baseY + 0.025;
-    const domeFloor=lakeHouseDome?.floorHeight(x,z);
-    if(domeFloor!=null)return domeFloor;
+    const lakeFloor=lakeHouse?.floorHeight(x,z);
+    if(lakeFloor!=null)return lakeFloor;
     const gx=Math.floor((x+UNIT_SIZE/2)/UNIT_SIZE),gz=Math.floor((z+UNIT_SIZE/2)/UNIT_SIZE);
     const top=slabTops.get(gz*mapWidth+gx);
     if(gx>=0&&gz>=0&&gx<mapWidth&&gz<mapHeight&&top!==undefined) return top;
@@ -4445,7 +4581,7 @@ function updatePlayerPosture() {
             const floor = floorMap[gz]?.[gx];
             let limit = Infinity;
             const wizardLimit=(metalRoom?.active?metalRoom.upperLimit():null)
-                ?? lakeHouseDome?.upperLimit(player.position.x,player.position.z,feetY)
+                ?? lakeHouse?.upperLimit(player.position.x,player.position.z,feetY)
                 ?? summitObservatory?.upperLimit(player.position.x,player.position.z,feetY)
                 ?? wizardUpperFloor?.upperLimit(player.position.x,player.position.z,feetY);
             if (wizardLimit != null) limit=wizardLimit;
@@ -4492,7 +4628,7 @@ function isWall(x, z) {
     const eyeHeight = isCrouching ? PLAYER_HEIGHT * 0.6 : PLAYER_HEIGHT;
     if(atticAnt?.userData.blocksMovement(x,z,controlObj.position.y-eyeHeight,eyeHeight))return true;
     if (!isRidingBoat) {
-        if(lakeHouseDome?.blocksMovement(x,z,controlObj.position.y-eyeHeight,eyeHeight))return true;
+        if(lakeHouse?.blocksMovement(x,z,controlObj.position.y-eyeHeight,eyeHeight))return true;
         const observatoryCollision=summitObservatory?.blocksMovement(x,z,controlObj.position.y-eyeHeight);
         if(observatoryCollision!=null)return observatoryCollision;
         const wizardCollision=wizardUpperFloor?.blocksMovement(x,z,controlObj.position.y-eyeHeight,
@@ -4563,6 +4699,9 @@ function closeRespawnDoors(){
 }
 
 window.restartGame = () => {
+    wreckChestBubbles?.reset();
+    musicEvents.stopLabMusic();
+    beachSwimmers?.reset();
     heldRightTransition.reset();heldLeftTransition.reset();
     closeRespawnDoors();
     metalRoomLadder?.reset();
@@ -4775,6 +4914,7 @@ function animate(timestamp = performance.now()) {
 
     // Espera, órbita y viaje no avanzan físicas, misiones, reloj del cielo ni audio.
     if (!mapLoaded) return;
+    metalRoom?.setRevealed(pinkSunglassesEquipped&&!isDead);
     const riverFadeDelta=drowningRescueContext?.river ? Math.min(cameraDelta,drowningRescue.fadeOutRemaining) : 0;
     if(riverFadeDelta>0)advanceDrowningRiver(riverFadeDelta);
     drowningRescue.update(cameraDelta);
@@ -4801,24 +4941,31 @@ function animate(timestamp = performance.now()) {
         previousPlayerPosition.copy(controlObj.position);
         if (handTorchEnabled && isPlayerUnderwater()) setHandTorchEnabled(false);
         const rawDelta = forestMonitorSnapshot?0:cameraDelta;
+        wreckChestBubbles?.update();
         hud.updateHelmetCrack(rawDelta);
         updateHelmetBreak(rawDelta);
         const delta = Math.min(rawDelta, 0.1);
-        if(metalRoom?.active){lakeAquarium?.update(delta);modularSynthRacks?.update(delta);}
+        beachSwimmers?.update(rawDelta,controlObj.position,renderer.domElement.height,!caveMap?.active&&!metalRoom?.active);
+        if(metalRoom?.active){lakeAquarium?.update(delta,renderer.domElement.height,controlObj.position);modularSynthRacks?.update(delta);}
         updateBedCeilingBreak(delta);
         vegetationDelta = delta;
         grahamDap.update(delta);
         underwaterViewTime.value += delta;
         if (seaHeartLight && seaHeart?.next) {
-            const fragment = seaHeartSprites.get(seaHeart.next.id);
-            const elapsed = fragment.userData.haloWaitingForDive ? 0 : underwaterViewTime.value - fragment.userData.haloStartedAt;
+            const guideSpeed=MOVEMENT_SPEED*DIVING_WATER_SPEED_MOD/FRICTION*(isRunning?SPRINT_MULTIPLIER:1)*1.5;
+            seaHeartGuideMotion.update(rawDelta,guideSpeed);
+            seaHeartGlow.position.copy(seaHeartGuidePosition);
+            seaHeartLight.position.copy(seaHeartGuidePosition);
+            seaHeartLight.position.y+=.4;
+            const elapsed = seaHeartPulseWaitingForDive ? 0 : underwaterViewTime.value - seaHeartPulseStartedAt;
             const pulse = 0.5 - 0.5 * Math.cos(elapsed * (Math.PI * 2 / 4.5));
-            const glow = fragment.children[0];
+            seaHeartTravelBlend+=((seaHeartGuideMotion.moving?1:0)-seaHeartTravelBlend)*(1-Math.exp(-rawDelta*6));
+            const glow = seaHeartGlow;
             if (glow) {
-                const size = 18.75 * (0.15 + 0.85 * pulse);
+                const size = SEA_HEART_GLOW_SIZE * THREE.MathUtils.lerp(.15+.85*pulse,.16+.08*pulse,seaHeartTravelBlend);
                 glow.scale.set(size,size,1);
             }
-            seaHeartLight.intensity = 2.4 + 1.2 * pulse;
+            seaHeartLight.intensity = THREE.MathUtils.lerp(2.4+1.2*pulse,2.7+.12*pulse,seaHeartTravelBlend);
         }
         boatFloatTime += delta;
         for (const boat of boats) updateBoatFloating(boat, boatFloatTime, BOAT_FLOAT_HEIGHT);
@@ -4851,6 +4998,12 @@ function animate(timestamp = performance.now()) {
             musicEvents.updateForestHeartBeacon(heartBeaconPosition);
         } else musicEvents.updateForestHeartBeacon(null);
         const forestActive = musicEvents.isEventActive('forest');
+        if(!forestActive&&!forestMonitorSnapshot&&!lakeDetailsScheduled&&!lakeRoomDetails.ready
+            &&(bridgeRegionUnlocked||testMode.enabled)&&!caveMap?.active&&!metalRoom.active
+            &&Math.hypot(controlObj.position.x-metalRoom.hatch.position.x,controlObj.position.z-metalRoom.hatch.position.z)<120) {
+            lakeDetailsScheduled=true;
+            lakeRoomDetails.prepare().catch(error=>console.warn('Preparación del laboratorio pendiente:',error));
+        }
         // Descartar una selección anterior de Konami para que no reaparezca
         // al terminar Bosque, saltándose la noche retenida por la misión.
         if(forestActive)testSkyPhase=null;
@@ -5313,7 +5466,7 @@ function animate(timestamp = performance.now()) {
                 hud.setInteractionText("Presiona E para pedir mate");
                 hud.setInteractionColor("#ffeb3b");
             } else if (targetInteractable.userData.type === 'SEA_HEART_FRAGMENT') {
-                hud.setInteractionText(helmetEquipped && !helmetBroken ? `Camina sobre el fragmento ${targetInteractable.userData.number}/10 del Corazón del Mar` : `Fragmento ${targetInteractable.userData.number}/10 — equipa la escafandra`);
+                hud.setInteractionText(helmetEquipped && !helmetBroken ? `Camina sobre el fragmento ${targetInteractable.userData.number}/${seaHeart.total} del Corazón del Mar` : `Fragmento ${targetInteractable.userData.number}/${seaHeart.total} — equipa la escafandra`);
                 hud.setInteractionColor('#75d7ff');
             } else if (targetInteractable.userData.type === 'DIVING_HELMET') {
                 hud.setInteractionText("Presiona E para recoger Escafandra");
@@ -5564,6 +5717,11 @@ function animate(timestamp = performance.now()) {
                     releaseBedCeiling();
                 }
             } else if (!isFlying) {
+                if (isHelmetJumpBlocked()) {
+                    jumpHeld = false;
+                    surfaceJumpActive = false;
+                    velocityY = Math.min(velocityY, 0);
+                }
                 // Seguir pendientes continuas estando apoyado, sin quedarse bajo la superficie al subir.
                 if (canJump && velocityY <= 0 && Math.abs(controlObj.position.y - targetEyesHeight) < 0.15) {
                     controlObj.position.y = targetEyesHeight;
@@ -5650,7 +5808,7 @@ function animate(timestamp = performance.now()) {
             const roofGX = Math.floor((controlObj.position.x + UNIT_SIZE / 2) / UNIT_SIZE);
             const roofGZ = Math.floor((controlObj.position.z + UNIT_SIZE / 2) / UNIT_SIZE);
             const wizardCeiling=(metalRoom?.active?metalRoom.upperLimit():null)
-                ?? lakeHouseDome?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
+                ?? lakeHouse?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
                 ?? summitObservatory?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight)
                 ?? wizardUpperFloor?.upperLimit(controlObj.position.x,controlObj.position.z,controlObj.position.y-eyeHeight);
             if (wizardCeiling != null) {
@@ -5814,6 +5972,12 @@ function animate(timestamp = performance.now()) {
                 controlObj.position.x, controlObj.position.y, controlObj.position.z, WATER_SURFACE_HEIGHT);
             riverSoundSampleTime = 0.2;
         }
+        // El alcance del ambiente costero puede incluir la celda de reaparición.
+        const nearOpenWater = !windSheltered && (airGX !== playerStartX || airGZ !== playerStartZ)
+            && (seaSoundSample?.gain > 0 || riverSoundSample?.gain > 0);
+        if (!underwaterVegetationPreparation && (waterUnderfoot || nearOpenWater)) {
+            prepareWaterGraphics();
+        }
         if (riverSoundSample) {
             riverSoundRotation.copy(camera.quaternion).invert();
             riverSoundRelative.set(riverSoundSample.x, riverSoundSample.y, riverSoundSample.z)
@@ -5837,13 +6001,12 @@ function animate(timestamp = performance.now()) {
             musicEvents.updateForestAmbience({gain:!caveMap?.active&&!metalRoom?.active&&!visuallySubmerged&&!indoors&&!isDead?forestAmbienceSample.gain:0,sources:forestAmbienceSources,night:skyCycle.weights.night>0.5});
         }
         if (seaHeart?.next?.number === 1) {
-            const first = seaHeartSprites.get(seaHeart.next.id);
             if (visuallySubmerged && !playerWasSubmerged) {
-                first.userData.haloStartedAt = underwaterViewTime.value;
-                first.userData.haloWaitingForDive = false;
-                first.children[0].scale.set(18.75*0.15,18.75*0.15,1);
+                seaHeartPulseStartedAt = underwaterViewTime.value;
+                seaHeartPulseWaitingForDive = false;
+                seaHeartGlow.scale.set(SEA_HEART_GLOW_SIZE*.15,SEA_HEART_GLOW_SIZE*.15,1);
                 seaHeartLight.intensity = 2.4;
-            } else if (!visuallySubmerged) first.userData.haloWaitingForDive = true;
+            } else if (!visuallySubmerged) seaHeartPulseWaitingForDive = true;
         }
         playerWasSubmerged = visuallySubmerged;
         underwaterBlend += ((visuallySubmerged ? 1 : 0) - underwaterBlend) * (1 - Math.exp(-rawDelta * 4));
@@ -5908,7 +6071,7 @@ function animate(timestamp = performance.now()) {
         // Relleno según luz local: el plano del NPC no debe oscurecerse al girar de espaldas a la llama.
         grahamSprite.material.emissiveIntensity = Math.min(0.225, torchLighting.illuminationAt(grahamSprite.position) * 0.06);
     }
-    updateFogColor();
+    updateFogColor(caveMap?.active ? 1 : SURFACE_FOG_DENSITY_SCALE);
     updateSunlightIntensity();
     const cameraSubmerged = isPlayerUnderwater();
     // Cubrir también los huecos más allá del mapa desde el primer instante sumergido.
@@ -5952,8 +6115,12 @@ function animate(timestamp = performance.now()) {
         :1+5*THREE.MathUtils.clamp((1/telescopeView.lookScale-1)/2,0,1);
     scene.fog.density/=opticalRange;
     if(stellarView||!testFogEnabled)scene.fog.density=0;
-    terrainVisibilityDistance.value=testFogEnabled?WORLD_VISIBILITY_DISTANCE*opticalRange:1000000;
-    const opticalFar=Math.max(1500,WORLD_VISIBILITY_DISTANCE*opticalRange*1.2);
+    horizonFog.updateAltitude(controlObj.position.y,(mountainPathProfile?.summitHeight ?? 129)+PLAYER_HEIGHT);
+    horizonFog.setStart(caveMap?.active ? 0 : horizonFog.surfaceStart*(1-underwaterBlend)*opticalRange);
+    const surfaceVisibilityDistance=WORLD_VISIBILITY_DISTANCE/(caveMap?.active ? 1 : SURFACE_FOG_DENSITY_SCALE);
+    const fogVisibilityDistance=THREE.MathUtils.lerp(surfaceVisibilityDistance,WORLD_VISIBILITY_DISTANCE,underwaterBlend);
+    terrainVisibilityDistance.value=testFogEnabled?fogVisibilityDistance*opticalRange:1000000;
+    const opticalFar=Math.max(2400,(horizonFog.surfaceStart+fogVisibilityDistance)*opticalRange*1.2);
     if(camera.far!==opticalFar){camera.far=opticalFar;camera.updateProjectionMatrix();}
     const forestInteriorsHidden = !caveMap?.active && (musicEvents.isEventActive('forest')
         || heartVision.uniforms.heartStrength.value > 0.001 || heartLevitationHeight > 0.15);
@@ -5962,10 +6129,11 @@ function animate(timestamp = performance.now()) {
     else riverCameraMotion.update(riverDrowningFade ? riverFadeDelta : vegetationDelta,
         riverDrowningFade || (!isDialogOpen && !observatoryScope?.active && isHelmetSubmergedInRiver()));
     riverCameraMotion.apply();
+    updateSeaHeartGuideVisibility();
     const fogPlane = fogCulling?.update(camera);
     mountainProximity?.update(controlObj.position,forestInteriorsHidden);
     const showUnderwaterPlants = mapLoaded && isPlayerUnderwater() && !isRidingBoat;
-    const underwaterPlantsReady = !!underwaterVegetation;
+    const underwaterPlantsReady = !!underwaterVegetation?.readyForView;
     const vegetationTarget = showUnderwaterPlants && underwaterPlantsReady ? 1 : 0;
     vegetationBlend += (vegetationTarget-vegetationBlend)*(1-Math.exp(-vegetationDelta*2));
     if(vegetationBlend>0.99)vegetationBlend=1;
@@ -5980,7 +6148,9 @@ function animate(timestamp = performance.now()) {
     }
     if (underwaterVegetation) {
         underwaterVegetationFade.set(vegetationBlend);
-        if (underwaterVegetation.group.visible) underwaterVegetation.update(camera, fogPlane, UNDERWATER_PLANT_DISTANCE);
+        const nearWater=controlObj.position.y<WATER_SURFACE_HEIGHT+PLAYER_HEIGHT+3
+            && !metalRoom?.active&&!caveMap?.active&&(seaSoundSample?.gain>0||riverSoundSample?.gain>0);
+        underwaterVegetation.update(camera,fogPlane,UNDERWATER_PLANT_DISTANCE,showUnderwaterPlants||nearWater);
     }
     if (structureSectors) structureSectors.update(camera, fogPlane);
     sunFlare.update();
@@ -6097,11 +6267,48 @@ function prepareUnderwaterPlants() {
         const fade = createVegetationVisibility(plants.group,{value:0});
         fade.set(0);
         prepareInactiveLights(THREE, plants.group, interiorLightMask);
+        horizonFog.apply(plants.group);
         scene.add(plants.group);
+        plants.readyForView=false;
         underwaterVegetationFade = fade;
         underwaterVegetation = plants;
+        plants.update(camera,null,UNDERWATER_PLANT_DISTANCE);
+        const checkpoint=createLoadingYield(3);
+        for(const mesh of plants.group.children){renderer.initTexture(mesh.material.map);const pause=checkpoint();if(pause)await pause;}
+        await prepareProgramsInBatches(THREE,renderer,scene,camera,checkpoint,null,undefined,plants.group.children,2);
+        await underwaterView.prepare(scene,camera,true,(world,view,target)=>
+            prepareProgramsInBatches(THREE,renderer,world,view,checkpoint,target,undefined,plants.group.children,2));
+        plants.readyForView=true;
     })();
     return underwaterVegetationPreparation;
+}
+
+function prepareVisiblePrograms(world, view, target, checkpoint) {
+    world.updateMatrixWorld();
+    view.updateMatrixWorld();
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(
+        new THREE.Matrix4().multiplyMatrices(view.projectionMatrix, view.matrixWorldInverse));
+    const objects = [];
+    world.traverseVisible(object => {
+        if (!object.material || !object.layers.test(view.layers)) return;
+        if (!object.frustumCulled || (object.isSprite ? frustum.intersectsSprite(object) : frustum.intersectsObject(object))) {
+            objects.push(object);
+        }
+    });
+    return prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target, undefined, objects);
+}
+
+function prepareViewEffects() {
+    if (!viewEffectsPreparation) {
+        viewEffectsPreparation = underwaterView.prepare(scene, camera, false,
+            (world, view, target) => prepareVisiblePrograms(world, view, target, createLoadingYield(3)))
+            .catch(error => console.warn('No se pudieron anticipar los efectos de vista:', error));
+    }
+}
+
+function prepareWaterGraphics() {
+    prepareViewEffects();
+    prepareUnderwaterPlants().catch(error => console.warn('No se pudo preparar la vegetación submarina:', error));
 }
 
 animate();

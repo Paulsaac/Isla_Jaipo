@@ -7,7 +7,7 @@ export const timeWizardHouseLayout={
     bounds:{minX:359,maxX:367,minZ:279,maxZ:287},
     structure:{minX:360,maxX:366,minZ:280,maxZ:286},
     door:{x:366,z:283},
-    radius:6.8,rise:5.9,skirt:.45,sides:12,
+    radius:6.8,sides:12,
     origin:{x:363*UNIT_SIZE,z:283*UNIT_SIZE}
 };
 // Nombre anterior usado por la arquitectura del lago; siempre es Time Wizard.

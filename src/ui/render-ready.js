@@ -28,30 +28,40 @@ export async function waitForRenderedFrame(renderer) {
 
 // Three r160 admite compilar un subconjunto usando la escena real como destino.
 // Mantener luces, niebla y variantes originales, cediendo entre preparaciones.
-export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null, cancelled = () => false, onProgress = () => {}) {
-    const objects = [];
-    world.traverse(object => { if (object.material) objects.push(object); });
+export async function prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target = null, cancelled = () => false, progressOrObjects = () => {}, batchSize = 32) {
+    let objects = null;
+    let onProgress = () => {};
+    if (Array.isArray(progressOrObjects)) objects = progressOrObjects;
+    else if (typeof progressOrObjects === 'function') onProgress = progressOrObjects;
+    if (!objects) {
+        objects = [];
+        world.traverse(object => { if (object.material) objects.push(object); });
+    }
     const batch = new THREE.Group();
     // Las luces se toman solo del tercer argumento; no duplicar las del objeto.
     batch.traverseVisible = () => {};
-    // Agrupar evita volver a recorrer todas las luces por cada objeto.
-    for (let offset = 0; offset < objects.length; offset += 32) {
+    // Reutilizar listas pequeñas en vistas concretas y usar lotes amplios al inicio.
+    for (let start = 0; start < objects.length; start += batchSize) {
         if (cancelled()) return;
-        const current = objects.slice(offset, offset + 32);
-        batch.traverse = callback => current.forEach(callback);
+        const chunk = objects.slice(start, start + batchSize);
+        batch.traverse = callback => chunk.forEach(callback);
         const previous = renderer.getRenderTarget();
         try {
             renderer.setRenderTarget(target);
             renderer.compile(batch, view, world);
             // El fundido cambia OPAQUE y, en materiales de dos caras, las pasadas.
             // Preparar ambos estados antes de que el jugador se sumerja o emerja.
-            const materials = [...new Set(current.flatMap(object =>
-                Array.isArray(object.material) ? object.material : [object.material]))];
-            const fading = materials.filter(material => material.userData.preloadTransparency);
+            const fadingObjects = chunk.filter(object => [object.material].flat()
+                .some(material => material.userData.preloadTransparency));
+            const fading = [...new Set(fadingObjects.flatMap(object => object.material)
+                .filter(material => material.userData.preloadTransparency))];
             const transparencies = fading.map(material => material.transparent);
             try {
                 fading.forEach(material => { material.transparent = !material.transparent; material.needsUpdate = true; });
-                if (fading.length) renderer.compile(batch, view, world);
+                if (fading.length) {
+                    batch.traverse = callback => fadingObjects.forEach(callback);
+                    renderer.compile(batch, view, world);
+                }
             } finally {
                 fading.forEach((material, index) => { material.transparent = transparencies[index]; material.needsUpdate = true; });
             }
@@ -71,8 +81,16 @@ export async function prepareProgramsInBatches(THREE, renderer, world, view, che
         for (const program of pending) {
             if (cancelled()) return;
             if (!program.isReady()) continue;
-            program.getUniforms();
-            program.getAttributes();
+            const checkErrors=renderer.debug.checkShaderErrors;
+            try {
+                // Consultar los logs de shaders correctos puede bloquear el driver.
+                // Conservar el diagnóstico completo si falla el enlace del programa.
+                const linked=gl.getProgramParameter(program.program,gl.LINK_STATUS);
+                renderer.debug.checkShaderErrors=checkErrors&&!linked;
+                program.getUniforms();
+                if(!linked)throw new Error('No se pudo enlazar un programa gráfico.');
+                program.getAttributes();
+            } finally {renderer.debug.checkShaderErrors=checkErrors;}
             pending.delete(program);
             lastProgress = performance.now();
             const pause = checkpoint();
