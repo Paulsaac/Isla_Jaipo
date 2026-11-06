@@ -2,6 +2,10 @@
 
 Cierre y PR pedidos explícitamente por AxByZ. Rama `codex/axbyz-bosque-cima-20261105`, base `821da42` de `Paulsaac/Isla_Jaipo:main`, confirmada con remoto. Esta autorización incluye commit/push y apertura de PR para revisión; no merge. Sesión en `D:/Isla_Jaipo`; bloqueo propio se libera al completar la publicación. Las entradas anteriores se conservan.
 
+## Publicación solicitada y cierre
+
+PR abierto para revisión de Paulsaac: https://github.com/Paulsaac/Isla_Jaipo/pull/15 . Commit de implementación `77758db`, 32 archivos revisados; rama `codex/axbyz-bosque-cima-20261105` publicada contra `main`. Sin merge ni cambios directos a main. Git LFS disponible mediante PATH del proceso (`dependencies/native/git/ucrt64/libexec/git-core`), sin cambiar configuración global. Quedan locales exclusivamente los recursos excluidos descritos abajo. El bloqueo propio se libera con el token de esta sesión después de publicar este registro; servidores y túnel siguen activos.
+
 ## Cambios finales de esta sesión
 
 - **Cima:** cresta continua con irregularidades suaves, nivel de referencia junto al observatorio, ampliación hasta la llegada del camino y descenso del extremo de 18 celdas. Faldón exterior de 32 celdas conserva pendiente cónica y no excava al terminar; margen al camino 5.5 celdas. Colisión del talud interior en X108–158/Z108–140 con camino y explanadas libres. Archivos `src/content/summit-layout.js`, `src/world/summit-ridge.js`, `src/player/{collisions,summit-bank-collision}.js`.
