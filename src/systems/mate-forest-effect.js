@@ -3,18 +3,21 @@ const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
 // Reloj de partida independiente de la canción y de la velocidad de fotogramas.
 export function createMateForestEffect() {
     let elapsed=Infinity,duration=60,strong=false,heldSeconds=0,lastGesture=0;
-    let clock=0,carry=0,reinforcement=0,visibility=0;
+    let clock=0,carry=0,reinforcement=0,visibility=0,dusk=0,night=0;
     function envelope(){return elapsed>=duration?0:elapsed<5?carry+(1-carry)*smooth(elapsed/5):1-smooth((elapsed-5)/(duration-5));}
     function reset(){elapsed=Infinity;strong=false;heldSeconds=0;carry=0;reinforcement=0;visibility=0;}
     function sample(suppressed=false){
         const amount=suppressed?0:envelope()*visibility;
         return {elapsed,duration,strong,heldSeconds,clock,envelope:envelope(),
             treeColor:amount*(.06+.07*reinforcement),skyColor:amount*(.08+.08*reinforcement),
-            treeMotion:amount*.07*reinforcement};
+            treeMotion:amount*(.07*reinforcement+dusk*(.42+.18*reinforcement)),
+            treeGlow:amount*night*(.85+.35*reinforcement)};
     }
     return {
         reset,
-        update(delta,{gesture=0,holding=false,inForest=false,outdoors=inForest,suppressed=false}={}) {
+        update(delta,{gesture=0,holding=false,inForest=false,outdoors=inForest,suppressed=false,duskWeight=0,nightWeight=0}={}) {
+            dusk=Math.max(0,Math.min(1,duskWeight));
+            night=Math.max(0,Math.min(1,nightWeight));
             const dt=Math.max(0,delta);
             if(dt===0)return sample(suppressed);
             clock+=dt;

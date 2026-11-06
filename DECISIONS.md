@@ -1,3 +1,11 @@
+## 2026-11-05 — Cierre AxByZ: Bosque, óptica, proximidad y autoría
+
+- Marcas, cronómetros y herramientas de autoría del evento solo con Konami activo; desactivarlo oculta inmediatamente la UI. Capturas automatizadas nunca deben capturar el mouse físico: modo headless, anular Pointer Lock antes de navegar, más bloqueo central cuando `navigator.webdriver` es verdadero.
+- Luna normal conserva `Luna_B.png`. La variante `Luna_B_pixel128.png` de píxeles exactos aparece solo en modo estelar del Omniscopio (desde 50×). Astroscopio con Bifrost queda en 10×, basal 3×.
+- Bosque conserva canción/marcas/misión: anochecer 48.320–77.029 s; mándala de cuatro sectores, animación cuantizada 8 FPS; hue de estrellas desde marca 6 a salida 8→9. Luces de troncos ligadas a altura se apagan últimas, 6 s después de marca 9; salida por cancelación 14 s frente 8 s del resto.
+- Impacto del corazón del cielo usa reverberación de bosque y menor nivel general; cerca más seco/fuerte, lejos más difuso/bajo, con posición actualizada al moverse y cola preservada en pausa. Fuente de audio original intacta.
+- Cierre del 5 de noviembre y publicación como PR fueron pedidos expresamente; no incluyen merge ni apagado de servidores. Detalle y pendientes en el cierre propio de HANDOFF.md.
+
 ## 2026-10-25 — Marcas 3, 5, 6 y 7 del evento psicodélico
 - Marca 3: efecto trail con repeticiones breves (~10 ecos, `trailStrength = 0.72`, retención ~0.59 que decae a <1% en el 10º cuadro) al llegar a la marca 3, descendiendo continuamente hasta extinguirse en 0 al alcanzar la marca 4.
 - Marca 5: colores de árboles intensificados a 1.25 con refuerzo de saturación; GIF psicodélico del cielo activo en baja opacidad (0.20) con fade-in (2.8 s) y fade-out (2.4 s) antes de la marca 6.

@@ -43,17 +43,19 @@ export function unlockDoor(door) {
 export function closeDistantDoors(doors,collisionMap,position,distance=70*UNIT_SIZE,isInView=()=>false){
     for(const door of doors){
         const data=door.userData,group=data.parentGroup;
-        if(!data.isOpen||!group||!['DOOR','GATE'].includes(data.type))continue;
+        if((!data.isOpen&&!data.motion?.autoClose)||!group||!['DOOR','GATE'].includes(data.type))continue;
         group.updateWorldMatrix(true,false);
         const e=group.matrixWorld.elements;
         if((position.x-e[12])**2+(position.z-e[14])**2<=distance*distance)continue;
         if(isInView(door))continue;
-        if(data.type==='DOOR')toggleDoorSingle(door,false,collisionMap);
-        else{
-            data.isOpen=false;data.collisionEnabled=true;
-            data.motion={from:group.rotation.y,to:0,elapsed:0};
-        }
-        data.motion.autoClose=true;
+        // Cierre exacto en este fotograma: no dejar una animación que pueda pausarse.
+        data.isOpen=false;
+        data.collisionEnabled=true;
+        group.userData.isOpen=false;
+        delete data.motion;
+        group.rotation.y=0;
+        group.updateMatrixWorld(true);
+        if(data.type==='DOOR')collisionMap[data.gz][data.gx]=data.locked?'DOOR_LOCKED':'DOOR_UNLOCKED';
     }
 }
 

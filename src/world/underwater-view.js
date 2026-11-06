@@ -68,6 +68,11 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
                     vec2 lensPoint=(vUv-0.5)*lensScreenScale;
                     float baseLensRadius=min(lensScreenScale.x/3.5,lensScreenScale.y*0.49);
                     float lensRadius=baseLensRadius*1.18;
+                    // Centro amplio al 75%; transición elíptica larga sin un borde marcado.
+                    float centerDistance=length(lensPoint/vec2(baseLensRadius*1.6,lensRadius));
+                    float centerBlend=clamp((centerDistance-.25)/1.0,0.0,1.0);
+                    centerBlend=centerBlend*centerBlend*centerBlend*(centerBlend*(centerBlend*6.0-15.0)+10.0);
+                    float kaleidoOpacity=.75+.25*centerBlend;
                     vec3 eyeColors=vec3(0.0);
                     float eyeWeights=0.0;
                     binocularVisibility=0.0;
@@ -117,7 +122,7 @@ export function createUnderwaterView(THREE, renderer, strength, time, pinkTint =
                                     mirrors.rgb = vec3(colorMax+colorMin)-mirrors.rgb;
                                     mirrors.a *= 0.08;
                                 }
-                                eyeColor = mix(eyeColor,mirrors.rgb,pinkTint*mirrors.a);
+                                eyeColor = mix(eyeColor,mirrors.rgb,pinkTint*mirrors.a*kaleidoOpacity);
                             }
                             float weight=eyeVisibility*max(0.01,1.0-radialDistance);
                             eyeColors+=eyeColor*weight;

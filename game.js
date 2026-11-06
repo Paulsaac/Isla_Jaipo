@@ -69,7 +69,7 @@ import { createTerrainBuild } from './src/world/terrain-build.js';
 import { prepareWorldFields } from './src/world/world-preparation.js';
 import { getBedSupport } from './src/player/bed-support.js';
 import { createAtticSupport, BED_CEILING_OPENING } from './src/player/attic-support.js';
-import { showReadyIsland, getIslandPreview, setIslandPreview } from './src/ui/island-start.js';
+import { showReadyIsland, getIslandPreview, setIslandPreview, setIslandLoadingStage } from './src/ui/island-start.js';
 import { createMinimap } from './src/ui/minimap.js';
 import { createMenus } from './src/ui/menus.js';
 import { createObservatoryMenu } from './src/ui/observatory-menu.js';
@@ -110,7 +110,7 @@ import { applyForestSkyHue } from './src/world/forest-sky-hue.js';
 import { createHeartLevitation, getForestMotionTime, HEART_LEVITATION_MAX_RISE } from './src/systems/heart-event-timing.js';
 import { createForestEventMonitor } from './src/ui/forest-event-monitor.js';
 import { createTestControls } from './src/ui/test-controls.js';
-import { FOREST_CUES } from './src/content/forest-cues.js';
+import { FOREST_CUES, FOREST_DUSK_END } from './src/content/forest-cues.js';
 import { applyWaterWaves } from './src/world/water-waves.js';
 import { createWaterShoreline } from './src/world/water-shoreline.js';
 import { createOceanSurfaceGeometry, createOceanSeabedGeometry } from './src/world/ocean-surface.js';
@@ -362,6 +362,7 @@ function updateHelmetBreak(delta) {
     musicEvents.playHelmetGlassPop();
     helmetBroken = true;
     helmetEquipped = false;
+    hud.setHelmetEquipped(false,{immediate:true});
     menus.setHelmetState(true,false,true);
     hud.hideDivingAir();
     hud.showNotification('El cristal de la escafandra termino de romperse. Ya no puedes volver a equiparlo',{immediate:true});
@@ -495,6 +496,8 @@ const skyHeartHeat=createSkyHeartHeat();
 const skyHeartCooled={value:0};
 const skyHeartTerrain=createSkyHeartTerrain(THREE);
 let skyHeartVisual=null,skyHeartRegistered=false;
+let skyHeartImpactWorldPosition=null;
+const skyHeartImpactLocalPosition=new THREE.Vector3();
 let heartHalos = null;
 const heartLevitation = createHeartLevitation();
 let heartLevitationHeight = 0;
@@ -1128,7 +1131,7 @@ function applyForestMonitorTime(time,reset=false) {
     waterWaveTime.value=snapshot.waterBase+time;
     nightSkyMesh.rotation.y=snapshot.rotationBase+NIGHT_SKY_ROTATION_SPEED*time;
     daySkyMesh.rotation.y=dawnSkyMesh.rotation.y=duskSkyMesh.rotation.y=nightSkyMesh.rotation.y;
-    dayNightTimer=monitorSkyTime(time);targetDayState=time<FOREST_CUES[3];
+    dayNightTimer=monitorSkyTime(time);targetDayState=time<FOREST_DUSK_END;
     dayTransition=skyCycle.seek(dayNightTimer);
 }
 async function seekForestMonitor(time,playing=false) {
@@ -1217,6 +1220,7 @@ const forestCueIndicator = document.getElementById('forest-cue-indicator');
 const forestCueValue = document.getElementById('forest-cue-value');
 const forestCueTime = document.getElementById('forest-cue-time');
 function updateForestCueIndicator(playbackTime, active) {
+    active = Boolean(active && testMode.enabled);
     forestCueIndicator.hidden = !active;
     if (!active) {
         forestCueValue.textContent = '0';
@@ -1234,6 +1238,11 @@ function updateForestCueIndicator(playbackTime, active) {
         forestCueIndicator.setAttribute('aria-label', `Marca ${mark}`);
     }
 }
+
+testMode.subscribe(enabled=>{
+    if(!enabled)updateForestCueIndicator(null,false);
+    forestEventMonitor.update();
+});
 
 controls.addEventListener('lock', () => {
     if (isDead || !mapLoaded) return;
@@ -2243,7 +2252,10 @@ for (const texture of Object.values(heldItemTextures)) {
     texture.magFilter = texture.minFilter = THREE.NearestFilter;
 }
 skyHeartVisual=createSkyHeartVisual(THREE,scene,heldItemTextures['sky-heart'],{onImpact:position=>{
-    if(skyHeartTerrain.impact(position))musicEvents.playSkyHeartImpact(camera.worldToLocal(position.clone()));
+    if(skyHeartTerrain.impact(position)){
+        skyHeartImpactWorldPosition=position.clone();
+        musicEvents.playSkyHeartImpact(camera.worldToLocal(skyHeartImpactLocalPosition.copy(position)));
+    }
     return getTerrainHeight(position.x,position.z);
 }});
 heldItemSprite = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshPhongMaterial({
@@ -2466,6 +2478,7 @@ const observatorySky=createObservatorySky(THREE);skyMesh.add(observatorySky);
 
 // --- LUNA ---
 const moonNormalTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_B.png?v=' + Date.now());
+const moonStellarTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_B_pixel128.png?v=' + Date.now());
 const moonGlowTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_glow.png?v=' + Date.now());
 const moonAzulTex = texLoader.load('./imagenes/Sprites/luna - sol/Luna_azul.png?v=' + Date.now());
 const sunTex = texLoader.load('./imagenes/Sprites/luna - sol/Sol.png?v=' + Date.now());
@@ -2475,7 +2488,7 @@ const sunTex = texLoader.load('./imagenes/Sprites/luna - sol/Sol.png?v=' + Date.
 
 
 
-[moonNormalTex, moonGlowTex, moonAzulTex, sunTex].forEach(t => {
+[moonNormalTex, moonStellarTex, moonGlowTex, moonAzulTex, sunTex].forEach(t => {
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
     t.colorSpace = THREE.SRGBColorSpace;
@@ -2543,6 +2556,7 @@ Promise.all([
     heartTextureReady
 ]).then(async ([baseImage, roofImage]) => {
     performancePanel?.mark('Capas listas');
+    setIslandLoadingStage('Construyendo la isla');
     const checkpoint = createLoadingYield(6);
     const prepared = await prepareMapAsync(applyLakeHouseLayout(applySummitLayout(readMapLayers(baseImage, roofImage))), entities, shipwreckProps, mapCellOverrides, checkpoint);
     // Presentar la carga antes de la construcción síncrona de geometría.
@@ -2553,13 +2567,14 @@ Promise.all([
     // consume aire mientras el driver crea sus programas y buffers.
     await prepareUnderwaterPlants();
     performancePanel?.mark('Vegetación submarina lista');
+    setIslandLoadingStage('Cargando texturas');
     await worldTexturesReady;
     await heartVision.ready;
     performancePanel?.mark('Texturas listas');
     // Crear el contexto secundario con el inventario oculto evita estrenarlo al abrirlo.
     menus.prepareInventory();
     // Subir texturas por tandas evita estrenar todas las cargas GPU en un dibujo.
-    const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,...torchFrames]);
+    const startupTextures = new Set([pastoTex,tierraTex,arenaTex,arenaMojadaTex,fondoTex,piedraTex,rocaTex,nieveTex,losaTex,moonStellarTex,...torchFrames]);
     if (heartVision.uniforms.skyPsychTexture.value.image) startupTextures.add(heartVision.uniforms.skyPsychTexture.value);
     scene.traverse(object => {
         if(mountainProximity?.owns(object))return;
@@ -2576,14 +2591,19 @@ Promise.all([
     }
     performancePanel?.mark('Texturas subidas');
     // La primera inmersión no debe estrenar framebuffer ni shaders del mundo.
-    const prepareStartupPrograms = (world, view, target) =>
-        prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target);
+    let imagePass = 0;
+    const prepareStartupPrograms = (world, view, target) => {
+        const pass = ++imagePass;
+        return prepareProgramsInBatches(THREE, renderer, world, view, checkpoint, target, () => false,
+            progress => setIslandLoadingStage('Preparando imagen ' + pass + '/3: ' + Math.floor(progress * 100) + '%'));
+    };
     await underwaterView.prepare(scene, camera, false, prepareStartupPrograms);
     // Preparar también los materiales fuera de cámara durante la pantalla de carga.
     // Su primera aparición al mirar a Graham no debe compilar shaders en pleno giro.
     await prepareStartupPrograms(scene, camera, null);
     await heldOverlay.prepare(prepareStartupPrograms);
     performancePanel?.mark('Shaders preparados');
+    setIslandLoadingStage('Entrando a la isla');
     camera.position.y = getTerrainHeight(camera.position.x, camera.position.z) + PLAYER_HEIGHT;
     const preview = getIslandPreview();
     if (!preview) throw new Error('No está disponible la maqueta guardada.');
@@ -5920,6 +5940,7 @@ function animate(timestamp = performance.now()) {
     daySkyMesh.visible=!stellarView&&dayMaterials.some(material=>material.opacity!==0);
     dawnSkyMesh.visible=!stellarView&&dawnSkyMesh.material.opacity!==0;
     duskSkyMesh.visible=!stellarView&&duskSkyMesh.material.opacity!==0;
+    moonMat.map=stellarView?moonStellarTex:moonNormalTex;
     moonMat.opacity=stellarView?1:1-.6*dayTransition;
     sunMat.opacity=stellarView?1:skyCycle.weights.day+skyCycle.weights.dawn+skyCycle.weights.dusk;
     sunSprite.visible=sunMat.opacity>.001&&(getTestSkyTime()!==null||!!forestMonitorSnapshot||!questSkyCycle.waitingForSunrise);
@@ -5994,9 +6015,11 @@ function animate(timestamp = performance.now()) {
     const mateSuppressed=!!forestMonitorSnapshot||musicEvents.isEventActive('forest')||heartVision.uniforms.heartStrength.value>.00001;
     if(isDead)mateForestEffect.reset();
     mateForestVisual.update(mateForestEffect.update(gameStarted&&(controls.isLocked||inventoryRunning)&&!isDead&&!caveTransitionPending?cameraDelta:0,
-        {gesture:heldMate.gesture,holding:heldMate.holding,inForest:mateInForest,outdoors:mateOutside,suppressed:mateSuppressed}));
+        {gesture:heldMate.gesture,holding:heldMate.holding,inForest:mateInForest,outdoors:mateOutside,suppressed:mateSuppressed,
+            duskWeight:skyCycle.weights.dusk,nightWeight:skyCycle.weights.night}));
     const skyHeartDelta=gameStarted&&(controls.isLocked||inventoryRunning)&&!isDead&&!caveTransitionPending&&!forestMonitorSnapshot?cameraDelta:0;
     skyHeartVisual.update(skyHeart.update(skyHeartDelta));
+    if(skyHeartImpactWorldPosition)musicEvents.updateSkyHeartImpactPosition(camera.worldToLocal(skyHeartImpactLocalPosition.copy(skyHeartImpactWorldPosition)));
     if(skyHeartHeat.update(skyHeartDelta)){
         setHeldItem(null);
         hud.showNotification('El corazón que cayó del cielo está caliente, no puedo sostenerlo por mucho rato.',{immediate:true});

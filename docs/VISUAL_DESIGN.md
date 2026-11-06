@@ -1,3 +1,11 @@
+## Ajustes vigentes — AxByZ — 2026-11-05
+
+Prevalecen sobre valores históricos: reborde de cima ampliado con cresta suave, descenso final y faldón exterior que sigue la pendiente cónica; camino con margen y colisión interior documentada en HANDOFF.md. Mate independiente añade warp al atardecer y puntos emisivos nocturnos, suprimidos durante Bosque. Caleidoscopio de lentes con opacidad central ×.75 y degradado amplio.
+
+Luna original normal; variante `Luna_B_pixel128.png` 128×128, cinco colores opacos/alfa binario, solo en vista estelar del Omniscopio desde 50×. Bosque con grado neón hue+.025, saturación×1.22/valor×.90; mándala de cuatro sectores, píxeles/texeles cuantizados120×120 y fotogramas discretos8FPS (sustituye la interpolación temporal histórica), giro45°/20s y movimiento de bordes. Hue de estrellas desde marca6; luces de altura son lo último en desaparecer. Timings completos en FOREST_CUES.md. GIF de cambios visuales con CRT por preferencia expresa; no alterar color/iluminación de producción solo para capturar.
+
+Impacto del corazón del cielo por pedido explícito: impulso estéreo de bosque2.8s, ganancia base.82, filtro/mezcla según proximidad y posición actualizada; fuente WAV preservada. Evidencias, archivos y límites en HANDOFF.md.
+
 # Gestión de diseño estético
 
 ## Ajustes de AxByZ — 2026-10-26

@@ -1,3 +1,7 @@
+## Presentación vigente de Bosque — AxByZ — 2026-11-05
+
+Se conservan audio, marcas, levitación y progreso/recompensas de misión. Anochecer compartido48.320–77.029s, noche retenida conforme a la progresión previa. Cielo/mándala4sectores con grado neón y estrellas que giran hue desde marca6 hasta salida8→9. Luces de troncos por altura tienen cola adicional6s tras marca9 (hasta195.127s) y salida de cancelación14s; demás efectos mantienen salida8s. Timings en FOREST_CUES.md. Herramientas de marcas soloKonami; no registrar fuera de pruebas. El impacto del corazón del cielo añade mezcla por proximidad/reverberación sin cambiar su disparador ni el instante del golpe. Detalle de archivos, evidencia y límites en HANDOFF.md.
+
 ## Estado vigente de Bosque — AxByZ, 2026-10-26
 
 Los ajustes posteriores de AxByZ sustituyen los valores visuales históricos siguientes: DEF8 directo, entrada de color desde marca 0, ascenso 41.320–49.320 s, aterrizaje 186.127 s, luces fijas con respiración de 4 s, feedback sutil y cielo continuo de 8 FPS. Detalle de marcas y opacidades en [FOREST_CUES.md](FOREST_CUES.md) y entrada propia del 26 en HANDOFF.md. Terreno, montaña, puente y exteriores se conservan durante el evento; ocultación temporal limitada a interiores del observatorio/casa del mago y sus objetos.

@@ -20,9 +20,17 @@ export const wizardHouseLayout=spaceWizardHouseLayout;
 // Mismos 12 x 12 m de plataforma y observatorio, ahora al extremo de la cresta.
 export const summitStonePlatform={minX:114,minZ:108,cellsPerSide:6,size:12,heightOffset:17};
 export const observatoryMiddleStoreyRise=.4;
+// Talud interior bajo el observatorio y la subida curva de la cima.
+export const summitInnerBank={minX:108,maxX:158,minZ:108,maxZ:140,minRise:.2,minSlope:.35};
 export const summitRidge={
-    crest:[[102,139],[105,123],[111,109],[121,101],[137,101],[151,109],[160,123],[161,138]],
-    width:9,
+    crest:[[101,121],[105,115],[111,109],[121,101],[137,101],[151,109],[160,123],[163,138],[161,149],[154,157],[143,161],[130,161],[117,156],[108,149],[104,141]],
+    descentStart:[161,149],
+    endHeightOffset:-8,
+    width:12,
+    outerWidth:32,
+    center:{x:133,z:125},
+    pathClearance:5.5,
+    pathBlend:2.5,
     route:[[140,144],[147,143],[152,139],[155,133],[153,121],[143,113],[130,110],[123,111],[121.5,111.5],[119,114.5],[117,115],[116.5,114]],
     dirtRoutes:[[[wizardHouseLayout.approach.x,wizardHouseLayout.approach.z],
         [wizardHouseLayout.door.x,wizardHouseLayout.door.z]],
@@ -31,6 +39,10 @@ export const summitRidge={
 };
 
 // Catmull-Rom en celdas, compartida por pintura, relieve y corredor transitable.
+export function getSummitCrest() {
+    return sampleRoute(summitRidge.crest);
+}
+
 export function getSummitRoute() {
     return sampleRoute(summitRidge.route);
 }

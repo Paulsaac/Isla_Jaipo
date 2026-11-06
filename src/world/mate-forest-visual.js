@@ -1,13 +1,13 @@
-// Teñido ligero sobre materiales existentes; sin render targets ni postproceso.
+// Color, warp anclado y luces del mate sobre los materiales existentes.
 export function createMateForestVisual() {
-    const uniforms={mateTreeColor:{value:0},mateSkyColor:{value:0},mateTreeMotion:{value:0},mateTime:{value:0}};
+    const uniforms={mateTreeColor:{value:0},mateSkyColor:{value:0},mateTreeMotion:{value:0},mateTreeGlow:{value:0},mateTime:{value:0}};
     function update(state){uniforms.mateTreeColor.value=state.treeColor;uniforms.mateSkyColor.value=state.skyColor;
-        uniforms.mateTreeMotion.value=state.treeMotion;uniforms.mateTime.value=state.clock;}
+        uniforms.mateTreeMotion.value=state.treeMotion;uniforms.mateTreeGlow.value=state.treeGlow;uniforms.mateTime.value=state.clock;}
     function apply(material,mode){
         const previous=material.onBeforeCompile,key=material.customProgramCacheKey();
         material.onBeforeCompile=function(shader,renderer){
             previous.call(this,shader,renderer);Object.assign(shader.uniforms,uniforms);
-            shader.fragmentShader=`uniform float mateTreeColor,mateSkyColor,mateTime;
+            shader.fragmentShader=`uniform float mateTreeColor,mateSkyColor,mateTreeGlow,mateTime;
                 vec3 mateRgbToHsv(vec3 c){float hi=max(c.r,max(c.g,c.b)),lo=min(c.r,min(c.g,c.b)),d=hi-lo,h=0.;
                     if(d>.00001){if(hi==c.r)h=(c.g-c.b)/d;else if(hi==c.g)h=2.+(c.b-c.r)/d;else h=4.+(c.r-c.g)/d;h=fract(h/6.+1.);}
                     return vec3(h,hi>.00001?d/hi:0.,hi);}
@@ -15,11 +15,11 @@ export function createMateForestVisual() {
                     return c.z*mix(vec3(1.),clamp(p-1.,0.,1.),c.y);}
                 ${shader.fragmentShader}`;
             if(mode==='tree'){
-                shader.vertexShader='uniform float mateTreeMotion,mateTime;\nvarying float vMateTreePhase;\n'+shader.vertexShader;
-                shader.fragmentShader='varying float vMateTreePhase;\n'+shader.fragmentShader;
+                shader.vertexShader='uniform float mateTreeMotion,mateTime;\nvarying float vMateTreePhase;\nvarying vec2 vMateTreeUv;\n'+shader.vertexShader;
+                shader.fragmentShader='varying float vMateTreePhase;\nvarying vec2 vMateTreeUv;\n'+shader.fragmentShader;
                 shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`
                     #include <begin_vertex>
-                    vMateTreePhase=0.;
+                    vMateTreePhase=0.;vMateTreeUv=uv;
                     #ifdef USE_INSTANCING
                         vMateTreePhase=dot(instanceMatrix[3].xz,vec2(.071,.093));
                     #endif
@@ -38,6 +38,19 @@ export function createMateForestVisual() {
                         vec3 mateHsv=mateRgbToHsv(outgoingLight);
                         mateHsv.x=fract(mateHsv.x+.16*sin(mateTime*.09+vMateTreePhase)+.10);
                         outgoingLight=mix(outgoingLight,mateHsvToRgb(mateHsv),mateTreeColor);
+                    }
+                    if(mateTreeGlow>.00001){
+                        // Puntos fijos en la copa: núcleo brillante y halo suave, sin luces GPU extra.
+                        for(int i=0;i<6;i++){
+                            float seed=vMateTreePhase+float(i)*2.39996;
+                            vec2 center=vec2(.5+.23*sin(seed),.30+float(i)*.105);
+                            float distanceToLight=length((vMateTreeUv-center)*vec2(.9,1.));
+                            float core=1.-smoothstep(.005,.018,distanceToLight);
+                            float halo=exp(-distanceToLight*distanceToLight/.0011);
+                            float pulse=.82+.18*sin(mateTime*1.55+seed);
+                            vec3 lightColor=mateHsvToRgb(vec3(fract(seed*.159155+mateTime*.008),.55,1.));
+                            outgoingLight+=lightColor*(core*3.2+halo*.65)*mateTreeGlow*pulse;
+                        }
                     }`:`
                     if(mateSkyColor>.00001){
                         vec3 mateHsv=mateRgbToHsv(outgoingLight);
@@ -48,7 +61,7 @@ export function createMateForestVisual() {
                     }`}
                 #include <opaque_fragment>`);
         };
-        material.customProgramCacheKey=()=>key+'-mate-forest-v1-'+mode;
+        material.customProgramCacheKey=()=>key+'-mate-forest-v2-'+mode;
     }
     return {uniforms,update,apply};
 }

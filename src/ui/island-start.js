@@ -5,6 +5,16 @@ export function setIslandPreview(preview) {
     if (requested) savedPreview?.startLoading();
 }
 export function getIslandPreview() { return savedPreview; }
+let loadingStarted = 0;
+export function setIslandLoadingStage(stage) {
+    if (!requested) return;
+    const seconds = Math.floor((performance.now() - loadingStarted) / 1000);
+    const elapsed = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+    const text = document.getElementById('start-text');
+    const message = stage + ' · ' + elapsed;
+    if (text.textContent !== message) text.textContent = message;
+    text.setAttribute('aria-label', stage);
+}
 
 let requested = false;
 let resolveStart;
@@ -13,6 +23,7 @@ const startRequested = new Promise(resolve => { resolveStart = resolve; });
 export function requestIslandStart() {
     if (requested) return;
     requested = true;
+    loadingStarted = performance.now();
     const text = document.getElementById('start-text');
     text.classList.add('is-loading');
     text.setAttribute('role', 'status');

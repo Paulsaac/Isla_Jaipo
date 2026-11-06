@@ -1,11 +1,15 @@
+import {createSkyImpactAudio,prepareSkyImpactAudio} from './sky-impact-audio.js';
+
 // Efectos breves compartidos: precarga una vez y permite aperturas simultáneas.
 export function createInteractionAudio(context, isPaused) {
     const buffers = new Map();
     const reversedBuffers = new Map();
+    const skyImpacts = new Set();
     let loading = null;
     const files = {chest:'cofre_abrir_web.mp3', door:'puerta_abrir_web.mp3', key:'puerta_llave_web.mp3',lensChange:'lens_change.mp3',lensChangeStellar:'lens_change_x50.mp3',
         helmetCrack:'trizadura.wav', helmetCrack2:'trizadura2.wav', helmetCrack3:'trizadura3.wav', helmetGlassPop:'vidrio_pop.mp3',skyImpact:'sky-heart-impact.wav',skyQuench:'sky-heart-quench.mp3'};
     function prepare() {
+        prepareSkyImpactAudio(context);
         if (!loading) loading = Promise.all(Object.entries(files).map(async ([id,file]) => {
             try {
                 const response = await fetch('./sonidos/fx/' + file);
@@ -41,14 +45,23 @@ export function createInteractionAudio(context, isPaused) {
         source.buffer = buffer;
         panner.panningModel='HRTF';panner.distanceModel='inverse';
         panner.refDistance=8;panner.maxDistance=45;panner.rolloffFactor=1;
-        if(id==='skyImpact'){panner.refDistance=90;panner.maxDistance=1500;panner.rolloffFactor=.7;}
         panner.positionX.value=position.x;panner.positionY.value=position.y;panner.positionZ.value=position.z;
-        source.connect(panner);panner.connect(context.destination);
-        const sound = {source,panner};
-        source.onended=()=>{source.disconnect();panner.disconnect();sound.onended?.();};
+        const effect=id==='skyImpact'?createSkyImpactAudio(context,panner,position):null;
+        if(effect)source.connect(effect.input);
+        else {source.connect(panner);panner.connect(context.destination);}
+        const sound = {source,panner,effect};
+        if(effect)skyImpacts.add(sound);
+        source.onended=()=>{
+            source.disconnect();
+            if(effect)effect.finish(()=>{skyImpacts.delete(sound);sound.onended?.();});
+            else {panner.disconnect();sound.onended?.();}
+        };
         onStart?.(sound);
         source.start(context.currentTime);
         return sound;
     }
-    return {prepare,play};
+    function updateSkyImpactPosition(position) {
+        for(const sound of skyImpacts)sound.effect.setPosition(position);
+    }
+    return {prepare,play,updateSkyImpactPosition};
 }

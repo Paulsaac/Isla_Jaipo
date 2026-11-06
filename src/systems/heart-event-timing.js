@@ -16,6 +16,8 @@ export const HEART_LEVITATION_MAX_RISE = HEIGHT_HIGH_2_TREES;
 export const HEART_VISION_FADE_IN_SECONDS = 8;
 export const HEART_VEGETATION_FADE_IN_SECONDS = 16;
 export const HEART_VISION_FADE_OUT_SECONDS = 8;
+export const HEART_HEIGHT_GLOW_TAIL_SECONDS = 6;
+export const HEART_HEIGHT_GLOW_RELEASE_SECONDS = HEART_VISION_FADE_OUT_SECONDS + HEART_HEIGHT_GLOW_TAIL_SECONDS;
 
 // Derivadas primera y segunda nulas en ambos extremos.
 export function smoothest(t) {
@@ -249,13 +251,15 @@ export function getForestVisualProfile(elapsed) {
     }
 
     const treeIntensityTime = forestTreeIntensityTime(time);
+    const treeGlowEntrance=0.25*smoothest((treeIntensityTime-c1)/(c2-3-c1))
+        +0.75*smoothest((treeIntensityTime-(c2-3))/3);
     return {
         strength: treeColorStrength,
         treeColor: getForestTreeColorStrength(time),
         // Brillo adelantado con el color, conservando el estado exacto de marca 2.
-        treeGlow: (0.25 * smoothest((treeIntensityTime - c1) / (c2 - 3 - c1))
-            + 0.75 * smoothest((treeIntensityTime - (c2 - 3)) / 3))
-            * (1 - smoothest((time - c8) / (c9 - c8))),
+        treeGlow: treeGlowEntrance*(1-smoothest((time-c8)/(c9-c8))),
+        // Solo las luces que responden a la altura permanecen tras el resto del evento.
+        treeHeightGlow: treeGlowEntrance*(1-smoothest((time-c8)/(c9+HEART_HEIGHT_GLOW_TAIL_SECONDS-c8))),
         warp,
         speed: 0.35 + 0.65 * warp,
         trailStrength,
