@@ -41,6 +41,7 @@ export function createMusicEvents() {
     let dapBuffer = null, dapLoad = null, dapSource = null, dapOffset = 0;
     let chestUnlockSound = null;
     const musicOutputs = new Map();
+    const musicOutputGates = new WeakMap();
     let underwaterOutput = null;
     let underwaterFilter = null;
     let underwaterPanner = null;
@@ -50,11 +51,12 @@ export function createMusicEvents() {
     const forestEnergy = { bass: 0, treble: 0 };
     let forestAnalyser = null;
     let forestSpectrum = null;
-    // Nombres de producto: Bosque, Mañana y Submarino. IDs técnicos conservados.
+    // Canciones de evento y su mezcla de salida.
     const tracks = {
         forest: {url:'./sonidos/musica/bosque.mp3',delay:4},
         morning: {url:'./sonidos/musica/mañana.mp3',delay:0,volume:1,reverbMix:0.5},
-        underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1}
+        underwater: {url:'./sonidos/musica/submarino.mp3',delay:0,volume:1},
+        lab: {url:'./sonidos/musica/Lab.mp3',delay:0,volume:0.5,reverbMix:0.2,reverbDecay:0.6,loop:true}
     };
     const forestPreview=createForestPreviewAudio(()=>prepare('forest'),active=>{
         if(context)(paused||active?context.suspend():context.resume()).catch(()=>{});
@@ -292,18 +294,21 @@ export function createMusicEvents() {
         operation.catch(error => console.warn('No se pudo cambiar la pausa del audio:',error));
     }
 
-    function getMusicOutput(reverbMix = 0.6, sky = false) {
-        const outputKey = `${reverbMix}:${sky}`;
+    function getMusicOutput(reverbMix = 0.6, sky = false, decaySeconds = sky ? 3.4 : 8) {
+        const outputKey = `${reverbMix}:${sky}:${decaySeconds}`;
         if (musicOutputs.has(outputKey)) return musicOutputs.get(outputKey);
         const musicOutput = context.createGain();
+        const mixedOutput = context.createGain();
+        mixedOutput.connect(context.destination);
+        musicOutputGates.set(musicOutput,mixedOutput.gain);
         const dry = context.createGain();
         dry.gain.value = 1 - reverbMix;
         musicOutput.connect(dry);
-        dry.connect(context.destination);
+        dry.connect(mixedOutput);
         const delay = context.createDelay();
         delay.delayTime.value = 0.065;
         const reverb = context.createConvolver();
-        const duration = sky ? 3.4 : 8;
+        const duration = decaySeconds;
         const impulse = context.createBuffer(2, Math.ceil(context.sampleRate * duration), context.sampleRate);
         for (let channel = 0; channel < 2; channel++) {
             const data = impulse.getChannelData(channel);
@@ -331,7 +336,7 @@ export function createMusicEvents() {
             reverb.connect(softTail);
             softTail.connect(wet);
         }
-        wet.connect(context.destination);
+        wet.connect(mixedOutput);
         musicOutputs.set(outputKey, musicOutput);
         return musicOutput;
     }
@@ -412,7 +417,7 @@ export function createMusicEvents() {
         if (!context) unlock();
         // Construir la reverberación durante carga, antes de reproducir por primera vez.
         if (name === 'underwater') getUnderwaterOutput();
-        else if (name !== 'forest') getMusicOutput(track.reverbMix, track.sky);
+        else if (name !== 'forest') getMusicOutput(track.reverbMix, track.sky, track.reverbDecay);
         track.buffer = fetch(track.url).then(response => {
             if (!response.ok) throw new Error('No se pudo cargar '+track.url);
             return response.arrayBuffer();
@@ -443,7 +448,7 @@ export function createMusicEvents() {
                 const source = context.createBufferSource();
                 track.source = source;
                 source.buffer = buffer;
-                source.loop = false;
+                source.loop = !!track.loop;
                 const volume = track === tracks.forest ? null : context.createGain();
                 if (volume) volume.gain.value = track.volume;
                 if (track === tracks.forest) {
@@ -468,7 +473,11 @@ export function createMusicEvents() {
                     underwaterMotion.connect(underwaterMotionDepth);
                     underwaterMotionDepth.connect(underwaterFilter.frequency);
                     underwaterMotion.start();
-                } else if (volume) volume.connect(getMusicOutput(track.reverbMix, track.sky));
+                } else if (volume) {
+                    track.output=getMusicOutput(track.reverbMix,track.sky,track.reverbDecay);
+                    if(track===tracks.lab)musicOutputGates.get(track.output).setValueAtTime(1,context.currentTime);
+                    volume.connect(track.output);
+                }
                 source.onended = () => {
                     track.ended = true;
                     source.disconnect(); volume?.disconnect(); track.source = null;
@@ -499,6 +508,16 @@ export function createMusicEvents() {
             track.started = true; // Cancelar también una pista que aún espera su retraso/carga.
             if (track.source) track.source.stop();
         }
+    }
+
+    function stopLabMusic() {
+        const track=tracks.lab;
+        track.stopped=true;
+        if(track.source)track.source.stop();
+        // Cortar también la cola reverberada al pulsar E; una carga tardía no puede iniciar fuera.
+        if(track.output)musicOutputGates.get(track.output).setValueAtTime(0,context.currentTime);
+        const {url,delay,volume,reverbMix,reverbDecay,loop}=track;
+        tracks.lab={url,delay,volume,reverbMix,reverbDecay,loop,buffer:track.failed?undefined:track.buffer};
     }
 
     function playObservatoryLensChange(stellar) {
@@ -712,7 +731,7 @@ export function createMusicEvents() {
     }
     function getEventDuration(name) { return name==='forest'&&forestPreview.active?forestPreview.duration:tracks[name]?.duration??0; }
     function playWakeSplash() { waterAudio?.playWakeSplash(); }
-    return {updateSkyHeartImpactPosition:position=>interactionAudio?.updateSkyImpactPosition(position),playSkyHeartQuench:position=>interactionAudio?.play('skyQuench',position),playSkyHeartImpact:position=>interactionAudio?.play('skyImpact',position),forestPreview,unlock,setPaused,playWakeSplash,playObservatoryLensChange,setObservatoryGearMoving,resetSeaHeartEvent,playHelmetCrack,playHelmetGlassPop,igniteStoveFire: () => stoveFireAudio?.ignite(),updateStoveFirePosition: state => stoveFireAudio?.updatePosition(state),igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
+    return {updateSkyHeartImpactPosition:position=>interactionAudio?.updateSkyImpactPosition(position),playSkyHeartQuench:position=>interactionAudio?.play('skyQuench',position),playSkyHeartImpact:position=>interactionAudio?.play('skyImpact',position),forestPreview,unlock,setPaused,playWakeSplash,stopLabMusic,playObservatoryLensChange,setObservatoryGearMoving,resetSeaHeartEvent,playHelmetCrack,playHelmetGlassPop,igniteStoveFire: () => stoveFireAudio?.ignite(),updateStoveFirePosition: state => stoveFireAudio?.updatePosition(state),igniteAltarFire: () => altarFireAudio?.ignite(),updateAltarFirePosition: state => altarFireAudio?.updatePosition(state),updateSeaAmbience: state => seaAmbience?.update(state),resetSeaAmbience: () => seaAmbience?.reset(),updateRiverAmbience: state => riverAmbience?.update(state),resetRiverAmbience: () => riverAmbience?.reset(),playWoodcuttingHit,playBedJump,playBedCeilingImpact: () => playBedCeilingSound(0),playBedCeilingRelease: () => playBedCeilingSound(1),playDialogueCharacter,updateWind,updateForestAmbience,resetForestAmbience,updateWaterAudio: state => waterAudio?.update(state),resetWaterAudio: () => waterAudio?.reset(),playChestUnlock,playDoorOpen:position=>interactionAudio?.play('door',position),playDoorClose:position=>interactionAudio?.play('door',position,undefined,true),playDoorKey:position=>interactionAudio?.play('key',position),updateChestUnlockPosition,isChestUnlockPlaying:()=>!!chestUnlockSound,updateForestHeartBeacon,prepareDap,playDap,stopDap,prepare,trigger,update,setUnderwaterPosition,playFootstep,startWind,stopMusic,hasEventStarted,getForestEnergy,isEventActive,getEventTimeRemaining,getEventDuration,getEventPlaybackTime};
 }
 
 export const musicEvents = createMusicEvents();

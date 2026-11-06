@@ -9,15 +9,15 @@ export function getRiverCurrentSpeed(unitSize) {
 
 const crossSections = [[1, 0], [0, 1], [1, 1], [1, -1]];
 const cardinalDirections = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const surfaceWater = new Set(['WATER', 'BOAT', 'SEA_ALGA', 'SEA_CORAL', 'SEA_GRASS', 'SEA_HEART_FRAGMENT']);
 
 // Mayor masa de agua interior conectada al cauce; el mar toca el borde del mapa.
 function findLakeSurface(floorMap, waterDeckMap, river, width, height) {
     const visited = new Uint8Array(river.length), lake = new Uint8Array(river.length);
     const queue = new Int32Array(river.length);
-    const water = new Set(['WATER', 'BOAT', 'SEA_ALGA', 'SEA_CORAL', 'SEA_GRASS', 'SEA_HEART_FRAGMENT']);
     let largest = [];
-    const wet = i => !river[i] && (water.has(floorMap[Math.floor(i / width)][i % width])
-        || water.has(waterDeckMap[Math.floor(i / width)]?.[i % width]));
+    const wet = i => !river[i] && (surfaceWater.has(floorMap[Math.floor(i / width)][i % width])
+        || surfaceWater.has(waterDeckMap[Math.floor(i / width)]?.[i % width]));
     for (let first = 0; first < river.length; first++) {
         if (visited[first] || !wet(first)) continue;
         let count = 1, border = false, adjacentRiver = false;
@@ -45,7 +45,7 @@ export function getRiverLakeDirection(field, unitSize, x, z, target) {
     const gx = Math.floor((x + unitSize / 2) / unitSize), gz = Math.floor((z + unitSize / 2) / unitSize);
     if (gx < 0 || gz < 0 || gx >= field.width || gz >= field.height) return target;
     const i = gz * field.width + gx;
-    if (!field.lakeConnected[i]) return target;
+    if (!field.lakeConnected[i] && !field.seaward?.[i]) return target;
     let next = field.downstream[i];
     for (let step = 0; step < 3 && next >= 0 && field.river[next] && field.downstream[next] >= 0; step++)
         next = field.downstream[next];
@@ -85,7 +85,7 @@ export function getRiverCenterOffset(field, unitSize, x, z, target) {
 }
 
 // Corriente hacia las desembocaduras. La distancia por el cauce evita cruzar tierra.
-export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
+export function createRiverCurrentField(floorMap, waterDeckMap, width, height, seawardReference = null) {
     const river = new Uint8Array(width * height);
     const distance = new Int32Array(width * height).fill(-1);
     const directions = cardinalDirections;
@@ -97,6 +97,13 @@ export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
     const lake = findLakeSurface(floorMap, waterDeckMap, river, width, height);
     for (let i = 0; i < river.length; i++) if (lake[i]) river[i] = 0;
     const lakeConnected = new Uint8Array(river.length);
+    const seaward = new Uint8Array(river.length);
+    let seawardSeed = -1, nearest = Infinity;
+    if (seawardReference) for (let i = 0; i < river.length; i++) {
+        if (!river[i]) continue;
+        const d = (i % width - seawardReference.x) ** 2 + (Math.floor(i / width) - seawardReference.z) ** 2;
+        if (d < nearest) { nearest = d; seawardSeed = i; }
+    }
     const visited = new Uint8Array(river.length);
     const downstream = new Int32Array(river.length).fill(-1);
     for (let start = 0; start < river.length; start++) {
@@ -116,6 +123,24 @@ export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
             }
         }
         if (mouths.length) for (const i of cells) lakeConnected[i] = 1;
+        if (cells.includes(seawardSeed)) {
+            const seaMouths = new Map();
+            for (const i of cells) {
+                const x = i % width, z = Math.floor(i / width);
+                for (const [dx, dz] of directions) {
+                    const nx = x + dx, nz = z + dz;
+                    if (nx < 0 || nz < 0 || nx >= width || nz >= height) continue;
+                    const next = nz * width + nx;
+                    if (!river[next] && !lake[next] && (surfaceWater.has(floorMap[nz][nx]) || surfaceWater.has(waterDeckMap[nz]?.[nx])))
+                        seaMouths.set(i, next);
+                }
+            }
+            if (seaMouths.size) {
+                mouths.length = 0;
+                for (const i of cells) { distance[i] = downstream[i] = -1; seaward[i] = 1; }
+                for (const [i, next] of seaMouths) { mouths.push(i); distance[i] = 0; downstream[i] = next; }
+            }
+        }
         // Tramo aislado: mantener una referencia para la textura, sin arrastre al lago.
         if (!mouths.length) {
             const outlet = cells.reduce((best, i) => i > best ? i : best, start);
@@ -141,8 +166,9 @@ export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
             for (let step = 0; step < 4 && next >= 0 && river[next] && downstream[next] >= 0; step++) next = downstream[next];
             if (next >= 0) { dx = next % width - i % width; dz = Math.floor(next / width) - Math.floor(i / width); }
             else dz = 1;
-            // Corriente visual de oeste a este (+X), también bajo los puentes.
-            dx = 1; dz = 0;
+            // Mantener el aspecto del resto del río; el cauce oriental acompaña
+            // su empuje hacia el mar, también al pasar bajo el puente.
+            if (!seaward[i]) { dx = 1; dz = 0; }
             const length = Math.hypot(dx, dz);
             if (length > 0) { dx /= length; dz /= length; }
         }
@@ -151,5 +177,5 @@ export function createRiverCurrentField(floorMap, waterDeckMap, width, height) {
         data[i * 4 + 2] = river[i] * 255;
         data[i * 4 + 3] = 255;
     }
-    return { data, width, height, river, distance, downstream, lake, lakeConnected };
+    return { data, width, height, river, distance, downstream, lake, lakeConnected, seaward };
 }

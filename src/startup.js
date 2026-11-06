@@ -25,7 +25,6 @@ function start(event) {
     startMenu.removeEventListener('pointerdown', start);
     requestIslandStart();
     loadPlayableWorld();
-    setTimeout(() => musicEvents.prepare('forest').catch(() => {}), 0);
 }
 document.addEventListener('keydown', start);
 if (isTouchMode) startMenu.addEventListener('pointerdown', start);

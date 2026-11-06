@@ -4,6 +4,7 @@ import { createPreviewCoastDistance } from './preview-coast-distance.js';
 import { createPreviewTrees } from './preview-trees.js';
 import { densifyPreviewForest } from './preview-forest-density.js';
 import { carvePreviewRiver } from './preview-river.js';
+import { createPreviewBuildingLightPlacements } from './preview-building-lights.js';
 
 // Azul de referencia: promedio de Agua1_niebla.png del mundo jugable.
 const SEA_COLOR = 0x0172b4;
@@ -194,6 +195,8 @@ export async function createIslandPreviewRenderer(THREE, options) {
         return geometry;
     }
     const buildingLights = [];
+    const houseScale=0.85;
+    const buildingLightPlacements=createPreviewBuildingLightPlacements(model,houseScale);
     let homeFloor = 1;
     for (let i = 0; i < model.roofs.length; i += 5) {
         const [x, z, width, depth, y] = model.roofs.subarray(i, i + 5);
@@ -215,12 +218,14 @@ export async function createIslandPreviewRenderer(THREE, options) {
             part.position.sub(house.position);
             house.add(part);
         }
-        house.scale.setScalar(0.85);
+        house.scale.setScalar(houseScale);
         scene.add(house);
         // Luz cálida junto a la fachada: ilumina el suelo y los árboles cercanos.
         // Las once luces permanecen en la escena para evitar recompilar al alternar día/noche.
         const light = new THREE.PointLight(0xffbb66, 0, Math.max(26, Math.max(width, depth) * 1.25 + 10), 2);
-        light.position.set(centerX, y + 4.5, centerZ + depth * 0.425 + 2);
+        const placement=buildingLightPlacements[i/5];
+        light.position.set(placement.x,placement.y,placement.z);
+        light.name=`preview-building-light:${i/5}:${placement.kind}`;
         scene.add(light);
         buildingLights.push(light);
     }
@@ -282,6 +287,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
     const reduced = options.reduced;
     const smooth = t => t * t * (3 - 2 * t);
     let angle = 0, loadingTime = -1, arrival = -1, lastTime = 0, finished = false;
+    let arrivalStartedAt = 0;
     let loadingFocus = 0, loadingScale = 1, loadingLogVelocity = 0;
     let arrivalScale = 1, arrivalLogVelocity = 0, arrivalAngle = 0;
     let arrivalSouthAngle = 0;
@@ -313,7 +319,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
     };
     async function frame(time) {
         if (finished) return;
-        // Tiempo de fotogramas dibujados: una pausa no salta de golpe el trayecto.
+        // Limitar saltos durante la órbita. El viaje final tiene su propio reloj.
         const delta = lastTime ? Math.min(1 / 30, Math.max(0, (time - lastTime) / 1000)) : 0;
         updateThemeCycle(time);
         updateTheme(delta);
@@ -342,7 +348,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
             loadingScale=zoom.scale;loadingLogVelocity=zoom.logVelocity;
         }
         if (arrival >= 0) {
-            arrival += delta;
+            arrival = Math.min(ARRIVAL_SECONDS, Math.max(0, (time - arrivalStartedAt) / 1000));
         }
         // La preferencia reduce la órbita automática; el viaje solicitado por Enter
         // conserva su zoom final para no sustituirlo por un corte a negro.
@@ -393,11 +399,11 @@ export async function createIslandPreviewRenderer(THREE, options) {
             renderer.render(fadeScene, fadeCamera);
             renderer.autoClear = true;
         }
-        // Solo la llegada exige confirmación del documento para conservar el fundido final.
-        // Durante carga, bloquear aquí devolvería la animación al hilo principal ocupado.
+        // Confirmar el fotograma negro antes de revelar el juego.
+        const finalFrame = arrival >= duration;
+        if (finalFrame) await waitForRenderedFrame(renderer);
         if (options.onPresent) {
-            if (arrival >= 0) await waitForRenderedFrame(renderer);
-            await options.onPresent({phase:arrival < 0 ? loadingTime < 0 ? 'idle' : 'loading' : 'arrival',scale});
+            await options.onPresent({phase:arrival < 0 ? loadingTime < 0 ? 'idle' : 'loading' : 'arrival',scale,finalFrame});
         }
         if (finished) return;
         if (options.diagnostics && (time - lastCameraReport >= 200 || arrival >= duration)) {
@@ -406,15 +412,11 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 seconds: arrival < 0 ? loadingTime : arrival, angle, focus, scale,
                 halfHeight, distance, near: camera.near, far: camera.far, reduced, position: camera.position.toArray(), target: target.toArray(), shade });
         }
-        if (arrival >= 0) {
-            if (arrival >= duration) {
-                finished = true;
-                waitForRenderedFrame(renderer).then(() => {
-                    options.onShade(1);
-                    resolveArrival();
-                }, rejectArrival);
-                return;
-            }
+        if (finalFrame) {
+            finished = true;
+            options.onShade(1);
+            resolveArrival();
+            return;
         }
         schedule(frame);
     }
@@ -439,6 +441,7 @@ export async function createIslandPreviewRenderer(THREE, options) {
                 const turn = Math.PI * 2;
                 const minimumArc = reduced ? 0 : arrivalOrbitSpeed * ARRIVAL_SECONDS * 0.5;
                 arrivalSouthAngle = Math.ceil((angle + minimumArc) / turn) * turn;
+                arrivalStartedAt = performance.now();
                 arrival = 0;
             }
             return arrivalDone;

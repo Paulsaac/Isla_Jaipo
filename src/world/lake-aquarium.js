@@ -1,3 +1,5 @@
+import {createAquariumSwimmers} from './aquarium-swimmers.js';
+
 // Paisaje acuático visible tras el ventanal. Comparte los sprites submarinos originales.
 export async function createLakeAquarium(THREE,loader,layout,textures,roomOrigin) {
     const {width,depth,height,frontZ}=layout,half=width/2;
@@ -92,5 +94,15 @@ export async function createLakeAquarium(THREE,loader,layout,textures,roomOrigin
         }
         plantCount+=count;mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();group.add(mesh);
     }
-    return {group,plantCount,layout:{width,depth,height},update(delta){time.value+=delta;},get time(){return time.value;}};
+    const swimmers=createAquariumSwimmers(THREE,{width,depth,height},bedHeight);
+    group.add(swimmers.points);
+    swimmers.update(0,720);
+    const localViewer=new THREE.Vector3();
+    return {group,plantCount,layout:{width,depth,height},
+        update(delta,viewportHeight=720,viewer){
+            time.value+=delta;
+            if(viewer){group.updateWorldMatrix(true,false);group.worldToLocal(localViewer.copy(viewer));}
+            swimmers.update(delta,viewportHeight,viewer?localViewer:undefined);
+        },
+        get time(){return time.value;}};
 }

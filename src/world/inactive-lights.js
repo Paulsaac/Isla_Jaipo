@@ -38,9 +38,17 @@ export function prepareInactiveLights(THREE, root, interiorMask = null) {
                 }
                 // La condición usa color uniforme y conserva íntegro el cálculo de luces encendidas.
                 const guarded = 'if (any(notEqual(pointLight.color, vec3(0.0)))) {\n' + body + '\n}';
+                let beforePointLight = chunk.slice(0, start);
+                let afterPointLight = chunk.slice(end);
+                if (renderer.capabilities.isWebGL2 && !renderer.shadowMap.enabled) {
+                    // Sin samplers de sombras, un bucle conserva el orden y evita expandir
+                    // todo el cálculo de iluminación una vez por luz en cada programa.
+                    beforePointLight = beforePointLight.replace('#pragma unroll_loop_start', '');
+                    afterPointLight = afterPointLight.replace('#pragma unroll_loop_end', '');
+                }
                 shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>',
-                    (interiorMask ? chunk.slice(0, start).replace('IncidentLight directLight;',
-                        'IncidentLight directLight;\n' + (doorRoom?'vec3 interiorWorldPosition = geometryPosition * mat3(viewMatrix) + cameraPosition;\nvec4 interiorReceiverRoom=vec4(interiorDoorRoom,0.0,0.0,1.0);':interiorMask.receiver)) : chunk.slice(0, start)) + guarded + chunk.slice(end));
+                    (interiorMask ? beforePointLight.replace('IncidentLight directLight;',
+                        'IncidentLight directLight;\n' + (doorRoom?'vec3 interiorWorldPosition = geometryPosition * mat3(viewMatrix) + cameraPosition;\nvec4 interiorReceiverRoom=vec4(interiorDoorRoom,0.0,0.0,1.0);':interiorMask.receiver)) : beforePointLight) + guarded + afterPointLight);
             };
             material.customProgramCacheKey = () => key + '-inactive-point-lights-v2' + (interiorMask ? '-interior-mask-v2-'+interiorMask.shaderKey : '')+(doorRoom?'-door-room-v2':'');
         }

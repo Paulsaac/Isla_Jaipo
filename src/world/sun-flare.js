@@ -58,6 +58,27 @@ export function createSunFlare(sun, camera, renderer) {
     let lastUpdate = performance.now();
     return {
         object: flare,
+        prepare(world) {
+            // Lensflare crea tres programas internos al mirar al sol por primera
+            // vez. Prepararlos fuera de pantalla sin avanzar su fundido ni cámara.
+            const view = camera.clone(), target = new THREE.WebGLRenderTarget(64,64);
+            const previous = renderer.getRenderTarget();
+            const preparation = new THREE.Scene();
+            preparation.fog = world.fog;
+            const proxy = new THREE.Mesh(flare.geometry,flare.material);
+            proxy.frustumCulled = false;
+            proxy.onBeforeRender = flare.onBeforeRender.bind(flare);
+            preparation.add(proxy);
+            try {
+                flare.updateWorldMatrix(true,false);
+                camera.getWorldPosition(view.position);
+                view.lookAt(flare.getWorldPosition(new THREE.Vector3()));
+                view.updateMatrixWorld(true);
+                renderer.setRenderTarget(target);renderer.render(preparation,view);
+            } finally {
+                renderer.setRenderTarget(previous);target.dispose();
+            }
+        },
         update() {
             const now = performance.now();
             const delta = Math.min((now - lastUpdate) / 1000, 0.1);

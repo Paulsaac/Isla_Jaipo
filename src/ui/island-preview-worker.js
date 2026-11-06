@@ -16,9 +16,9 @@ self.onmessage = async ({data}) => {
                 onError: error => self.postMessage({type:'error',message:error.message}),
                 onPresent: state => {
                     const id = ++frameId;
-                    if (state.phase !== 'arrival') {
+                    if (!state.finalFrame) {
                         // El canvas se compone por sí mismo; no esperar al hilo que carga el mundo.
-                        self.postMessage({type:'frame',id,state});
+                        if (data.diagnostics) self.postMessage({type:'frame',id,state});
                         return;
                     }
                     return new Promise(resolve => {

@@ -32,15 +32,22 @@ export function createFogCulling(THREE, scene, excludedRoots, residual = 0.0001)
         camera.getWorldDirection(direction);
         const density = scene.fog?.isFogExp2 ? scene.fog.density : 0;
         const distance = density > 0 ? Math.sqrt(-Math.log(residual)) / density : camera.far;
-        // La niebla usa profundidad de cámara, no distancia radial al jugador.
+        const horizonStart = density > 0 ? (scene.fog.horizonStart ?? 0) : 0;
+        const viewScale=density>0?(scene.fog.viewDepthScale ?? 0):0;
+        const viewLimit=viewScale>0.0001?(scene.fog.viewStart ?? 0)+distance/viewScale:Infinity;
+        // Relieve y exteriores altos ya se disuelven por distancia radial:
+        // evitar sus subidas al inclinar la cámara aunque no produzcan píxeles.
         plane.normal.copy(direction).negate();
-        plane.constant = direction.dot(position) + distance;
+        plane.constant = direction.dot(position) + Math.min(horizonStart+distance,viewLimit);
         for (const object of objects) {
             object.updateWorldMatrix(true, false);
             if (!object.geometry.boundingSphere) object.geometry.computeBoundingSphere();
             sphere.copy(object.geometry.boundingSphere).applyMatrix4(object.matrixWorld);
             const multiplier = Math.max(1, object.userData.fogDistanceMultiplier ?? 1);
-            object.visible = object.userData.visibilityEnabled !== false && plane.distanceToPoint(sphere.center) + distance * (multiplier - 1) >= -sphere.radius;
+            const radialVisible = !(object.userData.fogRadialCulling || object.userData.mountainFogExterior) || !Number.isFinite(viewLimit)
+                || sphere.center.distanceToSquared(position) <= (viewLimit + sphere.radius + distance * (multiplier - 1)) ** 2;
+            object.visible = object.userData.visibilityEnabled !== false && radialVisible
+                && plane.distanceToPoint(sphere.center) + distance * (multiplier - 1) >= -sphere.radius;
         }
         return plane;
     }

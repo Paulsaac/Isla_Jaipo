@@ -1,3 +1,7 @@
+# Integración de la copia local después del PR #15 — Clawshoot / Codex — 2026-11-06
+
+PR #15 se fusionó en `main` con commit `98c01a3283648df3b286ae1d32c6ff34aa572bc6`. Se reincorporaron sobre esa base los cambios locales de casa circular del lago, sala metálica, acuario/vegetación, carga y música del laboratorio. El código y recursos locales se publican en la rama `codex/integracion-local-20261106` para revisión. Se resolvieron conflictos en `HANDOFF.md`, `game.js`, `src/systems/music-events.js`, `src/ui/hud.js` y `src/ui/render-ready.js`, conservando cambios de PR y locales; `render-ready.js` admite tanto callbacks de progreso como listas explícitas por lotes. `git diff --check` y `node --check` en los módulos afectados pasaron. No se hicieron pruebas integrales de juego ni móvil físico.
+
 # Cierre AXBYZ — Codex — 2026-11-05
 
 Cierre y PR pedidos explícitamente por AxByZ. Rama `codex/axbyz-bosque-cima-20261105`, base `821da42` de `Paulsaac/Isla_Jaipo:main`, confirmada con remoto. Esta autorización incluye commit/push y apertura de PR para revisión; no merge. Sesión en `D:/Isla_Jaipo`; bloqueo propio se libera al completar la publicación. Las entradas anteriores se conservan.
@@ -27,6 +31,29 @@ El usuario pide GIF tras cambios visuales, siempre con CRT salvo indicación con
 No incorporar `sonidos/fx/isla_menu.wav` (cambio previo), `.codex-remote-attachments/`, `exports/telescopio/telescopio.blend1`, `imagenes/Sprites/corazon-cielo-original.png` ni `sonidos/fx/sky-heart-impact-original.mp3`. `Luna_B_128.png` es una variante rechazada de esta sesión, conservada localmente y excluida. La variante final `Luna_B_pixel128.png` sí forma parte del PR. No borrar los excluidos.
 
 Servidores y túnel conservados según instrucción persistente: desarrollo `127.0.0.1:8000` (PID13164), copia pública aislada `.coordination/public-preview-20261105-2` en 8001 (PID24908), cloudflared PID8024. URL temporal: https://graduates-wal-gore-land.trycloudflare.com . Sin exponer el checkout completo ni sus originales privados. La copia pública contiene los últimos cambios; futuras ediciones deben sincronizarla. Cerrar sesión no autoriza apagar estos procesos.
+# Diseño estético: casa circular del lago — Clawshoot / Codex — 2026-11-04
+
+Clawshoot confirmó que el chat de rendimiento dejó de editar y autorizó recuperar `bfa29314-1034-433e-af88-55a373497455`. Se liberó con `finish` y se adquirió `b2cd0eb0-d990-41f7-a6c0-18b5f2d4d135`. Base `main` en `821da42` con cambios previos conservados.
+
+- `src/world/lake-house.js` sustituye el domo por una casa circular facetada de piedra, tejado cónico con dos buhardillas y porche oriental. Comparte las texturas de piedra, madera, tejado y puerta de las casas. Conserva el centro, la puerta del mapa, el cofre y la escotilla exterior. Ajusta colisiones, techo interior y posiciones de las cuatro antorchas a los muros nuevos. Se conservan los mapas fuente.
+- Node y `git diff --check` correctos. Edge sobre el servidor local cargó la casa sin errores de página. Verificó colisiones de puerta cerrada, recorrido libre con la puerta abierta, muros y pilares, presencia de cofre/escotilla y distancia de 0,035 m al muro para las antorchas exteriores. Dos vistas revisadas en `.coordination/lake-round-house-20261104.png` y `.coordination/lake-round-house-side-20261104.png`. Prueba instrumentada de colisiones y presencia de entidades, sin completar la interacción del laboratorio.
+
+# Servidor local LAN activo — Clawshoot / Codex — 2026-11-05
+
+Servidor LAN de esta copia ejecutado con `node tools/serve.cjs --lan --port=8001`, PID 29216. `main` coincide con `origin/main` en `821da42`; se conservan los cambios locales pendientes. `http://127.0.0.1:8001/` y `http://192.168.1.100:8001/?touch=1` respondieron HTTP 200. Mantener activo hasta orden expresa de apagado; no se cambió firewall.
+
+# Rendimiento del primer arranque — Clawshoot / Codex — 2026-11-03
+
+Clawshoot confirmó que la sesión de interfaz dejó de editar y autorizó recuperar su bloqueo. Se liberó `efc17849-8760-414e-8e9a-e6657706d6e4` y se adquirió `bfa29314-1034-433e-af88-55a373497455` para esta sesión. Base `main` en `821da42` con cambios locales previos de otros ámbitos, conservados.
+
+- `game.js` y `src/ui/render-ready.js` preparan por tandas los programas del encuadre inicial y esperan el dibujo de la casa antes del acercamiento. La vegetación marina se construye al acercarse al agua o entrar en ella. El acuario del lago comparte sus siete imágenes y las solicita durante la construcción del mundo. `src/world/inactive-lights.js` conserva el cálculo de luces puntuales en un bucle en WebGL 2 sin sombras.
+- `src/startup.js` y `game.js` solicitan la canción de Bosque al completar el diálogo que entrega la antorcha. `src/ui/island-preview-renderer.js`, `src/ui/island-preview-worker.js` y `src/ui/saved-island-preview.js` controlan el acercamiento por tiempo transcurrido y confirman el fotograma negro antes de revelar el juego.
+- Edge headless a 1280×720 con RTX 3060, servidor local y caché HTTP desactivada. Antes se alcanzaron 80 s desde Enter sin iniciar el acercamiento. Con el cambio, la casa quedó visible a los 20,0 s en escritorio y 22,0 s en la última ejecución táctil emulada. Una comparación aislada de 28 luces con máscara interior produjo los mismos píxeles en ambas versiones. Con fotogramas espaciados al menos 67 ms, el fundido llegó a negro en 2,47 s en worker y 2,42 s en el respaldo con movimiento reducido.
+- Prueba instrumentada del diálogo de Graham con el juego cargado. Cero solicitudes de la canción antes de la recompensa, una respuesta HTTP 200 al recibir la antorcha y el evento aún inactivo. La geometría marina seguía sin preparar al revelar la casa y estuvo lista al probar la primera inmersión. Sintaxis de los siete módulos y `git diff --check` correctos. Pendiente medición en teléfono físico y conexión externa.
+
+# Interfaz: recuperación para empuje del río — 2026-10-26
+
+Clawshoot confirmó que el otro chat dejó de editar y autorizó recuperar el bloqueo Codex `ceb01e0a-0c92-415b-86f7-8aeaec18c11e`. Liberado mediante finish y adquirido token propio `efc17849-8760-414e-8e9a-e6657706d6e4`, activo entre pedidos. Alcance: empuje del río de la isla al sumergirse con escafandra, en el sentido y a la velocidad de la animación existente. Se conserva el cambio previo del servidor al final de este documento; sin gestión del servidor ni publicación automática.
 
 # Diseño estético: recuperación para casa del lago — 2026-10-26
 
@@ -1224,7 +1251,6 @@ Por orden explícita del usuario se cierra esta sesión para continuar el merge 
 etstat -ano no muestra listeners en los puertos 8000, 8001, 8002 ni 8003; no aparecen procesos 
 ode ni cloudflared. No hubo procesos de servidor/túnel de esta copia que detener. La rama codex/observatorio-huerto-montana-20261024 y el PR #10 siguen intactos; no se hizo merge. Se libera únicamente el bloqueo propio con 	ools/session.ps1 finish para que el siguiente chat pueda adquirirlo.
 
-
 ## Servidores solicitados en este chat — 2026-10-28
 - A petición expresa del usuario se iniciaron los servidores de esta copia, sin cerrar la sesión de edición.
 - Local: http://127.0.0.1:8000/ — PID 24384, tools/serve.cjs.
@@ -1262,7 +1288,6 @@ Publicado PR https://github.com/Paulsaac/Isla_Jaipo/pull/13, commit de producto6
 
 ### Comprobación final del cierre
 PR13 abierto, sin fusionar y mergeable confirmado porGitHub. Respaldo completo verificado: .coordination/backups/Isla_Jaipo_2026-10-29_AXBYZ_cierre.zip,5323archivos,1,729,217,012bytes,CRC PASS, SHA256 2b2526f3dae520cd3878df49a95a970037fee2ff490497e732cff94b9fbca97f. Este registro documental final se acompaña en bundle incremental de respaldo junto alZIP para conservar también el commit de auditoría posterior. Localhost8000 yLAN8001 HTTP200 confirmados; no se apagó ningún servidor/túnel. Índice sin cambios; quedan10archivos modificados y recursos independientes no seguidos, todos preservados y respaldados. Se libera únicamente la sesión propia; pendientes de revisión/merge a cargo deClawshoot y pruebas físicas/auditivas indicadas en relevo.
-
 ## Cierre de sesión — 2026-10-30 — ajustes de juego y presentación
 
 Por instrucción explícita de AXBYZ se prepara publicación en una nueva PR hacia `main` (PR #13 ya integrado). Esta entrega agrupa las peticiones posteriores: inventario/objetos equipados, escafandra y rescate, corazón celeste, observatorio, Graham y sus interiores, puertas/iluminación, efectos visuales y controles. La política final de ahogo devuelve al punto submarino del evento solo con escafandra puesta durante la búsqueda incompleta; los demás ahogos regresan a la casa de Graham. Aire normal: 5 s. Decisiones duraderas en `DECISIONS.md`.
@@ -1272,3 +1297,6 @@ Verificación: `git diff --check`; sintaxis Node de los módulos modificados. Se
 Servidores y túnel se conservan activos por instrucción expresa: local `http://127.0.0.1:8000/`, LAN `http://192.168.4.89:8001/` y Cloudflare `https://albany-exec-start-robust.trycloudflare.com/`; HTTP 200 verificado. Adjuntos privados, respaldos de sprites/audio y respaldo Blender se preservan y se excluyen del PR. La rama de trabajo es `codex/bosque-pulido-20261029`; no fusionar automáticamente. PR: pendiente de creación durante este cierre.
 
 Publicación final del cierre 2026-10-30: PR #14 abierta, sin fusionar, https://github.com/Paulsaac/Isla_Jaipo/pull/14. Commit 8172c0870b247ca01f88fb8faa5e1a0ebc19a576; rama `codex/bosque-pulido-20261029` publicada. El hook pre-push de Git LFS no pudo ejecutarse porque `git-lfs` falta; se omitió únicamente para este push tras verificar que no cambió ningún archivo cubierto por LFS. Local, LAN y Cloudflare continúan respondiendo HTTP 200; procesos preservados.
+## Registro histórico del servidor LAN — 2026-10-26
+
+En esa fecha se registró el servidor de esta copia con `node tools/serve.cjs --lan --port=8001`, PID 7956, escuchando en `0.0.0.0:8001`, HTTP 200 en `http://127.0.0.1:8001/` e IP Wi-Fi `192.168.1.100` (`http://192.168.1.100:8001/?touch=1` para móvil). Es un registro histórico; no confirma el estado actual del proceso o de la red.

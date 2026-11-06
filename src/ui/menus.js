@@ -254,12 +254,12 @@ export function createMenus({ onResume, onUseItem, onDialogueCharacter }) {
         if(item==='torch')inventoryPreview.setTorchLit(active);
     }
     function setItemDescription(text) { description.textContent = text; }
-    function setSeaHeartState(count, complete) {
+    function setSeaHeartState(count, complete, total=10) {
         itemButtons['sea-heart'].style.display = count > 0 ? 'block' : 'none';
         seaHeartIcon.src = complete ? './imagenes/Sprites/corazon-mar.png' : './imagenes/Sprites/fragmento-mar.png';
-        seaHeartCount.textContent = complete ? '' : `${count}/10`;
+        seaHeartCount.textContent = complete ? '' : `${count}/${total}`;
         seaHeartIcon.alt = complete ? 'Corazón del Mar' : 'Fragmentos del Corazón del Mar';
-        itemButtons['sea-heart'].setAttribute('aria-label',complete ? 'Ver Corazón del Mar' : `Ver fragmentos del Corazón del Mar: ${count} de 10`);
+        itemButtons['sea-heart'].setAttribute('aria-label',complete ? 'Ver Corazón del Mar' : `Ver fragmentos del Corazón del Mar: ${count} de ${total}`);
         inventoryPreview.setSeaHeartComplete(complete);
     }
     function setHelmetState(owned, equipped, broken = false, cracked = broken) {
