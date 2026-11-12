@@ -1,3 +1,4 @@
+import { isChannelActive, onChannelChange } from './src/input/channel-state.js';
 import { createBeachPlankTableGeometry, createRusticBeachChairGeometry } from './src/world/rustic-beach-furniture.js';
 import { createBeachSwimmers } from './src/world/beach-swimmers.js';
 import { createHeldMate } from './src/player/held-mate.js';
@@ -864,7 +865,7 @@ function startReadyGame(event) {
     if (event.button === 0 && mapLoaded && !gameStarted) resumeGame();
 }
 function resumeGame() {
-    if (isDead || !mapLoaded || observatoryMenu.active || gardenNote.active) return;
+    if (!isChannelActive() || isDead || !mapLoaded || observatoryMenu.active || gardenNote.active) return;
     if(isInventoryOpen){inventoryRunning=isInventoryOpen=false;menus.hideInventory();}
     if (isTouchMode) {
         musicEvents.unlock();
@@ -1294,6 +1295,12 @@ testMode.subscribe(enabled=>{
 });
 
 controls.addEventListener('lock', () => {
+    if (!isChannelActive()) {
+        controls.isLocked = false;
+        if (document.pointerLockElement) document.exitPointerLock();
+        musicEvents.setPaused(true);
+        return;
+    }
     if (isDead || !mapLoaded) return;
     readyPlayPrompt.hidden=true;
     // Cambiar entrada raw/ajustada conserva la captura y vuelve a emitir lock;
@@ -2731,7 +2738,11 @@ Promise.all([
     if (!isTouchMode) controls.connect();
     mapLoaded = true;
     loadingScreen.style.display = 'none';
-    if (isTouchMode) {
+    if (!isChannelActive()) {
+        musicEvents.setPaused(true);
+        readyPlayPrompt.hidden = true;
+        menus.showPause();
+    } else if (isTouchMode) {
         resumeGame();
     } else {
         renderer.domElement.addEventListener('click', startReadyGame);
@@ -4903,6 +4914,11 @@ let nextFrame = 0;
 let previousRenderedTimestamp;
 function animate(timestamp = performance.now()) {
     requestAnimationFrame(animate);
+    if (!isChannelActive()) {
+        clock.getDelta();
+        previousRenderedTimestamp = undefined;
+        return;
+    }
     if (timestamp + 0.1 < nextFrame) return;
     const frameStart = performancePanel ? performance.now() : 0;
     nextFrame += FRAME_INTERVAL;
@@ -6310,6 +6326,20 @@ function prepareWaterGraphics() {
     prepareViewEffects();
     prepareUnderwaterPlants().catch(error => console.warn('No se pudo preparar la vegetación submarina:', error));
 }
+
+onChannelChange(active => {
+    // No acumular tiempo de física/cámara mientras otro canal está visible.
+    clock.getDelta();
+    previousRenderedTimestamp = undefined;
+    nextFrame = 0;
+    if (active) return; // Volver al canal mantiene la pausa hasta el gesto del jugador.
+    if (mapLoaded && !isDead) {
+        pauseGame();
+        readyPlayPrompt.hidden = true;
+        menus.showPause();
+    }
+    musicEvents.setPaused(true);
+});
 
 animate();
 

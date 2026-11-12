@@ -1,15 +1,17 @@
 // La rampa de audio continúa aunque la carga ocupe el hilo principal.
+import { isChannelActive, onChannelChange } from '../input/channel-state.js';
 const audio = new Audio('./sonidos/fx/isla_menu_web.mp3');
 audio.loop = true;
 audio.preload = 'metadata';
 let context = null, gain = null, ending = false, stopTimer = null;
+let started = false;
 
 function removeUnlock() {
     document.removeEventListener('pointerdown', start);
     document.removeEventListener('keydown', start);
 }
 function start() {
-    if (ending) return;
+    if (ending || !isChannelActive()) return;
     if (!context) {
         context = new (window.AudioContext || window.webkitAudioContext)();
         gain = context.createGain();
@@ -18,7 +20,7 @@ function start() {
         gain.connect(context.destination);
     }
     context.resume().then(() => {
-        if (ending) return;
+        if (ending || !isChannelActive()) return;
         return audio.play().then(removeUnlock);
     }).catch(error => {
         // Si se bloquea autoplay, el siguiente gesto vuelve a intentarlo.
@@ -35,6 +37,7 @@ function stop() {
 }
 export const menuMusic = {
     start() {
+        started = true;
         document.addEventListener('pointerdown', start);
         document.addEventListener('keydown', start);
         start();
@@ -52,3 +55,10 @@ export const menuMusic = {
     },
     stop
 };
+
+onChannelChange(active => {
+    if (!active) {
+        audio.pause();
+        if (context && context.state !== 'closed') context.suspend().catch(() => {});
+    } else if (started && !ending) start();
+});

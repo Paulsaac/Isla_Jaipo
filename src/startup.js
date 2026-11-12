@@ -1,4 +1,5 @@
 // Mostrar la maqueta guardada antes de cargar el mundo jugable.
+import { isChannelActive, onChannelChange } from './input/channel-state.js';
 import { musicEvents } from './systems/music-events.js';
 import './ui/crt-filter.js';
 import { isTouchMode } from './input/touch-mode.js';
@@ -7,6 +8,7 @@ import { createSavedIslandPreview } from './ui/saved-island-preview.js';
 import { menuMusic } from './ui/menu-music.js';
 import {beginLoadingPointerCapture} from './input/loading-pointer-capture.js';
 menuMusic.start();
+onChannelChange(active => { if (!active) musicEvents.setPaused(true); });
 let loading = false;
 const startMenu = document.getElementById('main-menu');
 if (isTouchMode) {
@@ -17,7 +19,7 @@ if (isTouchMode) {
     document.getElementById('touch-guide').hidden = false;
 }
 function start(event) {
-    if ((event.type === 'keydown' && event.code !== 'Enter') || event.repeat || loading) return;
+    if (!isChannelActive() || (event.type === 'keydown' && event.code !== 'Enter') || event.repeat || loading) return;
     loading = true;
     if(!isTouchMode)beginLoadingPointerCapture();
     musicEvents.unlock();
